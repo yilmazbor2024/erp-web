@@ -13,11 +13,23 @@ import {
   TextField,
   IconButton,
   Pagination,
-  Box
+  Box,
+  Button,
+  Tooltip
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon, Search as SearchIcon } from '@mui/icons-material';
+import { 
+  Edit as EditIcon, 
+  Delete as DeleteIcon, 
+  Search as SearchIcon, 
+  Visibility as VisibilityIcon,
+  Place as PlaceIcon,
+  Phone as PhoneIcon,
+  Mail as MailIcon,
+  Add as AddIcon
+} from '@mui/icons-material';
 import { useCustomerList } from '../../hooks/useCustomerList';
 import { Customer } from '../../types/customer';
+import { useNavigate } from 'react-router-dom';
 
 interface CustomerListProps {
   isMobile: boolean;
@@ -27,6 +39,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
   const [page, setPage] = React.useState(1);
   const [searchTerm, setSearchTerm] = React.useState('');
   const { data, isLoading, error } = useCustomerList({ page, searchTerm });
+  const navigate = useNavigate();
 
   if (isLoading) return <div>Yükleniyor...</div>;
   if (error) return <div>Hata oluştu: {error.message}</div>;
@@ -41,9 +54,34 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
     setPage(1);
   };
 
+  const handleViewCustomer = (customerCode: string) => {
+    // Detay sayfası artık hazır olduğu için direkt yönlendiriyoruz
+    navigate(`/customers/${customerCode}`);
+  };
+
+  const handleEditCustomer = (customerCode: string) => {
+    navigate(`/customers/edit/${customerCode}`);
+  };
+
+  const handleAddCustomer = () => {
+    navigate('/customers/new');
+  };
+
   if (isMobile) {
     return (
       <Box p={2}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6">Müşteriler</Typography>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<AddIcon />}
+            onClick={handleAddCustomer}
+          >
+            Yeni
+          </Button>
+        </Box>
+        
         <TextField
           fullWidth
           variant="outlined"
@@ -55,6 +93,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
           }}
           sx={{ mb: 2 }}
         />
+        
         <Box sx={{ display: 'grid', gap: 2 }}>
           {data.customers.map((customer) => (
             <Card key={customer.customerCode}>
@@ -70,13 +109,17 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
                 <Typography variant="body2">
                   {customer.cityDescription} / {customer.districtDescription}
                 </Typography>
-                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                  <IconButton size="small" color="primary">
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton size="small" color="error">
-                    <DeleteIcon />
-                  </IconButton>
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                  <Tooltip title="Detay Görüntüle">
+                    <IconButton size="small" color="primary" onClick={() => handleViewCustomer(customer.customerCode)}>
+                      <VisibilityIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Düzenle">
+                    <IconButton size="small" color="primary" onClick={() => handleEditCustomer(customer.customerCode)}>
+                      <EditIcon />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
               </CardContent>
             </Card>
@@ -95,6 +138,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
 
   return (
     <Box p={2}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h5">Müşteriler</Typography>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          startIcon={<AddIcon />}
+          onClick={handleAddCustomer}
+        >
+          Yeni Müşteri
+        </Button>
+      </Box>
+      
       <TextField
         fullWidth
         variant="outlined"
@@ -106,6 +161,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
         }}
         sx={{ mb: 2 }}
       />
+      
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -115,7 +171,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
               <TableCell>Şehir</TableCell>
               <TableCell>İlçe</TableCell>
               <TableCell>Durum</TableCell>
-              <TableCell>İşlemler</TableCell>
+              <TableCell align="center">İşlemler</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -134,13 +190,34 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
                     <span style={{ color: 'green' }}>Aktif</span>
                   }
                 </TableCell>
-                <TableCell>
-                  <IconButton size="small" color="primary">
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton size="small" color="error">
-                    <DeleteIcon />
-                  </IconButton>
+                <TableCell align="center">
+                  <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
+                    <Tooltip title="Detay Görüntüle">
+                      <IconButton size="small" color="info" onClick={() => handleViewCustomer(customer.customerCode)}>
+                        <VisibilityIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Düzenle">
+                      <IconButton size="small" color="primary" onClick={() => handleEditCustomer(customer.customerCode)}>
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Adresler">
+                      <IconButton size="small" color="secondary">
+                        <PlaceIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="İletişim">
+                      <IconButton size="small" color="success">
+                        <PhoneIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="E-posta">
+                      <IconButton size="small" color="warning">
+                        <MailIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}
