@@ -67,6 +67,22 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
     navigate('/customers/new');
   };
 
+  const renderPagination = () => {
+    const totalPages = data ? Math.ceil(data.totalCount / 10) : 0;
+    
+    return (
+      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+        <Pagination 
+          count={totalPages} 
+          page={page} 
+          onChange={handlePageChange} 
+          color="primary"
+          size={isMobile ? "small" : "medium"}
+        />
+      </Box>
+    );
+  };
+
   if (isMobile) {
     return (
       <Box p={2}>
@@ -125,13 +141,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
             </Card>
           ))}
         </Box>
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-          <Pagination 
-            count={Math.ceil(data.totalCount / 10)} 
-            page={page} 
-            onChange={handlePageChange} 
-          />
-        </Box>
+        {renderPagination()}
       </Box>
     );
   }
@@ -224,13 +234,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
           </TableBody>
         </Table>
       </TableContainer>
-      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-        <Pagination 
-          count={Math.ceil(data.totalCount / 10)} 
-          page={page} 
-          onChange={handlePageChange} 
-        />
-      </Box>
+      {renderPagination()}
     </Box>
   );
 }; 

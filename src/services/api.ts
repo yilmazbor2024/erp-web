@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ApiResponse, PagedResponse } from '../api-helpers';
 
 const api = axios.create({
   baseURL: 'http://localhost:5180',
@@ -391,28 +392,19 @@ export interface CustomerFilterRequest {
   cityCode?: string;
   districtCode?: string;
   isBlocked?: boolean;
+  pageNumber?: number;
+  pageSize?: number;
+  sortColumn?: string;
+  sortDirection?: string;
 }
 
 // Customer API
 export const customerApi = {
-  getCustomers: async (filter?: CustomerFilterRequest): Promise<CustomerListResponse[]> => {
-    const params = new URLSearchParams();
-    
-    if (filter) {
-      if (filter.customerCode) params.append('customerCode', filter.customerCode);
-      if (filter.customerName) params.append('customerName', filter.customerName);
-      if (filter.taxNumber) params.append('taxNumber', filter.taxNumber);
-      if (filter.taxOffice) params.append('taxOffice', filter.taxOffice);
-      if (filter.customerTypeCode) params.append('customerTypeCode', filter.customerTypeCode.toString());
-      if (filter.discountGroupCode) params.append('discountGroupCode', filter.discountGroupCode);
-      if (filter.paymentPlanGroupCode) params.append('paymentPlanGroupCode', filter.paymentPlanGroupCode);
-      if (filter.regionCode) params.append('regionCode', filter.regionCode);
-      if (filter.cityCode) params.append('cityCode', filter.cityCode);
-      if (filter.districtCode) params.append('districtCode', filter.districtCode);
-      if (filter.isBlocked !== undefined) params.append('isBlocked', filter.isBlocked.toString());
-    }
-    
-    const response = await api.get<CustomerListResponse[]>(`/api/v1/customer?${params.toString()}`);
+  getCustomers: async (filter?: CustomerFilterRequest): Promise<ApiResponse<PagedResponse<CustomerListResponse>>> => {
+    const response = await api.get<ApiResponse<PagedResponse<CustomerListResponse>>>(
+      '/api/v1/Customer/customers', 
+      { params: filter }
+    );
     return response.data;
   },
   
