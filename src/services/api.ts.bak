@@ -464,7 +464,10 @@ export interface CustomerFilterRequest {
 // Customer API
 export const customerApi = {
   getCustomers: async (filter?: CustomerFilterRequest): Promise<ApiResponse<PagedResponse<CustomerListResponse>>> => {
-    const response = await api.get<ApiResponse<PagedResponse<CustomerListResponse>>>('/api/v1/Customer/customers', { params: filter });
+    const response = await api.get<ApiResponse<PagedResponse<CustomerListResponse>>>(
+      '/api/v1/Customer/customers', 
+      { params: filter }
+    );
     return response.data;
   },
   
@@ -531,6 +534,27 @@ export const customerApi = {
   
   createCustomerAddress: async (customerCode: string, address: any): Promise<ApiResponse<AddressResponse>> => {
     const response = await api.post<ApiResponse<AddressResponse>>(`/api/v1/Customer/${customerCode}/addresses`, address);
+    return response.data;
+  },
+
+  // Cities and districts
+  getCitiesByRegion: async (regionCode: string) => {
+    const response = await api.get(`/api/v1/customers/cities?regionCode=${regionCode}`);
+    return response.data;
+  },
+
+  getDistrictsByCity: async (cityCode: string) => {
+    const response = await api.get(`/api/v1/customers/districts?cityCode=${cityCode}`);
+    return response.data;
+  },
+
+  getAddressTypes: async () => {
+    const response = await api.get('/api/v1/customers/address-types');
+    return response.data;
+  },
+
+  getAddressTypeByCode: async (code: string) => {
+    const response = await api.get(`/api/v1/customers/address-types/${code}`);
     return response.data;
   }
 };

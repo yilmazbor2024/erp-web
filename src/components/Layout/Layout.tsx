@@ -4,10 +4,13 @@ import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import MobileBottomMenu from './MobileBottomMenu';
+import { useAuth } from '../../contexts/AuthContext';
 
 const { Content } = AntLayout;
 
 const Layout: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
       <Sidebar />
