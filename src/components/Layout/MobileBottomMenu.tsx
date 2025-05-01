@@ -27,6 +27,12 @@ const MobileBottomMenu: React.FC = () => {
     }
   };
 
+  const handleNavigation = (path: string | undefined) => {
+    if (path) {
+      navigate(path);
+    }
+  };
+
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
       <div className="grid grid-cols-4 h-16">
@@ -36,7 +42,7 @@ const MobileBottomMenu: React.FC = () => {
           return (
             <div
               key={item.id}
-              onClick={() => navigate(item.path || '')}
+              onClick={() => handleNavigation(item.path)}
               className={`
                 flex flex-col items-center justify-center cursor-pointer
                 transition-all duration-200 relative
@@ -63,4 +69,4 @@ const MobileBottomMenu: React.FC = () => {
   );
 };
 
-export default MobileBottomMenu; 
+export default MobileBottomMenu;
