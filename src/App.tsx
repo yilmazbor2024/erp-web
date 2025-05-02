@@ -15,6 +15,9 @@ import MainLayout from './components/Layout/Layout';
 import Login from './pages/Login';
 import { AuthProvider } from './contexts/AuthContext';
 
+// Session Management
+import SessionTimeoutManager from './components/SessionManager/SessionTimeoutManager';
+
 // Dashboard
 import Dashboard from './pages/Dashboard';
 
@@ -35,6 +38,11 @@ import Menu from './pages/Menu';
 
 // Profile
 import Profile from './pages/Profile';
+
+// User Management
+import Users from './pages/Users';
+import Roles from './pages/settings/Roles';
+import UserGroups from './pages/settings/UserGroups';
 
 // Create a theme with Turkish locale
 const theme = createTheme({
@@ -61,6 +69,7 @@ function App() {
       <AuthProvider>
         <CssBaseline />
         <Router>
+          <SessionTimeoutManager />
           <Routes>
             <Route path="/login" element={<Login />} />
             
@@ -93,6 +102,60 @@ function App() {
                 <Route path="new" element={<InvoiceForm />} />
                 <Route path=":id" element={<InvoiceDetail />} />
                 <Route path=":id/edit" element={<InvoiceForm />} />
+                <Route path="purchase" element={<InvoiceList type="purchase" />} />
+                <Route path="sales" element={<InvoiceList type="sales" />} />
+              </Route>
+              
+              {/* User Management Routes */}
+              <Route path="users">
+                <Route index element={<Users />} />
+              </Route>
+              
+              <Route path="roles">
+                <Route index element={<Roles />} />
+              </Route>
+              
+              <Route path="user-groups">
+                <Route index element={<UserGroups />} />
+              </Route>
+              
+              {/* Supplier Routes */}
+              <Route path="suppliers">
+                <Route index element={<Navigate to="/dashboard" replace />} />
+              </Route>
+              
+              {/* Cashier Routes */}
+              <Route path="cashier">
+                <Route path="payments" element={<Navigate to="/dashboard" replace />} />
+                <Route path="collections" element={<Navigate to="/dashboard" replace />} />
+              </Route>
+              
+              {/* Products Routes */}
+              <Route path="products">
+                <Route path="management" element={<Navigate to="/dashboard" replace />} />
+                <Route path="barcodes" element={<Navigate to="/dashboard" replace />} />
+              </Route>
+              
+              {/* Materials Routes */}
+              <Route path="materials">
+                <Route path="management" element={<Navigate to="/dashboard" replace />} />
+                <Route path="barcodes" element={<Navigate to="/dashboard" replace />} />
+              </Route>
+              
+              {/* Inventory Routes */}
+              <Route path="inventory">
+                <Route path="count" element={<Navigate to="/dashboard" replace />} />
+                <Route path="management" element={<Navigate to="/dashboard" replace />} />
+                <Route path="warehouse" element={<Navigate to="/dashboard" replace />} />
+                <Route path="branch" element={<Navigate to="/dashboard" replace />} />
+              </Route>
+              
+              {/* Settings Routes */}
+              <Route path="settings">
+                <Route path="user-groups" element={<Navigate to="/dashboard" replace />} />
+                <Route path="permissions" element={<Navigate to="/dashboard" replace />} />
+                <Route path="roles" element={<Navigate to="/dashboard" replace />} />
+                <Route path="logs" element={<Navigate to="/dashboard" replace />} />
               </Route>
             </Route>
             

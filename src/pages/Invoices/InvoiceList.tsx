@@ -37,7 +37,11 @@ interface InvoiceItem {
   isCancelled: boolean;
 }
 
-const InvoiceList: React.FC = () => {
+interface InvoiceListProps {
+  type?: 'purchase' | 'sales' | 'all';
+}
+
+const InvoiceList: React.FC<InvoiceListProps> = ({ type = 'all' }) => {
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,7 +69,8 @@ const InvoiceList: React.FC = () => {
         customerCode: customerCode || undefined,
         invoiceNumber: invoiceNumber || undefined,
         startDate: startDate || undefined,
-        endDate: endDate || undefined
+        endDate: endDate || undefined,
+        type
       });
 
       if (response && response.data) {
@@ -81,7 +86,7 @@ const InvoiceList: React.FC = () => {
 
   useEffect(() => {
     fetchInvoices();
-  }, [page, rowsPerPage, sortBy, sortDirection]);
+  }, [page, rowsPerPage, sortBy, sortDirection, type]);
 
   const handleChangePage = (_event: unknown, newPage: number) => {
     setPage(newPage);

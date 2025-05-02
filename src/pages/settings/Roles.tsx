@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Table, Modal, message, Form, Input, Switch, InputNumber } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
@@ -10,10 +10,17 @@ const Roles: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm<CreateRoleRequest>();
 
-  const { data: roles, isLoading } = useQuery<Role[]>({
+  const { data: roles, isLoading, error, refetch } = useQuery<Role[]>({
     queryKey: ['roles'],
     queryFn: roleApi.getRoles
   });
+
+  useEffect(() => {
+    if (error) {
+      console.error('Roller getirilirken hata oluştu:', error);
+      message.error('Roller yüklenirken bir hata oluştu');
+    }
+  }, [error]);
 
   const createRoleMutation = useMutation({
     mutationFn: roleApi.createRole,
@@ -55,24 +62,20 @@ const Roles: React.FC = () => {
     }
   });
 
+  // Mutation durumlarını kontrol et
+  const isSubmitting = createRoleMutation.status === 'pending' || updateRoleMutation.status === 'pending';
+
   const handleEdit = (role: Role) => {
     setSelectedRole(role);
     form.setFieldsValue({
       name: role.name,
       description: role.description,
-      code: role.code,
-      order: role.order,
       isActive: role.isActive
     });
     setIsModalOpen(true);
   };
 
   const columns = [
-    {
-      title: 'Kod',
-      dataIndex: 'code',
-      key: 'code'
-    },
     {
       title: 'Ad',
       dataIndex: 'name',
@@ -134,12 +137,41 @@ const Roles: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow">
-        <Table
-          columns={columns}
-          dataSource={roles}
-          rowKey="id"
-          loading={isLoading}
-        />
+        {error ? (
+          <div className="p-4 text-center">
+            <p className="text-red-500 mb-2">Roller yüklenirken bir hata oluştu</p>
+            <Button onClick={() => refetch()}>
+              Yeniden Dene
+            </Button>
+          </div>
+        ) : isLoading ? (
+          <div className="p-8 flex justify-center">
+            <div className="spinner-border text-primary" role="status">
+              <span className="sr-only">Yükleniyor...</span>
+            </div>
+          </div>
+        ) : roles && Array.isArray(roles) && roles.length > 0 ? (
+          <Table
+            columns={columns}
+            dataSource={roles}
+            rowKey="id"
+            loading={isLoading}
+          />
+        ) : (
+          <div className="p-8 text-center">
+            <p className="text-gray-500 mb-2">Henüz hiç rol bulunmuyor</p>
+            <Button 
+              type="primary"
+              onClick={() => {
+                form.resetFields();
+                setSelectedRole(null);
+                setIsModalOpen(true);
+              }}
+            >
+              İlk Rolü Oluştur
+            </Button>
+          </div>
+        )}
       </div>
 
       <Modal
@@ -168,8 +200,6 @@ const Roles: React.FC = () => {
           initialValues={{
             name: '',
             description: '',
-            code: '',
-            order: 0,
             isActive: true
           }}
         >
@@ -190,40 +220,31 @@ const Roles: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            label="Kod"
-            name="code"
-            rules={[{ required: true, message: 'Kod gerekli' }]}
-          >
-            <Input />
-          </Form.Item>
-
-          <Form.Item
-            label="Sıra"
-            name="order"
-            rules={[{ required: true, message: 'Sıra gerekli' }]}
-          >
-            <InputNumber />
-          </Form.Item>
-
-          <Form.Item
+            label="Aktif"
             name="isActive"
             valuePropName="checked"
           >
-            <Switch checkedChildren="Aktif" unCheckedChildren="Pasif" />
+            <Switch checkedChildren="Aktif" unCheckedChildren="Pasif" defaultChecked />
           </Form.Item>
 
-          <Form.Item className="mb-0 text-right">
-            <Button className="mr-2" onClick={() => {
-              setIsModalOpen(false);
-              form.resetFields();
-              setSelectedRole(null);
-            }}>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button 
+              onClick={() => {
+                setIsModalOpen(false);
+                form.resetFields();
+                setSelectedRole(null);
+              }}
+            >
               İptal
             </Button>
-            <Button type="primary" htmlType="submit">
+            <Button 
+              type="primary" 
+              htmlType="submit"
+              loading={isSubmitting}
+            >
               {selectedRole ? 'Güncelle' : 'Oluştur'}
             </Button>
-          </Form.Item>
+          </div>
         </Form>
       </Modal>
     </div>

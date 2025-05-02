@@ -11,6 +11,7 @@ interface InvoiceListParams {
   startDate?: Date;
   endDate?: Date;
   status?: string;
+  type?: 'purchase' | 'sales' | 'all';
 }
 
 interface InvoiceLineRequest {

@@ -1,14 +1,66 @@
-import React from 'react';
-import { Avatar, Button, Card, Spin } from 'antd';
-import { UserOutlined, LogoutOutlined } from '@ant-design/icons';
+import React, { useEffect, useState } from 'react';
+import { Avatar, Button, Card, Spin, Table, Tag, Result, Empty } from 'antd';
+import { UserOutlined, LogoutOutlined, ClockCircleOutlined, CheckCircleOutlined, CloseCircleOutlined, LoginOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 import ChangePassword from '../components/Auth/ChangePassword';
 import { useNavigate } from 'react-router-dom';
+import { authApi } from '../services/api';
+import dayjs from 'dayjs';
+import 'dayjs/locale/tr';
+
+// Türkçe lokalizasyonu ayarla
+dayjs.locale('tr');
+
+// Giriş log tipi
+interface LoginLog {
+  id: string;
+  loginDate: string;
+  ipAddress: string;
+  userAgent: string;
+  success: boolean;
+  failureReason: string | null;
+}
 
 const Profile: React.FC = () => {
-  const { user, logout } = useAuth();
-  const [showChangePassword, setShowChangePassword] = React.useState(false);
+  const { user, logout, isLoading } = useAuth();
+  const [loginLogs, setLoginLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const navigate = useNavigate();
+  const [showChangePassword, setShowChangePassword] = useState(false);
+
+  // Giriş loglarını yükle
+  useEffect(() => {
+    const fetchLoginLogs = async () => {
+      if (!user) {
+        console.log('Profile: No user data available, skipping login logs fetch');
+        return;
+      }
+      
+      setLoadingLogs(true);
+      setErrorMessage(null);
+      
+      try {
+        console.log('Profile: Fetching login logs for user:', user.email);
+        const response = await authApi.getUserLoginLogs();
+        
+        if (response && response.data) {
+          console.log('Profile: Login logs fetched successfully:', response.data.length, 'records');
+          setLoginLogs(response.data);
+        } else {
+          console.warn('Profile: Login logs response is empty or invalid');
+          setErrorMessage('Giriş kayıtları alınamadı');
+        }
+      } catch (error) {
+        console.error('Profile: Error fetching login logs:', error);
+        setErrorMessage('Giriş kayıtları yüklenirken bir hata oluştu');
+      } finally {
+        setLoadingLogs(false);
+      }
+    };
+
+    fetchLoginLogs();
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -19,10 +71,74 @@ const Profile: React.FC = () => {
     }
   };
 
-  if (!user) {
+  // Tablo sütunları
+  const columns = [
+    {
+      title: 'Tarih',
+      dataIndex: 'loginDate',
+      key: 'loginDate',
+      render: (date: string) => dayjs(date).format('DD MMMM YYYY HH:mm:ss'),
+      sorter: (a: LoginLog, b: LoginLog) => new Date(b.loginDate).getTime() - new Date(a.loginDate).getTime(),
+      defaultSortOrder: 'descend' as 'descend',
+    },
+    {
+      title: 'IP Adresi',
+      dataIndex: 'ipAddress',
+      key: 'ipAddress',
+    },
+    {
+      title: 'Durum',
+      dataIndex: 'success',
+      key: 'success',
+      render: (success: boolean, record: LoginLog) => (
+        <Tag color={success ? 'success' : 'error'} icon={success ? <CheckCircleOutlined /> : <CloseCircleOutlined />}>
+          {success ? 'Başarılı' : 'Başarısız'}
+        </Tag>
+      ),
+      filters: [
+        { text: 'Başarılı', value: true },
+        { text: 'Başarısız', value: false },
+      ],
+      onFilter: (value: any, record: LoginLog) => record.success === value,
+    },
+    {
+      title: 'Hata Nedeni',
+      dataIndex: 'failureReason',
+      key: 'failureReason',
+      render: (reason: string | null) => reason || '-',
+    },
+  ];
+
+  // Kullanıcı yükleniyor durumu
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Spin size="large" />
+        <div className="ml-4 text-lg">Kullanıcı bilgileri yükleniyor...</div>
+      </div>
+    );
+  }
+
+  // Kullanıcı bilgisi yoksa
+  if (!user) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <Result
+            status="warning"
+            title="Kullanıcı bilgisi bulunamadı"
+            subTitle="Oturumunuz sonlanmış olabilir veya giriş yapmamış olabilirsiniz."
+            extra={
+              <Button 
+                type="primary" 
+                onClick={() => navigate('/login')}
+                icon={<LoginOutlined />}
+              >
+                Giriş Yap
+              </Button>
+            }
+          />
+        </div>
       </div>
     );
   }
@@ -93,6 +209,30 @@ const Profile: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Giriş Çıkış Logları Bölümü */}
+      <Card 
+        title={
+          <div className="flex items-center">
+            <ClockCircleOutlined style={{ marginRight: 8 }} />
+            <div className="text-lg">Giriş Çıkış Logları</div>
+          </div>
+        }
+        className="mb-8"
+      >
+        {errorMessage ? (
+          <div className="text-red-500">{errorMessage}</div>
+        ) : (
+          <Table 
+            dataSource={loginLogs} 
+            columns={columns} 
+            rowKey="id"
+            loading={loadingLogs}
+            pagination={{ pageSize: 5 }}
+            locale={{ emptyText: 'Log kaydı bulunamadı' }}
+          />
+        )}
+      </Card>
 
       <Card>
         <Button 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -16,13 +16,17 @@ import {
   List,
   ListItem,
   IconButton,
-  InputAdornment
+  InputAdornment,
+  CircularProgress
 } from '@mui/material';
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Edit as EditIcon
 } from '@mui/icons-material';
+import {
+  useTaxOffices
+} from '../../../../hooks/useTaxOffices';
 
 interface Customer {
   customerCode: string;
@@ -94,6 +98,18 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Vergi dairelerini API'den al
+  const { data: taxOfficesData, isLoading: isLoadingTaxOffices } = useTaxOffices();
+  
+  // Vergi daireleri yüklendiğinde konsola yazdır
+  useEffect(() => {
+    console.log('CustomerForm: Vergi daireleri yüklendi mi?', !isLoadingTaxOffices);
+    console.log('CustomerForm: Vergi daireleri veri sayısı:', taxOfficesData?.length || 0);
+    if (taxOfficesData && taxOfficesData.length > 0) {
+      console.log('CustomerForm: İlk 3 vergi dairesi:', JSON.stringify(taxOfficesData.slice(0, 3)));
+    }
+  }, [taxOfficesData, isLoadingTaxOffices]);
   
   // Form değişikliklerini işle
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -362,11 +378,25 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                 label="Vergi Dairesi"
               >
                 <MenuItem value=""><em>Seçiniz</em></MenuItem>
-                <MenuItem value="001">Kadıköy VD</MenuItem>
-                <MenuItem value="002">Üsküdar VD</MenuItem>
-                <MenuItem value="003">Beşiktaş VD</MenuItem>
-                <MenuItem value="004">Şişli VD</MenuItem>
-                <MenuItem value="005">Bakırköy VD</MenuItem>
+                {isLoadingTaxOffices ? (
+                  <MenuItem disabled>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      <CircularProgress size={20} sx={{ mr: 1 }} />
+                      Yükleniyor...
+                    </Box>
+                  </MenuItem>
+                ) : taxOfficesData && taxOfficesData.length > 0 ? (
+                  taxOfficesData.map((office: any) => (
+                    <MenuItem 
+                      key={office.taxOfficeCode || `tax-office-${Math.random()}`} 
+                      value={office.taxOfficeCode || ""}
+                    >
+                      {office.taxOfficeDescription || office.taxOfficeCode || "İsimsiz Vergi Dairesi"}
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem disabled>Vergi dairesi bulunamadı</MenuItem>
+                )}
               </Select>
               {errors.taxOfficeCode && <FormHelperText>{errors.taxOfficeCode}</FormHelperText>}
             </FormControl>

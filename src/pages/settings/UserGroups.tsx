@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Table, Modal, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
@@ -10,10 +10,17 @@ const UserGroups: React.FC = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedUserGroup, setSelectedUserGroup] = useState<UserGroup | undefined>(undefined);
 
-  const { data: userGroups, isLoading } = useQuery({
+  const { data: userGroups, isLoading, error, refetch } = useQuery({
     queryKey: ['userGroups'],
     queryFn: userApi.getUserGroups
   });
+
+  useEffect(() => {
+    if (error) {
+      console.error('Kullanıcı grupları getirilirken hata oluştu:', error);
+      message.error('Kullanıcı grupları yüklenirken bir hata oluştu');
+    }
+  }, [error]);
 
   const createUserGroupMutation = useMutation({
     mutationFn: userApi.createUserGroup,
@@ -130,12 +137,40 @@ const UserGroups: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow">
-        <Table
-          columns={columns}
-          dataSource={userGroups}
-          rowKey="id"
-          loading={isLoading}
-        />
+        {error ? (
+          <div className="p-4 text-center">
+            <p className="text-red-500 mb-2">Kullanıcı grupları yüklenirken bir hata oluştu</p>
+            <Button onClick={() => refetch()}>
+              Yeniden Dene
+            </Button>
+          </div>
+        ) : isLoading ? (
+          <div className="p-8 flex justify-center">
+            <div className="spinner-border text-primary" role="status">
+              <span className="sr-only">Yükleniyor...</span>
+            </div>
+          </div>
+        ) : userGroups && Array.isArray(userGroups) && userGroups.length > 0 ? (
+          <Table
+            columns={columns}
+            dataSource={userGroups}
+            rowKey="id"
+            loading={isLoading}
+          />
+        ) : (
+          <div className="p-8 text-center">
+            <p className="text-gray-500 mb-2">Henüz hiç kullanıcı grubu bulunmuyor</p>
+            <Button 
+              type="primary"
+              onClick={() => {
+                setSelectedUserGroup(undefined);
+                setIsModalVisible(true);
+              }}
+            >
+              İlk Kullanıcı Grubunu Oluştur
+            </Button>
+          </div>
+        )}
       </div>
 
       <Modal

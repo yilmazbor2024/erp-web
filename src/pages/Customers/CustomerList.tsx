@@ -16,7 +16,8 @@ import {
   Box,
   Button,
   Tooltip,
-  Alert
+  Alert,
+  CircularProgress
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
@@ -26,48 +27,115 @@ import {
   Place as PlaceIcon,
   Phone as PhoneIcon,
   Mail as MailIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  SentimentVeryDissatisfied as SadIcon
 } from '@mui/icons-material';
 import { useCustomerList } from '../../hooks/useCustomerList';
 import { Customer } from '../../types/customer';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface CustomerListProps {
   isMobile?: boolean;
 }
 
 const CustomerList: React.FC<CustomerListProps> = ({ isMobile = false }) => {
+  const { isAuthenticated } = useAuth();
   const [page, setPage] = React.useState(1);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = React.useState('');
   const [inputValue, setInputValue] = React.useState('');
-  const { data, isLoading, error } = useCustomerList({ page, searchTerm: debouncedSearchTerm });
+  const { data, isLoading, error, refetch } = useCustomerList({ page, searchTerm: debouncedSearchTerm });
   const navigate = useNavigate();
+
+  // Sayfa yüklendiğinde verileri yeniden çek
+  React.useEffect(() => {
+    console.log('CustomerList: Component mounted, fetching data...');
+    refetch();
+  }, [refetch]);
 
   // Arama terimini debounce et (en az 3 karakter ve 500ms bekleme süresi)
   React.useEffect(() => {
     if (inputValue.length >= 3) {
       const handler = setTimeout(() => {
+        console.log('CustomerList: Search term debounced:', inputValue);
         setDebouncedSearchTerm(inputValue);
       }, 500);
-
+      
       return () => {
         clearTimeout(handler);
       };
-    } else if (inputValue.length === 0) {
-      // Arama alanı boşsa, aramanın temizlenmesi için
+    } else if (inputValue.length === 0 && searchTerm !== '') {
+      // Arama kutusu temizlendiğinde tüm listeyi göster
+      console.log('CustomerList: Search term cleared');
       setDebouncedSearchTerm('');
+      setSearchTerm('');
     }
-  }, [inputValue]);
+  }, [inputValue, searchTerm]);
 
-  if (isLoading) return <div>Yükleniyor...</div>;
+  if (!isAuthenticated) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Alert severity="warning">
+          Bu sayfayı görüntülemek için giriş yapmanız gerekmektedir.
+        </Alert>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          sx={{ mt: 2 }}
+          onClick={() => navigate('/login')}
+        >
+          Giriş Yap
+        </Button>
+      </Box>
+    );
+  }
+
+  if (isLoading) return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+      <CircularProgress />
+      <Typography variant="h6" sx={{ ml: 2 }}>
+        Müşteri listesi yükleniyor...
+      </Typography>
+    </Box>
+  );
+
   if (error) return (
     <Box sx={{ p: 2 }}>
       <Alert severity="error">
-        {error instanceof Error ? `Hata: ${error.message}` : `Hata: ${error}`}
+        <Typography variant="body1">Müşteri listesi yüklenirken bir hata oluştu:</Typography>
+        <Typography variant="body2">{error instanceof Error ? error.message : 'Bilinmeyen hata'}</Typography>
       </Alert>
+      <Button 
+        variant="outlined" 
+        color="primary" 
+        sx={{ mt: 2 }}
+        onClick={() => refetch()}
+      >
+        Yeniden Dene
+      </Button>
     </Box>
   );
+
+  if (!data || !data.customers || data.customers.length === 0) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <SadIcon sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
+        <Typography variant="h6" color="text.secondary">
+          Müşteri bulunamadı
+        </Typography>
+        <Button 
+          variant="contained" 
+          color="primary" 
+          sx={{ mt: 2 }}
+          onClick={() => navigate('/customers/create')}
+          startIcon={<AddIcon />}
+        >
+          Yeni Müşteri Ekle
+        </Button>
+      </Box>
+    );
+  }
 
   const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);

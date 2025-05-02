@@ -26,16 +26,42 @@ const Login: React.FC = () => {
 
   const handleSubmit = async (values: LoginFormValues) => {
     setError(null);
+    
+    // Giriş bilgilerini doğrula
+    if (!values.email || !values.password) {
+      setError('E-posta ve şifre alanları zorunludur.');
+      return;
+    }
+    
+    // E-posta formatını doğrula
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(values.email)) {
+      setError('Geçerli bir e-posta adresi giriniz.');
+      return;
+    }
+    
+    // Şifre uzunluğunu kontrol et
+    if (values.password.length < 6) {
+      setError('Şifre en az 6 karakter olmalıdır.');
+      return;
+    }
+    
     try {
-      console.log('Login attempt with:', values);
+      console.log('Login attempt with:', values.email);
+      
+      // Giriş işlemini gerçekleştir
       await login(values.email, values.password);
+      
+      // Giriş başarılıysa ana sayfaya yönlendir
       console.log('Login successful, navigating to /');
       navigate('/');
     } catch (err: any) {
       console.log('Login error:', err);
       
-      // Check for specific error types
-      if (err.response?.status === 400) {
+      // Hata mesajını doğrudan göster
+      if (err instanceof Error) {
+        setError(err.message);
+      } else if (err.response?.status === 400) {
         setError('Geçersiz kullanıcı adı veya şifre.');
       } else if (err.response?.status === 401) {
         setError('Giriş bilgileriniz yanlış. Lütfen tekrar deneyiniz.');
