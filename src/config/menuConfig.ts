@@ -131,7 +131,7 @@ export const mainMenuItems: MenuItem[] = [
     children: [
       {
         id: 'user-management',
-        title: 'Kullanıcı Yönetimi',
+        title: 'Kullanıcı İşlemleri',
         children: [
           {
             id: 'users',
@@ -320,7 +320,7 @@ export const mobileCardMenu: MenuItem[] = [
     children: [
       {
         id: 'user-management',
-        title: 'Kullanıcı Yönetimi',
+        title: 'Kullanıcı İşlemleri',
         path: '/settings/users',
         icon: 'CogIcon'
       }
