@@ -4,7 +4,7 @@ import { Customer } from '../types/customer';
 import { ApiResponse, PagedResponse } from '../api-helpers';
 
 interface CustomerListResult {
-  customers: Customer[];
+  customers: CustomerListResponse[];
   totalCount: number;
   pageNumber: number;
   pageSize: number;
@@ -47,61 +47,38 @@ export const useCustomerList = ({
         filter.sortDirection = sortDirection || 'asc';
       }
 
-      // API'den müşteri listesini al
-      const apiResponse = await customerApi.getCustomers(filter);
-      
-      // API'den gelen yanıtı işle
-      let customers: CustomerListResponse[] = [];
-      let totalCount = 0;
-      let totalPages = 1;
-      let pageNumber = page;
-      let hasNextPage = false;
-      let hasPreviousPage = page > 1;
-      
-      // Process the API response which is now ApiResponse<PagedResponse<CustomerListResponse>>
-      if (apiResponse.success && apiResponse.data) {
-        const pagedData = apiResponse.data;
-        customers = pagedData.items;
-        totalCount = pagedData.totalCount;
-        totalPages = pagedData.totalPages;
-        pageNumber = pagedData.pageNumber;
-        hasNextPage = pagedData.hasNextPage;
-        hasPreviousPage = pagedData.hasPreviousPage;
+      try {
+        // API'den müşteri listesini al
+        const apiResponse = await customerApi.getCustomers(filter);
+        
+        // API'den gelen yanıtı işle
+        if (apiResponse.success && apiResponse.data) {
+          const pagedData = apiResponse.data;
+          
+          // API yanıtını doğrudan kullan, dönüştürme yapma
+          return {
+            customers: pagedData.items,
+            totalCount: pagedData.totalCount,
+            pageNumber: pagedData.pageNumber,
+            pageSize: pageSize,
+            totalPages: pagedData.totalPages,
+            hasNextPage: pagedData.hasNextPage,
+            hasPreviousPage: pagedData.hasPreviousPage
+          };
+        } else {
+          throw new Error(apiResponse.message || 'API yanıtı başarısız');
+        }
+      } catch (error) {
+        console.error('Müşteri listesi alınırken hata oluştu:', error);
+        throw error;
       }
-      
-      // API yanıtını istediğimiz formata dönüştür
-      return {
-        customers: customers.map((customer: CustomerListResponse) => ({
-          customerCode: customer.customerCode || '',
-          customerName: customer.customerName || '',
-          customerTypeCode: customer.customerTypeCode || 0,
-          customerTypeDescription: customer.customerTypeDescription || '',
-          cityDescription: customer.cityDescription || '',
-          districtDescription: customer.districtDescription || '',
-          isVIP: false, // This field doesn't exist in API response
-          isBlocked: customer.isBlocked || false,
-          taxNumber: customer.taxNumber || '',
-          taxOffice: customer.taxOffice || '',
-          createdDate: new Date().toISOString(), // Default current date since field doesn't exist
-          createdUsername: 'System', // Default value since field doesn't exist
-          currencyCode: '', // Default value since field doesn't exist
-          promotionGroupDescription: '', // Default value since field doesn't exist
-          companyCode: '', // Default value since field doesn't exist
-          officeCode: '', // Default value since field doesn't exist
-          officeDescription: '', // Default value since field doesn't exist
-          officeCountryCode: '', // Default value since field doesn't exist
-          identityNum: '', // Default value since field doesn't exist
-          vendorCode: '', // Default value since field doesn't exist
-          isSubjectToEInvoice: false, // Default value since field doesn't exist
-          useDBSIntegration: false // Default value since field doesn't exist
-        })),
-        totalCount,
-        pageNumber,
-        pageSize,
-        totalPages,
-        hasNextPage,
-        hasPreviousPage
-      };
+    },
+    staleTime: 30000, // 30 saniye
+    retry: (failureCount, error) => {
+      // 404 ve 401 hatalarında yeniden deneme yapma
+      if (error instanceof Error && error.message.includes('404')) return false;
+      if (error instanceof Error && error.message.includes('401')) return false;
+      return failureCount < 2; // Maksimum 2 deneme yap
     }
   });
 }; 

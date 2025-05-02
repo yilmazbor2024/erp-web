@@ -9,4 +9,4 @@ const CustomersPage: React.FC = () => {
   return <CustomerList isMobile={isMobile} />;
 };
 
-export default CustomersPage; 
+export default CustomersPage;

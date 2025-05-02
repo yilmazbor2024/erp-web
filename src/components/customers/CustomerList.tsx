@@ -15,7 +15,8 @@ import {
   Pagination,
   Box,
   Button,
-  Tooltip
+  Tooltip,
+  Alert
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
@@ -42,7 +43,13 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
   const navigate = useNavigate();
 
   if (isLoading) return <div>Yükleniyor...</div>;
-  if (error) return <div>Hata oluştu: {error.message}</div>;
+  if (error) return (
+    <Box sx={{ p: 2 }}>
+      <Alert severity="error">
+        {error instanceof Error ? `Hata: ${error.message}` : `Hata: ${error}`}
+      </Alert>
+    </Box>
+  );
   if (!data) return null;
 
   const handlePageChange = (event: React.ChangeEvent<unknown>, value: number) => {
@@ -55,7 +62,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
   };
 
   const handleViewCustomer = (customerCode: string) => {
-    // Detay sayfası artık hazır olduğu için direkt yönlendiriyoruz
     navigate(`/customers/${customerCode}`);
   };
 
@@ -65,6 +71,18 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
 
   const handleAddCustomer = () => {
     navigate('/customers/new');
+  };
+
+  const handleAddressesClick = (customerCode: string) => {
+    navigate(`/customers/${customerCode}/addresses`);
+  };
+
+  const handleContactsClick = (customerCode: string) => {
+    navigate(`/customers/${customerCode}/contacts`);
+  };
+
+  const handleEmailsClick = (customerCode: string) => {
+    navigate(`/customers/${customerCode}/emails`);
   };
 
   const renderPagination = () => {
@@ -116,7 +134,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   {customer.customerName}
-                  {customer.isVIP && <span style={{ color: 'gold', marginLeft: 8 }}>VIP</span>}
                   {customer.isBlocked && <span style={{ color: 'red', marginLeft: 8 }}>Bloke</span>}
                 </Typography>
                 <Typography color="textSecondary" gutterBottom>
@@ -190,7 +207,6 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
                 <TableCell>{customer.customerCode}</TableCell>
                 <TableCell>
                   {customer.customerName}
-                  {customer.isVIP && <span style={{ color: 'gold', marginLeft: 8 }}>VIP</span>}
                 </TableCell>
                 <TableCell>{customer.cityDescription}</TableCell>
                 <TableCell>{customer.districtDescription}</TableCell>
@@ -213,17 +229,17 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Adresler">
-                      <IconButton size="small" color="secondary">
+                      <IconButton size="small" color="secondary" onClick={() => handleAddressesClick(customer.customerCode)}>
                         <PlaceIcon />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="İletişim">
-                      <IconButton size="small" color="success">
+                      <IconButton size="small" color="success" onClick={() => handleContactsClick(customer.customerCode)}>
                         <PhoneIcon />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="E-posta">
-                      <IconButton size="small" color="warning">
+                      <IconButton size="small" color="warning" onClick={() => handleEmailsClick(customer.customerCode)}>
                         <MailIcon />
                       </IconButton>
                     </Tooltip>

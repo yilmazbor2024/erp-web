@@ -1,7 +1,7 @@
 import React from 'react';
 import { Layout, Button, Dropdown, MenuProps } from 'antd';
 import { UserOutlined, LogoutOutlined, LaptopOutlined, MobileOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import useViewModeStore from '../../stores/viewModeStore';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -14,6 +14,12 @@ const { Header: AntHeader } = Layout;
 const Header: React.FC<HeaderProps> = ({ title }) => {
   const { user, logout } = useAuth();
   const { mode, toggleMode } = useViewModeStore();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const userMenu: MenuProps['items'] = [
     {
@@ -25,7 +31,7 @@ const Header: React.FC<HeaderProps> = ({ title }) => {
       key: 'logout',
       icon: <LogoutOutlined />,
       label: 'Çıkış Yap',
-      onClick: logout
+      onClick: handleLogout
     }
   ];
 

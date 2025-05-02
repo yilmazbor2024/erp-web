@@ -1,16 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { customerApi } from '../services/api';
+import { CustomerResponse } from './useCustomerCreate';
 
-export interface CustomerResponse {
-  customerCode: string;
-  customerName: string;
-  success?: boolean;
-  message?: string;
-  errorDetails?: string;
-  // Diğer müşteri yanıt alanları
-}
-
-export interface CustomerCreateRequest {
+export interface CustomerUpdateRequest {
   customerCode: string;
   customerName: string;
   customerSurname?: string;
@@ -53,24 +45,37 @@ export interface CustomerCreateRequest {
   }[];
 }
 
-export interface UseCustomerCreateResult {
-  mutate: (customerData: CustomerCreateRequest, options?: {
+export interface UseCustomerUpdateResult {
+  mutate: (customerData: CustomerUpdateRequest, options?: {
     onSuccess?: (response: CustomerResponse) => void;
     onError?: (error: Error) => void;
   }) => void;
-  mutateAsync: (customerData: CustomerCreateRequest) => Promise<CustomerResponse>;
+  mutateAsync: (customerData: CustomerUpdateRequest) => Promise<CustomerResponse>;
   isPending: boolean;
   error: Error | null;
 }
 
-const useCustomerCreate = (): UseCustomerCreateResult => {
+const useCustomerUpdate = (): UseCustomerUpdateResult => {
   const queryClient = useQueryClient();
 
-  const mutation = useMutation<CustomerResponse, Error, CustomerCreateRequest>({
-    mutationFn: (customerData) => customerApi.createCustomer(customerData),
-    onSuccess: () => {
+  const mutation = useMutation<CustomerResponse, Error, CustomerUpdateRequest>({
+    mutationFn: (customerData) => {
+      console.log('Updating customer with data:', customerData);
+      return customerApi.updateCustomer(customerData);
+    },
+    onSuccess: (data, variables) => {
+      console.log('Customer update successful:', data);
+      
+      // Müşteri kodu varsa, ilgili müşterinin cache'ini temizle
+      if (variables.customerCode) {
+        queryClient.invalidateQueries({ queryKey: ['customer', variables.customerCode] });
+      }
+      
       // Müşteri listesi sorgusunu invalidate et
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+    onError: (error) => {
+      console.error('Customer update error:', error);
     }
   });
 
@@ -82,4 +87,4 @@ const useCustomerCreate = (): UseCustomerCreateResult => {
   };
 };
 
-export default useCustomerCreate;
+export default useCustomerUpdate;

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import {
@@ -7,12 +7,12 @@ import {
   Checkbox,
   CircularProgress,
   FormControlLabel,
-  Stack,
   TextField,
   Typography,
 } from '@mui/material';
+import { Grid } from '../../utils/muiGridAdapter';
 import { RegionCitySelector } from './RegionCitySelector';
-import { useAddressTypes } from '../../hooks/useAddressTypes';
+import { AddressType } from '../../types/address';
 
 export interface AddressFormValues {
   addressTypeCode: string;
@@ -25,184 +25,177 @@ export interface AddressFormValues {
   districtCode: string;
 }
 
-interface AddressFormProps {
+export interface AddressFormProps {
   initialValues?: Partial<AddressFormValues>;
+  addressTypes: AddressType[];
   onSubmit: (values: AddressFormValues) => Promise<void>;
   isSubmitting?: boolean;
-  isEdit?: boolean;
-  customerCode?: string;
 }
-
-const defaultInitialValues: AddressFormValues = {
-  addressTypeCode: '',
-  isDefault: false,
-  addressLine1: '',
-  addressLine2: '',
-  postalCode: '',
-  regionCode: '',
-  cityCode: '',
-  districtCode: '',
-};
 
 const validationSchema = Yup.object({
   addressTypeCode: Yup.string().required('Address type is required'),
   addressLine1: Yup.string().required('Address line 1 is required'),
-  addressLine2: Yup.string(),
-  postalCode: Yup.string(),
   regionCode: Yup.string().required('Region is required'),
   cityCode: Yup.string().required('City is required'),
   districtCode: Yup.string().required('District is required'),
-  isDefault: Yup.boolean(),
 });
 
 export const AddressForm: React.FC<AddressFormProps> = ({
   initialValues = {},
+  addressTypes = [],
   onSubmit,
   isSubmitting = false,
-  isEdit = false,
-  customerCode,
 }) => {
-  const { addressTypes, isLoading: isLoadingAddressTypes } = useAddressTypes();
-  
-  const formik = useFormik({
-    initialValues: { ...defaultInitialValues, ...initialValues },
+  const formik = useFormik<AddressFormValues>({
+    initialValues: {
+      addressTypeCode: '',
+      isDefault: false,
+      addressLine1: '',
+      addressLine2: '',
+      postalCode: '',
+      regionCode: '',
+      cityCode: '',
+      districtCode: '',
+      ...initialValues,
+    },
     validationSchema,
     onSubmit: async (values) => {
       await onSubmit(values);
     },
-    enableReinitialize: true,
   });
 
-  // Set default address type if none is selected and options are loaded
+  // Set default address type if none selected and addressTypes available
   useEffect(() => {
-    if (!formik.values.addressTypeCode && addressTypes && addressTypes.length > 0) {
+    if (!formik.values.addressTypeCode && addressTypes.length > 0) {
       formik.setFieldValue('addressTypeCode', addressTypes[0].addressTypeCode);
     }
-  }, [addressTypes, formik.values.addressTypeCode, formik]);
+  }, [addressTypes, formik.values.addressTypeCode]);
 
   return (
-    <Box component="form" onSubmit={formik.handleSubmit} noValidate>
-      <Typography variant="h6" gutterBottom>
-        {isEdit ? 'Edit Address' : 'Add New Address'}
-      </Typography>
-      
-      <Stack spacing={2}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          {/* Address Type */}
-          <Box sx={{ width: '100%' }}>
-            <TextField
-              select
-              fullWidth
-              id="addressTypeCode"
-              name="addressTypeCode"
-              label="Address Type"
-              value={formik.values.addressTypeCode}
-              onChange={formik.handleChange}
-              error={formik.touched.addressTypeCode && Boolean(formik.errors.addressTypeCode)}
-              helperText={(formik.touched.addressTypeCode && formik.errors.addressTypeCode) || ''}
-              SelectProps={{
-                native: true,
-              }}
-              disabled={isLoadingAddressTypes}
-            >
-              <option value="">Select Address Type</option>
-              {addressTypes?.map((type) => (
-                <option key={type.addressTypeCode} value={type.addressTypeCode}>
-                  {type.addressTypeDescription}
-                </option>
-              ))}
-            </TextField>
-          </Box>
-          
-          {/* Is Default */}
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  id="isDefault"
-                  name="isDefault"
-                  checked={formik.values.isDefault}
-                  onChange={formik.handleChange}
-                />
-              }
-              label="Set as Default Address"
-            />
-          </Box>
-        </Stack>
-        
+    <Box component="form" onSubmit={formik.handleSubmit} noValidate sx={{ mt: 1 }}>
+      <Grid container spacing={2}>
+        {/* Address Type */}
+        <Grid item xs={12} sm={6}>
+          <TextField
+            select
+            fullWidth
+            id="addressTypeCode"
+            name="addressTypeCode"
+            label="Address Type"
+            value={formik.values.addressTypeCode}
+            onChange={formik.handleChange}
+            error={formik.touched.addressTypeCode && Boolean(formik.errors.addressTypeCode)}
+            helperText={formik.touched.addressTypeCode && formik.errors.addressTypeCode}
+            SelectProps={{
+              native: true,
+            }}
+          >
+            <option value="">Select Address Type</option>
+            {addressTypes.map((type) => (
+              <option key={type.addressTypeCode} value={type.addressTypeCode}>
+                {type.addressTypeDescription}
+              </option>
+            ))}
+          </TextField>
+        </Grid>
+
+        {/* Default Address Checkbox */}
+        <Grid item xs={12} sm={6}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                id="isDefault"
+                name="isDefault"
+                checked={formik.values.isDefault}
+                onChange={formik.handleChange}
+                color="primary"
+              />
+            }
+            label="Set as default address"
+          />
+        </Grid>
+
         {/* Address Line 1 */}
-        <TextField
-          fullWidth
-          id="addressLine1"
-          name="addressLine1"
-          label="Address Line 1"
-          value={formik.values.addressLine1}
-          onChange={formik.handleChange}
-          error={formik.touched.addressLine1 && Boolean(formik.errors.addressLine1)}
-          helperText={(formik.touched.addressLine1 && formik.errors.addressLine1) || ''}
-        />
-        
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            id="addressLine1"
+            name="addressLine1"
+            label="Address Line 1"
+            value={formik.values.addressLine1}
+            onChange={formik.handleChange}
+            error={formik.touched.addressLine1 && Boolean(formik.errors.addressLine1)}
+            helperText={formik.touched.addressLine1 && formik.errors.addressLine1}
+          />
+        </Grid>
+
         {/* Address Line 2 */}
-        <TextField
-          fullWidth
-          id="addressLine2"
-          name="addressLine2"
-          label="Address Line 2 (Optional)"
-          value={formik.values.addressLine2}
-          onChange={formik.handleChange}
-          error={formik.touched.addressLine2 && Boolean(formik.errors.addressLine2)}
-          helperText={(formik.touched.addressLine2 && formik.errors.addressLine2) || ''}
-        />
-        
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            id="addressLine2"
+            name="addressLine2"
+            label="Address Line 2 (Optional)"
+            value={formik.values.addressLine2}
+            onChange={formik.handleChange}
+          />
+        </Grid>
+
         {/* Postal Code */}
-        <TextField
-          fullWidth
-          id="postalCode"
-          name="postalCode"
-          label="Postal Code (Optional)"
-          value={formik.values.postalCode}
-          onChange={formik.handleChange}
-          error={formik.touched.postalCode && Boolean(formik.errors.postalCode)}
-          helperText={(formik.touched.postalCode && formik.errors.postalCode) || ''}
-        />
-        
-        {/* Region, City, District Selector */}
-        <RegionCitySelector
-          selectedRegion={formik.values.regionCode}
-          selectedCity={formik.values.cityCode}
-          selectedDistrict={formik.values.districtCode}
-          onRegionChange={(value: string) => {
-            formik.setFieldValue('regionCode', value);
-            formik.setFieldValue('cityCode', '');
-            formik.setFieldValue('districtCode', '');
-          }}
-          onCityChange={(value: string) => {
-            formik.setFieldValue('cityCode', value);
-            formik.setFieldValue('districtCode', '');
-          }}
-          onDistrictChange={(value: string) => {
-            formik.setFieldValue('districtCode', value);
-          }}
-          errors={{
-            region: formik.touched.regionCode && formik.errors.regionCode ? formik.errors.regionCode as string : undefined,
-            city: formik.touched.cityCode && formik.errors.cityCode ? formik.errors.cityCode as string : undefined,
-            district: formik.touched.districtCode && formik.errors.districtCode ? formik.errors.districtCode as string : undefined,
-          }}
-        />
-        
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            id="postalCode"
+            name="postalCode"
+            label="Postal Code (Optional)"
+            value={formik.values.postalCode}
+            onChange={formik.handleChange}
+          />
+        </Grid>
+
+        {/* Region/City/District Selector */}
+        <Grid item xs={12}>
+          <Typography variant="subtitle2" gutterBottom>
+            Location
+          </Typography>
+          <RegionCitySelector
+            selectedRegion={formik.values.regionCode}
+            selectedCity={formik.values.cityCode}
+            selectedDistrict={formik.values.districtCode}
+            onRegionChange={(value) => {
+              formik.setFieldValue('regionCode', value);
+              formik.setFieldValue('cityCode', '');
+              formik.setFieldValue('districtCode', '');
+            }}
+            onCityChange={(value) => {
+              formik.setFieldValue('cityCode', value);
+              formik.setFieldValue('districtCode', '');
+            }}
+            onDistrictChange={(value) => {
+              formik.setFieldValue('districtCode', value);
+            }}
+            errors={{
+              region: formik.touched.regionCode && formik.errors.regionCode ? String(formik.errors.regionCode) : undefined,
+              city: formik.touched.cityCode && formik.errors.cityCode ? String(formik.errors.cityCode) : undefined,
+              district: formik.touched.districtCode && formik.errors.districtCode ? String(formik.errors.districtCode) : undefined,
+            }}
+          />
+        </Grid>
+
         {/* Submit Button */}
-        <Box>
+        <Grid item xs={12}>
           <Button
             type="submit"
+            fullWidth
             variant="contained"
             color="primary"
             disabled={isSubmitting}
-            sx={{ mt: 2 }}
+            startIcon={isSubmitting ? <CircularProgress size={20} /> : null}
           >
-            {isSubmitting ? <CircularProgress size={24} /> : isEdit ? 'Update Address' : 'Add Address'}
+            {isSubmitting ? 'Saving...' : 'Save Address'}
           </Button>
-        </Box>
-      </Stack>
+        </Grid>
+      </Grid>
     </Box>
   );
 }; 

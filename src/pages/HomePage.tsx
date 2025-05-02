@@ -1,74 +1,46 @@
-import React from 'react';
-import { Card, Row, Col, Button } from 'antd';
-import { 
-  ShoppingCartOutlined, 
-  ShoppingOutlined,
-  HistoryOutlined
-} from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Card, Box, Typography, Button } from '@mui/material';
+import { Add as AddIcon } from '@mui/icons-material';
+import { CustomerList } from '../components/customers/CustomerList';
+import useViewModeStore from '../stores/viewModeStore';
 import { useNavigate } from 'react-router-dom';
 
 const HomePage: React.FC = () => {
+  const { mode } = useViewModeStore();
   const navigate = useNavigate();
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768 || mode === 'mobile');
 
-  const quickActions = [
-    {
-      title: 'Yeni Sipariş',
-      icon: <ShoppingCartOutlined style={{ fontSize: '24px' }} />,
-      onClick: () => navigate('/siparisler/new')
-    },
-    {
-      title: 'Ürünler',
-      icon: <ShoppingOutlined style={{ fontSize: '24px' }} />,
-      onClick: () => navigate('/urunler')
-    }
-  ];
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768 || mode === 'mobile');
+    };
 
-  const recentActivities = [
-    {
-      title: 'Sipariş #1234',
-      description: '2 saat önce oluşturuldu',
-      icon: <ShoppingCartOutlined />
-    },
-    {
-      title: 'Ürün Güncelleme',
-      description: '5 ürün güncellendi',
-      icon: <HistoryOutlined />
-    }
-  ];
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [mode]);
+
+  useEffect(() => {
+    setIsMobile(mode === 'mobile');
+  }, [mode]);
 
   return (
-    <div className="space-y-4">
-      <Card title="Hızlı İşlemler">
-        <Row gutter={[16, 16]}>
-          {quickActions.map((action, index) => (
-            <Col xs={24} sm={12} key={index}>
-              <Button 
-                type="text" 
-                icon={action.icon}
-                onClick={action.onClick}
-                className="w-full h-24 flex flex-col items-center justify-center space-y-2"
-              >
-                <span>{action.title}</span>
-              </Button>
-            </Col>
-          ))}
-        </Row>
-      </Card>
-
-      <Card title="Son Aktiviteler">
-        {recentActivities.map((activity, index) => (
-          <div key={index} className="flex items-center p-3 hover:bg-gray-50 rounded">
-            {React.cloneElement(activity.icon, { 
-              style: { fontSize: '20px', marginRight: '12px' } 
-            })}
-            <div>
-              <div className="font-medium">{activity.title}</div>
-              <div className="text-sm text-gray-500">{activity.description}</div>
-            </div>
-          </div>
-        ))}
-      </Card>
-    </div>
+    <Box p={2}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4" component="h1">
+          Müşteriler
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={() => navigate('/customers/new')}
+        >
+          Yeni Müşteri
+        </Button>
+      </Box>
+      
+      <CustomerList isMobile={isMobile} />
+    </Box>
   );
 };
 

@@ -39,6 +39,8 @@ const Login: React.FC = () => {
         setError('Geçersiz kullanıcı adı veya şifre.');
       } else if (err.response?.status === 401) {
         setError('Giriş bilgileriniz yanlış. Lütfen tekrar deneyiniz.');
+      } else if (err.response?.status === 404) {
+        setError('API endpoint bulunamadı. Sistem yöneticisiyle iletişime geçiniz.');
       } else if (err.response?.status === 500) {
         setError('Sunucu hatası. Lütfen daha sonra tekrar deneyiniz veya sistem yöneticisiyle iletişime geçiniz.');
       } else if (err.code === 'ERR_NETWORK') {
@@ -95,6 +97,7 @@ const Login: React.FC = () => {
               prefix={<UserOutlined />} 
               placeholder="E-posta" 
               size="large"
+              autoComplete="email"
             />
           </Form.Item>
 
@@ -106,6 +109,7 @@ const Login: React.FC = () => {
               prefix={<LockOutlined />}
               placeholder="Şifre"
               size="large"
+              autoComplete="current-password"
             />
           </Form.Item>
 
@@ -125,24 +129,6 @@ const Login: React.FC = () => {
             <a href="#/forgot-password">Şifremi Unuttum</a>
           </Space>
         </Form>
-
-        {process.env.NODE_ENV === 'development' && (
-          <div style={{ marginTop: '1rem', padding: '0.5rem', backgroundColor: '#f9f9f9', borderRadius: '4px' }}>
-            <Typography.Text type="secondary" style={{ fontSize: '0.8rem' }}>
-              Geliştirme Modu: API bağlantısı olmadan test etmek için "Skip Login" butonu kullanabilirsiniz.
-            </Typography.Text>
-            <Button 
-              type="link"
-              style={{ width: '100%', marginTop: '0.5rem' }}
-              onClick={() => {
-                localStorage.setItem('accessToken', 'mock-token-for-development');
-                navigate('/');
-              }}
-            >
-              Login'i Atla (Geliştirme Modu)
-            </Button>
-          </div>
-        )}
       </Card>
     </div>
   );

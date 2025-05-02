@@ -1,52 +1,73 @@
-import api from './api';
+import axios from 'axios';
+import { API_BASE_URL } from '../config/constants';
 
-export interface LoginRequest {
-  username: string;
-  password: string;
-  deviceInfo: string;
-}
+// Auth API client
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
-export interface LoginResponse {
-  id: string;
-  accessToken: string;
-  refreshToken: string;
-  username: string;
-  email: string;
-  roles: string[];
-}
+console.log('Auth API base URL:', API_BASE_URL);
 
-export interface RegisterRequest {
-  userName: string;
+// Login request interface
+interface LoginRequest {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
 }
 
-export interface RegisterResponse {
-  id: string;
-  userName: string;
-  email: string;
-  firstName: string;
-  lastName: string;
+// Login response interface
+interface LoginResponse {
+  token: string;
+  expiration: string;
 }
 
-const login = async (request: LoginRequest): Promise<LoginResponse> => {
-  const response = await api.post('/api/Auth/login', request);
-  return response.data;
-};
-
-const register = async (request: RegisterRequest): Promise<RegisterResponse> => {
-  const response = await api.post('/api/Auth/register', request);
-  return response.data;
-};
-
-const logout = async (): Promise<void> => {
-  await api.post('/api/Auth/logout');
-};
-
+// Auth API methods
 export const authApi = {
-  login,
-  register,
-  logout
+  // Login
+  login: async (credentials: LoginRequest): Promise<LoginResponse> => {
+    try {
+      console.log('Attempting login with credentials:', { email: credentials.email, passwordLength: credentials.password?.length || 0 });
+      const response = await apiClient.post<LoginResponse>('/api/auth/login', credentials);
+      
+      console.log('Login response:', { 
+        status: response.status, 
+        hasToken: !!response.data.token,
+        tokenLength: response.data.token?.length || 0,
+        expiration: response.data.expiration
+      });
+      
+      // Store token in localStorage for persistent auth
+      if (response.data.token) {
+        console.log('Storing access token in localStorage');
+        localStorage.setItem('accessToken', response.data.token);
+        // Ayrıca eski token anahtarında da saklayalım (geriye dönük uyumluluk)
+        localStorage.setItem('token', response.data.token);
+      } else {
+        console.error('No token received from login API');
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  },
+
+  // Logout
+  logout: async (): Promise<void> => {
+    console.log('Logging out and removing tokens');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
+  },
+
+  // Check if user is authenticated
+  isAuthenticated: (): boolean => {
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    const isTokenExists = !!token;
+    console.log('Authentication check:', isTokenExists ? 'Token exists' : 'No token found');
+    return isTokenExists;
+  }
 }; 

@@ -1,20 +1,39 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customerApi } from '../services/api';
+import { customerService } from '../services/customerService';
 import { AddressResponse } from '../types/address';
 import { ApiResponse } from '../api-helpers';
 
 export interface UseCustomerAddressesParams {
-  customerCode: string;
+  customerCode?: string;
   enabled?: boolean;
 }
 
 // Müşteriye ait adresleri getiren hook
 export const useCustomerAddresses = ({ customerCode, enabled = true }: UseCustomerAddressesParams) => {
-  return useQuery<AddressResponse[], Error>({
+  return useQuery<any[], Error>({
     queryKey: ['customerAddresses', customerCode],
-    queryFn: () => customerApi.getCustomerAddresses(customerCode),
+    queryFn: async () => {
+      // Önce customerApi ile deneyelim, hata alırsak customerService'e geçelim
+      try {
+        console.log('Trying to fetch addresses with customerApi...');
+        if (!customerCode) {
+          console.log('No customer code provided, returning empty array');
+          return [];
+        }
+        return await customerApi.getCustomerAddresses(customerCode);
+      } catch (error) {
+        console.log('Falling back to customerService for addresses...');
+        if (!customerCode) {
+          console.log('No customer code provided, returning empty array');
+          return [];
+        }
+        return await customerService.getCustomerAddresses(customerCode);
+      }
+    },
     enabled: !!customerCode && enabled,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: 1, // Sadece 1 kez yeniden dene
   });
 };
 

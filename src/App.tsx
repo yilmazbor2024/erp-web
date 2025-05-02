@@ -20,7 +20,9 @@ import Dashboard from './pages/Dashboard';
 
 // Customer pages
 import CustomersPage from './pages/Customers';
-import CustomerForm from './pages/Customers/CustomerForm';
+import CustomerCreate from './pages/Customers/CustomerCreate';
+import CustomerEdit from './pages/Customers/CustomerEdit';
+import CustomerView from './pages/Customers/CustomerView';
 import CustomerDetail from './pages/Customers/CustomerDetail';
 
 // Invoice pages
@@ -75,9 +77,9 @@ function App() {
               {/* Customer Routes */}
               <Route path="customers">
                 <Route index element={<CustomersPage />} />
-                <Route path="new" element={<CustomerForm />} />
-                <Route path=":customerCode" element={<CustomerDetail />} />
-                <Route path="edit/:customerCode" element={<CustomerForm />} />
+                <Route path="new" element={<CustomerCreate />} />
+                <Route path=":customerCode" element={<CustomerView />} />
+                <Route path="edit/:customerCode" element={<CustomerEdit />} />
                 
                 {/* Adresler, İletişim ve E-posta alt sayfaları */}
                 <Route path=":customerCode/addresses" element={<CustomerDetail tab="addresses" />} />

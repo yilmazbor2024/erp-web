@@ -41,4 +41,6 @@ export interface AddressTypeResponse {
   addressTypeDescription: string;
   isRequired?: boolean;
   isBlocked?: boolean;
-} 
+}
+
+export type AddressType = AddressTypeResponse; 

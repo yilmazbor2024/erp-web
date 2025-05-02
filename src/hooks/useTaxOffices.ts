@@ -1,0 +1,49 @@
+import { useQuery } from '@tanstack/react-query';
+import { customerApi } from '../services/api';
+
+/**
+ * Vergi dairelerini getiren hook
+ * @param langCode Dil kodu (varsayılan: TR)
+ * @param enabled Sorgunun etkin olup olmadığı
+ * @returns Vergi daireleri listesi
+ */
+export const useTaxOffices = (langCode: string = 'TR', enabled: boolean = true) => {
+  return useQuery({
+    queryKey: ['taxOffices', langCode],
+    queryFn: async () => {
+      try {
+        console.log('Vergi daireleri hook: API isteği yapılıyor...');
+        const data = await customerApi.getTaxOffices(langCode);
+        console.log('Vergi daireleri hook: Veri alındı, kayıt sayısı:', data?.length || 0);
+        return data;
+      } catch (error) {
+        console.error('Vergi daireleri hook: Hata oluştu:', error);
+        throw error;
+      }
+    },
+    enabled,
+    staleTime: 1000 * 60 * 5, // 5 dakika
+    gcTime: 1000 * 60 * 30, // 30 dakika
+    retry: 2, // Hata durumunda 2 kez daha dene
+  });
+};
+
+/**
+ * Şehir koduna göre vergi dairelerini getiren hook
+ * @param cityCode Şehir kodu
+ * @param langCode Dil kodu (varsayılan: TR)
+ * @param enabled Sorgunun etkin olup olmadığı
+ * @returns Şehre göre filtrelenmiş vergi daireleri listesi
+ */
+export const useTaxOfficesByCity = (cityCode: string, langCode: string = 'TR', enabled: boolean = true) => {
+  const { data: allTaxOffices, isLoading, error } = useTaxOffices(langCode, enabled);
+  
+  // Şehir koduna göre vergi dairelerini filtrele
+  const filteredTaxOffices = allTaxOffices?.filter(office => office.cityCode === cityCode) || [];
+  
+  return {
+    data: filteredTaxOffices,
+    isLoading,
+    error
+  };
+};
