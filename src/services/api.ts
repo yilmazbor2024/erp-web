@@ -859,25 +859,11 @@ export const customerApi = {
         throw new Error(`Vergi daireleri alınamadı: ${response.data.message}`);
       }
       
-      // Eğer API yanıtı beklenmeyen bir formatta ise, mock veriler döndürelim
-      console.warn('Vergi daireleri için uygun veri formatı bulunamadı, varsayılan liste döndürülüyor');
-      return [
-        { code: "034", name: "Adana Vergi Dairesi", cityCode: "01" },
-        { code: "006", name: "Ankara Vergi Dairesi", cityCode: "06" },
-        { code: "035", name: "İzmir Vergi Dairesi", cityCode: "35" },
-        { code: "034", name: "İstanbul Vergi Dairesi", cityCode: "34" },
-        { code: "016", name: "Bursa Vergi Dairesi", cityCode: "16" }
-      ];
+      console.warn('Vergi daireleri için uygun veri formatı bulunamadı, boş liste döndürülüyor');
+      return [];
     } catch (error) {
       console.error('API: Error fetching tax offices:', error);
-      // Hata durumunda varsayılan veriler döndürelim
-      return [
-        { code: "034", name: "Adana Vergi Dairesi", cityCode: "01" },
-        { code: "006", name: "Ankara Vergi Dairesi", cityCode: "06" },
-        { code: "035", name: "İzmir Vergi Dairesi", cityCode: "35" },
-        { code: "034", name: "İstanbul Vergi Dairesi", cityCode: "34" },
-        { code: "016", name: "Bursa Vergi Dairesi", cityCode: "16" }
-      ];
+      throw error; // Hatayı fırlat, hook'ta yakalanacak
     }
   },
   

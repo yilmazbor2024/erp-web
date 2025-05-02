@@ -1355,8 +1355,8 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
                 <MenuItem key="empty-tax-office" value="">Seçiniz</MenuItem>
                 {taxOfficesData && taxOfficesData.length > 0 ? (
                   taxOfficesData.map((office: any, index: number) => (
-                    <MenuItem key={index} value={office.taxOfficeCode}>
-                      {office.taxOfficeName || office.taxOfficeDescription || office.taxOfficeCode}
+                    <MenuItem key={office.taxOfficeCode || index} value={office.taxOfficeCode}>
+                      {office.taxOfficeDescription || office.taxOfficeCode}
                     </MenuItem>
                   ))
                 ) : (

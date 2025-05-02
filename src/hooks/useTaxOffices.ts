@@ -18,14 +18,7 @@ export const useTaxOffices = (langCode: string = 'TR', enabled: boolean = true) 
         return data;
       } catch (error) {
         console.error('Vergi daireleri hook: Hata oluştu:', error);
-        // Hata durumunda varsayılan veriler döndürelim
-        return [
-          { code: "034", name: "Adana Vergi Dairesi", cityCode: "01" },
-          { code: "006", name: "Ankara Vergi Dairesi", cityCode: "06" },
-          { code: "035", name: "İzmir Vergi Dairesi", cityCode: "35" },
-          { code: "034", name: "İstanbul Vergi Dairesi", cityCode: "34" },
-          { code: "016", name: "Bursa Vergi Dairesi", cityCode: "16" }
-        ];
+        throw error;
       }
     },
     enabled,
