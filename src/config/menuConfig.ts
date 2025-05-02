@@ -18,28 +18,6 @@ export const mainMenuItems: MenuItem[] = [
     icon: 'HomeIcon'
   },
   {
-    id: 'user-management',
-    title: 'Kullanıcı İşlemleri',
-    icon: 'UserGroupIcon',
-    children: [
-      {
-        id: 'users',
-        title: 'Kullanıcılar',
-        path: '/users'
-      },
-      {
-        id: 'roles',
-        title: 'Roller',
-        path: '/roles'
-      },
-      {
-        id: 'user-groups',
-        title: 'Kullanıcı Grupları',
-        path: '/user-groups'
-      }
-    ]
-  },
-  {
     id: 'invoices',
     title: 'Fatura',
     icon: 'ReceiptIcon',
@@ -156,19 +134,24 @@ export const mainMenuItems: MenuItem[] = [
         title: 'Kullanıcı Yönetimi',
         children: [
           {
+            id: 'users',
+            title: 'Kullanıcılar',
+            path: '/users'
+          },
+          {
+            id: 'roles',
+            title: 'Roller',
+            path: '/roles'
+          },
+          {
             id: 'user-groups',
             title: 'Kullanıcı Grupları',
-            path: '/settings/user-groups'
+            path: '/user-groups'
           },
           {
             id: 'user-permissions',
             title: 'Kullanıcı Yetkileri',
             path: '/settings/permissions'
-          },
-          {
-            id: 'roles',
-            title: 'Rol Yönetimi',
-            path: '/settings/roles'
           },
           {
             id: 'action-logs',
