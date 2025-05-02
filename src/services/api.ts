@@ -839,20 +839,30 @@ export const customerApi = {
   
   getTaxOffices: async (langCode: string = 'TR'): Promise<any[]> => {
     try {
-      console.log('Vergi daireleri için API isteği yapılıyor...');
+      console.log('Vergi daireleri için API isteği yapılıyor...', `${API_BASE_URL}/api/v1/Customer/tax-offices?langCode=${langCode}`);
+      
+      // Token'ı doğrudan .env'den alalım
+      const token = process.env.REACT_APP_API_TOKEN || localStorage.getItem('accessToken') || '';
+      console.log('Kullanılan token:', token ? `${token.substring(0, 10)}...` : 'Token bulunamadı');
+      
       const response = await api.get(`/api/v1/Customer/tax-offices`, { 
         params: { langCode },
-        timeout: 30000, // Timeout süresini uzatalım
+        timeout: 30000,
         headers: {
-          'Authorization': `Bearer ${process.env.REACT_APP_API_TOKEN || localStorage.getItem('accessToken') || ''}`
+          'Authorization': `Bearer ${token}`
         }
       });
-      console.log('Vergi daireleri API yanıtı:', response.data);
+      
+      console.log('Vergi daireleri API yanıtı status:', response.status);
+      console.log('Vergi daireleri API yanıtı success:', response.data?.success);
+      console.log('Vergi daireleri API yanıtı veri sayısı:', response.data?.data?.length || 0);
       
       // API yanıtı ApiResponse<List<TaxOfficeResponse>> formatında
       if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        console.log('Vergi daireleri başarıyla alındı, ilk 3 kayıt:', response.data.data.slice(0, 3));
         return response.data.data;
       } else if (Array.isArray(response.data)) {
+        console.log('Vergi daireleri array formatında alındı, ilk 3 kayıt:', response.data.slice(0, 3));
         return response.data;
       } else if (response.data && response.data.success === false) {
         console.error('API vergi daireleri hatası:', response.data.message);

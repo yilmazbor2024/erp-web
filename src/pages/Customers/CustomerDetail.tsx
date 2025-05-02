@@ -232,6 +232,15 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
   const { data: taxOfficesData, isLoading: isLoadingTaxOffices } = useTaxOffices();
   const { data: cityTaxOffices } = useTaxOfficesByCity(selectedCity, 'TR', !!selectedCity);
 
+  // Vergi daireleri yüklendiğinde konsola yazdır
+  useEffect(() => {
+    console.log('CustomerDetail: Vergi daireleri yüklendi mi?', !isLoadingTaxOffices);
+    console.log('CustomerDetail: Vergi daireleri veri sayısı:', taxOfficesData?.length || 0);
+    if (taxOfficesData && taxOfficesData.length > 0) {
+      console.log('CustomerDetail: İlk 3 vergi dairesi:', JSON.stringify(taxOfficesData.slice(0, 3)));
+    }
+  }, [taxOfficesData, isLoadingTaxOffices]);
+
   // Doğrulama ve UI durumu
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1353,10 +1362,12 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
                 }}
               >
                 <MenuItem key="empty-tax-office" value="">Seçiniz</MenuItem>
-                {taxOfficesData && taxOfficesData.length > 0 ? (
-                  taxOfficesData.map((office: any, index: number) => (
-                    <MenuItem key={office.taxOfficeCode || index} value={office.taxOfficeCode}>
-                      {office.taxOfficeDescription || office.taxOfficeCode}
+                {isLoadingTaxOffices ? (
+                  <MenuItem disabled>Yükleniyor...</MenuItem>
+                ) : taxOfficesData && taxOfficesData.length > 0 ? (
+                  taxOfficesData.map((office: any) => (
+                    <MenuItem key={office.taxOfficeCode || `tax-office-${Math.random()}`} value={office.taxOfficeCode || ""}>
+                      {office.taxOfficeDescription || office.taxOfficeCode || "İsimsiz Vergi Dairesi"}
                     </MenuItem>
                   ))
                 ) : (

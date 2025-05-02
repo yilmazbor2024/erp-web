@@ -12,9 +12,14 @@ export const useTaxOffices = (langCode: string = 'TR', enabled: boolean = true) 
     queryKey: ['taxOffices', langCode],
     queryFn: async () => {
       try {
-        console.log('Vergi daireleri hook: API isteği yapılıyor...');
+        console.log('Vergi daireleri hook: API isteği yapılıyor...', new Date().toISOString());
         const data = await customerApi.getTaxOffices(langCode);
         console.log('Vergi daireleri hook: Veri alındı, kayıt sayısı:', data?.length || 0);
+        if (data && data.length > 0) {
+          console.log('Vergi daireleri hook: İlk 3 kayıt:', JSON.stringify(data.slice(0, 3)));
+        } else {
+          console.warn('Vergi daireleri hook: Veri bulunamadı veya boş dizi döndü');
+        }
         return data;
       } catch (error) {
         console.error('Vergi daireleri hook: Hata oluştu:', error);
