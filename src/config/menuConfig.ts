@@ -19,18 +19,20 @@ export const mainMenuItems: MenuItem[] = [
   },
   {
     id: 'invoices',
-    title: 'Fatura',
-    icon: 'ReceiptIcon',
+    title: 'Faturalar',
+    icon: 'FileTextOutlined',
     children: [
       {
-        id: 'purchase-invoices',
-        title: 'Alış Fatura',
-        path: '/invoices/purchase'
+        id: 'wholesale-invoices',
+        title: 'Toptan Satış Faturaları',
+        path: '/invoices/wholesale',
+        icon: 'FileTextOutlined'
       },
       {
-        id: 'sales-invoices',
-        title: 'Satış Fatura',
-        path: '/invoices/sales'
+        id: 'wholesale-purchase-invoices',
+        title: 'Toptan Alış Faturaları',
+        path: '/invoices/wholesale-purchase',
+        icon: 'FileTextOutlined'
       }
     ]
   },
@@ -66,19 +68,8 @@ export const mainMenuItems: MenuItem[] = [
   {
     id: 'products',
     title: 'Ürünler',
-    icon: 'ShoppingBagIcon',
-    children: [
-      {
-        id: 'product-management',
-        title: 'Ürün Yönetimi',
-        path: '/products/management'
-      },
-      {
-        id: 'product-barcodes',
-        title: 'Barkodlar',
-        path: '/products/barcodes'
-      }
-    ]
+    icon: 'InboxOutlined',
+    path: '/products'
   },
   {
     id: 'materials',
@@ -130,35 +121,34 @@ export const mainMenuItems: MenuItem[] = [
     icon: 'CogIcon',
     children: [
       {
-        id: 'user-management',
-        title: 'Kullanıcı İşlemleri',
-        children: [
-          {
-            id: 'users',
-            title: 'Kullanıcılar',
-            path: '/users'
-          },
-          {
-            id: 'roles',
-            title: 'Roller',
-            path: '/roles'
-          },
-          {
-            id: 'user-groups',
-            title: 'Kullanıcı Grupları',
-            path: '/user-groups'
-          },
-          {
-            id: 'user-permissions',
-            title: 'Kullanıcı Yetkileri',
-            path: '/settings/permissions'
-          },
-          {
-            id: 'action-logs',
-            title: 'İşlem Logları',
-            path: '/settings/logs'
-          }
-        ]
+        id: 'users',
+        title: 'Kullanıcılar',
+        path: '/users',
+        icon: 'UserGroupIcon'
+      },
+      {
+        id: 'roles',
+        title: 'Roller',
+        path: '/roles',
+        icon: 'CogIcon'
+      },
+      {
+        id: 'user-groups',
+        title: 'Kullanıcı Grupları',
+        path: '/user-groups',
+        icon: 'TeamOutlined'
+      },
+      {
+        id: 'user-permissions',
+        title: 'Kullanıcı Yetkileri',
+        path: '/settings/permissions',
+        icon: 'LockOutlined'
+      },
+      {
+        id: 'action-logs',
+        title: 'İşlem Logları',
+        path: '/settings/logs',
+        icon: 'FileTextOutlined'
       }
     ]
   }
@@ -188,21 +178,21 @@ export const mobileBottomMenu: MenuItem[] = [
 export const mobileCardMenu: MenuItem[] = [
   {
     id: 'invoices',
-    title: 'Fatura',
-    icon: 'ReceiptIcon',
+    title: 'Faturalar',
+    icon: 'FileTextOutlined',
     color: '#0065cc', 
     children: [
       {
-        id: 'purchase-invoices',
-        title: 'Alış Fatura',
-        path: '/invoices/purchase',
-        icon: 'ReceiptIcon'
+        id: 'wholesale-invoices',
+        title: 'Toptan Satış Faturaları',
+        path: '/invoices/wholesale',
+        icon: 'FileTextOutlined'
       },
       {
-        id: 'sales-invoices',
-        title: 'Satış Fatura',
-        path: '/invoices/sales',
-        icon: 'ReceiptIcon'
+        id: 'wholesale-purchase-invoices',
+        title: 'Toptan Alış Faturaları',
+        path: '/invoices/wholesale-purchase',
+        icon: 'FileTextOutlined'
       }
     ]
   },
@@ -327,3 +317,9 @@ export const mobileCardMenu: MenuItem[] = [
     ]
   }
 ];
+
+export default {
+  mainMenuItems,
+  mobileBottomMenu,
+  mobileCardMenu
+};

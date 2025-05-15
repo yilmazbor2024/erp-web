@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authApi } from '../services/api';
 
 interface User {
@@ -18,11 +18,24 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   loading: boolean;
+  sessionTimeoutMinutes: number;
+  setSessionTimeoutMinutes: (minutes: number) => void;
+  remainingSessionTime: number | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Varsayılan oturum süresi (dakika)
+const DEFAULT_SESSION_TIMEOUT = 60;
+
+// localStorage'dan oturum süresini al veya varsayılan değeri kullan
+const getStoredSessionTimeout = (): number => {
+  const stored = localStorage.getItem('sessionTimeoutMinutes');
+  return stored ? parseInt(stored, 10) : DEFAULT_SESSION_TIMEOUT;
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -30,7 +43,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutesState] = useState<number>(getStoredSessionTimeout());
+  const [sessionExpiry, setSessionExpiry] = useState<Date | null>(null);
+  const [remainingSessionTime, setRemainingSessionTime] = useState<number | null>(null);
+  const [sessionCheckInterval, setSessionCheckInterval] = useState<NodeJS.Timeout | null>(null);
 
+  // Oturum süresini güncelleme fonksiyonu
+  const setSessionTimeoutMinutes = useCallback((minutes: number) => {
+    localStorage.setItem('sessionTimeoutMinutes', minutes.toString());
+    setSessionTimeoutMinutesState(minutes);
+    
+    // Eğer aktif bir oturum varsa, süreyi güncelle
+    if (isAuthenticated && sessionExpiry) {
+      const now = new Date();
+      const newExpiry = new Date(now.getTime() + minutes * 60 * 1000);
+      setSessionExpiry(newExpiry);
+    }
+  }, [isAuthenticated, sessionExpiry]);
+
+  // Oturum süresini kontrol eden ve güncelleyen fonksiyon
+  const checkSessionTime = useCallback(() => {
+    if (!sessionExpiry) return;
+    
+    const now = new Date();
+    const remainingMs = sessionExpiry.getTime() - now.getTime();
+    const remainingMinutes = Math.max(0, Math.floor(remainingMs / (1000 * 60)));
+    const remainingSeconds = Math.max(0, Math.floor((remainingMs % (1000 * 60)) / 1000));
+    
+    // Kalan süreyi saniye cinsinden ayarla
+    setRemainingSessionTime(remainingMinutes * 60 + remainingSeconds);
+    
+    // Oturum süresi dolduysa otomatik logout
+    if (remainingMs <= 0) {
+      console.log('AuthContext: Session expired, logging out automatically');
+      logout();
+    }
+    
+    // Oturum süresi 30 saniyeden az kaldıysa ve hala aktifse, uyarı göster
+    if (remainingMs > 0 && remainingMs <= 30000 && isAuthenticated) {
+      console.warn(`AuthContext: Session expiring in ${remainingSeconds} seconds`);
+      // Burada uyarı gösterme işlemi yapılabilir (toast, modal vb.)
+    }
+  }, [sessionExpiry, isAuthenticated]);
+
+  // Sayfa yüklendiğinde oturum kontrolü
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
     if (token) {
@@ -38,27 +94,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       setIsLoading(false);
     }
-  }, []);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      if (!isLoading) {
-        // Token varsa kullanıcı bilgilerini getir
-        const token = localStorage.getItem('accessToken');
-        if (token && !user) {
-          try {
-            await fetchUserData();
-          } catch (error) {
-            console.error('AuthContext: Failed to fetch user data during initial check:', error);
-            // Hata durumunda sessizce devam et, kullanıcıyı login sayfasına yönlendirme
-          }
-        }
+    
+    // Component unmount olduğunda interval'i temizle
+    return () => {
+      if (sessionCheckInterval) {
+        clearInterval(sessionCheckInterval);
       }
     };
-    
-    checkAuth();
-  }, [isLoading]);
+  }, []);
 
+  // Oturum süresi kontrolü için interval ayarla
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Mevcut interval'i temizle
+      if (sessionCheckInterval) {
+        clearInterval(sessionCheckInterval);
+      }
+      
+      // Yeni interval oluştur (her saniye kontrol et)
+      const interval = setInterval(checkSessionTime, 1000);
+      setSessionCheckInterval(interval);
+      
+      // İlk kontrolü hemen yap
+      checkSessionTime();
+    } else {
+      // Oturum yoksa interval'i temizle
+      if (sessionCheckInterval) {
+        clearInterval(sessionCheckInterval);
+        setSessionCheckInterval(null);
+      }
+      
+      setRemainingSessionTime(null);
+      setSessionExpiry(null);
+    }
+    
+    return () => {
+      if (sessionCheckInterval) {
+        clearInterval(sessionCheckInterval);
+      }
+    };
+  }, [isAuthenticated, sessionExpiry, checkSessionTime]);
+
+  // Kullanıcı bilgilerini getir
   const fetchUserData = async () => {
     try {
       setIsLoading(true);
@@ -90,6 +167,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(userData);
       setIsAuthenticated(true);
       setError(null);
+      
+      // Oturum süresini ayarla
+      const now = new Date();
+      const expiry = new Date(now.getTime() + sessionTimeoutMinutes * 60 * 1000);
+      setSessionExpiry(expiry);
     } catch (error: any) {
       console.error('AuthContext: Error fetching user data:', error);
       
@@ -109,6 +191,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Oturumu yenile
+  const refreshSession = async () => {
+    try {
+      console.log('AuthContext: Refreshing session...');
+      
+      // Kullanıcı bilgilerini yeniden getir
+      await fetchUserData();
+      
+      // Oturum süresini yenile
+      const now = new Date();
+      const expiry = new Date(now.getTime() + sessionTimeoutMinutes * 60 * 1000);
+      setSessionExpiry(expiry);
+      
+      console.log(`AuthContext: Session refreshed, new expiry: ${expiry.toLocaleTimeString()}`);
+    } catch (error) {
+      console.error('AuthContext: Failed to refresh session:', error);
+      throw error;
     }
   };
 
@@ -145,7 +247,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setIsAuthenticated(true);
       setError(null);
-      console.log('AuthContext: Login and user data fetch completed successfully');
+      
+      // Oturum süresini ayarla
+      const now = new Date();
+      const expiry = new Date(now.getTime() + sessionTimeoutMinutes * 60 * 1000);
+      setSessionExpiry(expiry);
+      
+      console.log(`AuthContext: Login completed successfully, session expires at: ${expiry.toLocaleTimeString()}`);
     } catch (error: any) {
       console.error('AuthContext: Login failed:', error);
       
@@ -184,6 +292,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setIsAuthenticated(false);
       setError(null);
+      setSessionExpiry(null);
+      setRemainingSessionTime(null);
       
       console.log('AuthContext: Logout completed successfully');
     } catch (error) {
@@ -194,6 +304,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sessionStorage.removeItem('token');
       setUser(null);
       setIsAuthenticated(false);
+      setSessionExpiry(null);
+      setRemainingSessionTime(null);
     }
   };
 
@@ -202,8 +314,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated,
     isLoading,
     loading,
+    sessionTimeoutMinutes,
+    setSessionTimeoutMinutes,
+    remainingSessionTime,
     login,
-    logout
+    logout,
+    refreshSession
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

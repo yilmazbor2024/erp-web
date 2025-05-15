@@ -1,0 +1,115 @@
+import { ReactNode } from 'react';
+
+export interface MenuItem {
+  id?: string;
+  title: string;
+  path?: string;
+  icon?: string;
+  children?: MenuItem[];
+  component?: ReactNode;
+  color?: string;
+}
+
+export const mainMenuItems: MenuItem[] = [
+  {
+    id: 'home',
+    title: 'Ana Sayfa',
+    path: '/',
+    icon: 'HomeIcon'
+  },
+  {
+    id: 'invoices',
+    title: 'Faturalar',
+    icon: 'FileTextOutlined',
+    children: [
+      {
+        id: 'wholesale-invoices',
+        title: 'Toptan Satış Faturaları',
+        path: '/invoices/wholesale',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'wholesale-purchase-invoices',
+        title: 'Toptan Alış Faturaları',
+        path: '/invoices/wholesale-purchase',
+        icon: 'FileTextOutlined'
+      }
+    ]
+  },
+  {
+    id: 'customers',
+    title: 'Müşteri',
+    path: '/customers',
+    icon: 'UserGroupIcon'
+  },
+  {
+    id: 'products',
+    title: 'Ürünler',
+    icon: 'InboxOutlined',
+    path: '/products'
+  }
+];
+
+export const mobileBottomMenu: MenuItem[] = [
+  {
+    id: 'home',
+    title: 'Ana Sayfa',
+    path: '/',
+    icon: 'HomeIcon'
+  },
+  {
+    id: 'menu',
+    title: 'Menü',
+    path: '/menu',
+    icon: 'MenuIcon'
+  },
+  {
+    id: 'profile',
+    title: 'Profil',
+    path: '/profile',
+    icon: 'UserIcon'
+  }
+];
+
+export const mobileCardMenu: MenuItem[] = [
+  {
+    id: 'invoices',
+    title: 'Faturalar',
+    icon: 'FileTextOutlined',
+    color: '#0065cc', 
+    children: [
+      {
+        id: 'wholesale-invoices',
+        title: 'Toptan Satış Faturaları',
+        path: '/invoices/wholesale',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'wholesale-purchase-invoices',
+        title: 'Toptan Alış Faturaları',
+        path: '/invoices/wholesale-purchase',
+        icon: 'FileTextOutlined'
+      }
+    ]
+  },
+  {
+    id: 'customers',
+    title: 'Müşteriler',
+    path: '/customers',
+    icon: 'UserGroupIcon',
+    color: '#00a854'
+  },
+  {
+    id: 'products',
+    title: 'Ürünler',
+    path: '/products',
+    icon: 'InboxOutlined',
+    color: '#722ed1'
+  }
+];
+
+export default {
+  mainMenuItems,
+  mobileBottomMenu,
+  mobileCardMenu
+};

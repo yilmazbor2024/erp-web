@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { customerApi } from '../services/api';
+import { customerApi } from '../services/api'; // createCustomerBasic direk import edilmeyecek
 
 export interface CustomerResponse {
   customerCode: string;
@@ -67,10 +67,73 @@ const useCustomerCreate = (): UseCustomerCreateResult => {
   const queryClient = useQueryClient();
 
   const mutation = useMutation<CustomerResponse, Error, CustomerCreateRequest>({
-    mutationFn: (customerData) => customerApi.createCustomer(customerData),
-    onSuccess: () => {
+    mutationFn: async (customerData) => {
+      // API'nin beklediği formatta veri oluştur (CustomerCreateRequestNew sınıfına göre)
+      const formattedData = {
+        // Zorunlu alanlar (backend'de Required attribute ile işaretlenmiş)
+        CustomerCode: customerData.customerCode,
+        CustomerName: customerData.customerName,
+        CustomerTypeCode: customerData.customerTypeCode ? Number(customerData.customerTypeCode) : 1, // byte tipinde
+        CompanyCode: 1, // short tipinde
+        OfficeCode: 'M', // string tipinde, varsayılan 'M'
+        
+        // Diğer alanlar (opsiyonel)
+        CustomerSurname: customerData.customerSurname || '',
+        IsIndividualAcc: false, // Kurumsal müşteri için false
+        TaxNumber: customerData.taxNumber || '',
+        TaxOfficeCode: customerData.taxOffice || '',
+        IdentityNum: '',
+        CustomerIdentityNumber: '',
+        MersisNum: null, // null olarak gönder, boş string değil
+        TitleCode: null, // null olarak gönder, boş string değil
+        Patronym: null, // null olarak gönder, boş string değil
+        DueDateFormulaCode: null, // Eksik alanı ekledik
+        CityCode: customerData.cityCode || '',
+        DistrictCode: customerData.districtCode || '',
+        RegionCode: customerData.regionCode || '',
+        IsBlocked: customerData.isBlocked || false,
+        
+        // Finansal bilgiler
+        CurrencyCode: 'TRY', // Varsayılan para birimi
+        DiscountGroupCode: '',
+        PaymentPlanGroupCode: '',
+        RiskLimit: 0,
+        CreditLimit: 0,
+        
+        // Sistem bilgileri
+        CreatedUserName: 'SYSTEM',
+        LastUpdatedUserName: 'SYSTEM',
+        
+        // Boş listeler
+        Addresses: [],
+        Communications: [],
+        Contacts: []
+      };
+      
+      // Veri formatını konsola yazdır (debug için)
+      
+      console.log('Müşteri oluşturma verisi:', formattedData);
+      
+      // API yanıtını al ve CustomerResponse tipine dönüştür
+      const response = await customerApi.createCustomerBasic(formattedData);
+      
+      // API yanıtını CustomerResponse tipine dönüştür
+      const customerResponse: CustomerResponse = {
+        customerCode: formattedData.CustomerCode,
+        customerName: formattedData.CustomerName,
+        // Diğer gerekli alanları ekle
+        ...response.data
+      };
+      
+      return customerResponse;
+    },
+    onSuccess: (response) => {
+      console.log('Müşteri başarıyla oluşturuldu:', response);
       // Müşteri listesi sorgusunu invalidate et
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+    onError: (error) => {
+      console.error('Müşteri oluşturma hatası:', error);
     }
   });
 

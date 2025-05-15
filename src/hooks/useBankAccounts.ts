@@ -28,7 +28,7 @@ export const useBankAccountsByBank = (bankCode: string, langCode: string = 'TR',
   const { data: allBankAccounts, isLoading, error } = useBankAccounts(langCode, enabled);
   
   // Banka koduna göre hesapları filtrele
-  const filteredAccounts = allBankAccounts?.filter(account => account.bankCode === bankCode) || [];
+  const filteredAccounts = allBankAccounts?.filter((account: { bankCode: string }) => account.bankCode === bankCode) || [];
   
   return {
     data: filteredAccounts,

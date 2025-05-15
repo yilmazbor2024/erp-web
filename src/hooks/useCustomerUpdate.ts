@@ -59,9 +59,63 @@ const useCustomerUpdate = (): UseCustomerUpdateResult => {
   const queryClient = useQueryClient();
 
   const mutation = useMutation<CustomerResponse, Error, CustomerUpdateRequest>({
-    mutationFn: (customerData) => {
-      console.log('Updating customer with data:', customerData);
-      return customerApi.updateCustomer(customerData);
+    mutationFn: async (customerData) => {
+      // API'nin beklediği formatta veri oluştur (CustomerCreateRequestNew sınıfına göre)
+      const formattedData = {
+        // Zorunlu alanlar (backend'de Required attribute ile işaretlenmiş)
+        CustomerCode: customerData.customerCode,
+        CustomerName: customerData.customerName,
+        CustomerTypeCode: customerData.customerTypeCode ? Number(customerData.customerTypeCode) : 1, // byte tipinde
+        CompanyCode: 1, // short tipinde
+        OfficeCode: 'M', // string tipinde, varsayılan 'M'
+        
+        // Diğer alanlar (opsiyonel)
+        CustomerSurname: customerData.customerSurname || '',
+        IsIndividualAcc: false, // Kurumsal müşteri için false
+        TaxNumber: customerData.taxNumber || '',
+        TaxOfficeCode: customerData.taxOffice || '',
+        IdentityNum: '',
+        CustomerIdentityNumber: '',
+        MersisNum: null, // null olarak gönder, boş string değil
+        TitleCode: null, // null olarak gönder, boş string değil
+        Patronym: null, // null olarak gönder, boş string değil
+        DueDateFormulaCode: null, // Eksik alanı ekledik
+        CityCode: customerData.cityCode || '',
+        DistrictCode: customerData.districtCode || '',
+        RegionCode: customerData.regionCode || '',
+        IsBlocked: customerData.isBlocked || false,
+        
+        // Finansal bilgiler
+        CurrencyCode: 'TRY', // Varsayılan para birimi
+        DiscountGroupCode: '',
+        PaymentPlanGroupCode: '',
+        RiskLimit: 0,
+        CreditLimit: 0,
+        
+        // Sistem bilgileri
+        CreatedUserName: 'SYSTEM',
+        LastUpdatedUserName: 'SYSTEM',
+        
+        // Boş listeler
+        Addresses: [],
+        Communications: [],
+        Contacts: []
+      };
+      
+      console.log('Updating customer with data:', formattedData);
+      
+      // API yanıtını al ve CustomerResponse tipine dönüştür
+      const response = await customerApi.updateCustomer(formattedData);
+      
+      // API yanıtını CustomerResponse tipine dönüştür
+      const customerResponse: CustomerResponse = {
+        customerCode: formattedData.CustomerCode,
+        customerName: formattedData.CustomerName,
+        // Diğer gerekli alanları ekle
+        ...response.data
+      };
+      
+      return customerResponse;
     },
     onSuccess: (data, variables) => {
       console.log('Customer update successful:', data);

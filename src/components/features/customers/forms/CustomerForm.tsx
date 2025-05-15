@@ -27,6 +27,7 @@ import {
 import {
   useTaxOffices
 } from '../../../../hooks/useTaxOffices';
+import { customerApi } from '../../../../services/api';
 
 interface Customer {
   customerCode: string;

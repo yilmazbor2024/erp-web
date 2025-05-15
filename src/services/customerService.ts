@@ -80,7 +80,17 @@ export const customerService = {
       // API yanıtını detaylı logla
       console.log('Customer data response:', JSON.stringify(response.data, null, 2));
       
-      return response.data;
+      // API yanıt yapısını kontrol et
+      if (response.data && response.data.data) {
+        console.log('API response has data.data structure');
+        return response.data.data;
+      } else if (response.data && response.data.success !== undefined) {
+        console.log('API response has success property but no data.data structure');
+        return response.data;
+      } else {
+        console.log('API response is direct data');
+        return response.data;
+      }
     } catch (error) {
       console.error(`Error fetching customer ${customerCode}:`, error);
     

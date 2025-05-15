@@ -1,0 +1,352 @@
+import api from './api';
+
+// Ürün tipi tanımlamaları
+export interface Product {
+  productCode: string;
+  productDescription: string;
+  productTypeCode: string;
+  productTypeDescription: string;
+  itemDimTypeCode: string;
+  itemDimTypeDescription: string;
+  unitOfMeasureCode1: string;
+  unitOfMeasureCode2: string;
+  companyBrandCode: string;
+  usePOS: boolean;
+  useStore: boolean;
+  useRoll: boolean;
+  useBatch: boolean;
+  generateSerialNumber: boolean;
+  useSerialNumber: boolean;
+  isUTSDeclaratedItem: boolean;
+  createdDate: string;
+  lastUpdatedDate: string;
+  isBlocked: boolean;
+}
+
+export interface ProductListParams {
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+  searchTerm?: string;
+  productTypeCode?: string;
+  isBlocked?: boolean;
+}
+
+export interface ProductListResponse {
+  items: Product[];
+  totalCount: number;
+  pageCount: number;
+  currentPage: number;
+  pageSize: number;
+}
+
+export interface CreateProductRequest {
+  productCode: string;
+  productDescription: string;
+  productTypeCode: string;
+  itemDimTypeCode: string;
+  unitOfMeasureCode1: string;
+  unitOfMeasureCode2?: string;
+  companyBrandCode?: string;
+  usePOS?: boolean;
+  useStore?: boolean;
+  useRoll?: boolean;
+  useBatch?: boolean;
+  generateSerialNumber?: boolean;
+  useSerialNumber?: boolean;
+  isUTSDeclaratedItem?: boolean;
+  isBlocked?: boolean;
+}
+
+export interface UpdateProductRequest {
+  productDescription?: string;
+  productTypeCode?: string;
+  itemDimTypeCode?: string;
+  unitOfMeasureCode1?: string;
+  unitOfMeasureCode2?: string;
+  companyBrandCode?: string;
+  usePOS?: boolean;
+  useStore?: boolean;
+  useRoll?: boolean;
+  useBatch?: boolean;
+  generateSerialNumber?: boolean;
+  useSerialNumber?: boolean;
+  isUTSDeclaratedItem?: boolean;
+  isBlocked?: boolean;
+}
+
+// API fonksiyonları
+const productApi = {
+  // Ürün listesini getir
+  async getProducts(params?: ProductListParams): Promise<ProductListResponse> {
+    try {
+      // API endpoint'ini değiştir: /api/products -> /api/Item
+      const queryParams = new URLSearchParams();
+      
+      if (params) {
+        if (params.page) queryParams.append('page', params.page.toString());
+        if (params.pageSize) queryParams.append('pageSize', params.pageSize.toString());
+        if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+        if (params.sortDirection) queryParams.append('sortDirection', params.sortDirection);
+        if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
+        if (params.productTypeCode) queryParams.append('productTypeCode', params.productTypeCode);
+        if (params.isBlocked !== undefined) queryParams.append('isBlocked', params.isBlocked.toString());
+      }
+      
+      const response = await api.get(`/api/Item?${queryParams.toString()}`);
+      
+      if (response.data && response.data.success) {
+        // API yanıtını frontend modeliyle eşleştir
+        const data = response.data.data;
+        
+        return {
+          items: data.items.map((item: any) => ({
+            productCode: item.itemCode,
+            productDescription: item.itemDescription,
+            productTypeCode: item.productTypeCode,
+            productTypeDescription: item.productTypeDescription,
+            itemDimTypeCode: item.itemDimTypeCode,
+            itemDimTypeDescription: item.itemDimTypeDescription,
+            unitOfMeasureCode1: item.unitOfMeasureCode1,
+            unitOfMeasureCode2: item.unitOfMeasureCode2,
+            companyBrandCode: item.companyBrandCode,
+            usePOS: item.usePOS,
+            useStore: item.useStore,
+            useRoll: item.useRoll,
+            useBatch: item.useBatch,
+            generateSerialNumber: item.generateSerialNumber,
+            useSerialNumber: item.useSerialNumber,
+            isUTSDeclaratedItem: item.isUTSDeclaratedItem,
+            createdDate: item.createdDate,
+            lastUpdatedDate: item.lastUpdatedDate,
+            isBlocked: item.isBlocked
+          })),
+          totalCount: data.totalCount,
+          pageCount: data.pageCount,
+          currentPage: data.currentPage,
+          pageSize: data.pageSize
+        };
+      }
+      
+      throw new Error('Failed to fetch products');
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      throw error;
+    }
+  },
+  
+  // Ürün detayını getir
+  async getProductDetail(productCode: string): Promise<Product> {
+    try {
+      // API endpoint'ini değiştir: /api/products/{productCode} -> /api/Item/{itemCode}
+      const response = await api.get(`/api/Item/${productCode}`);
+      
+      if (response.data && response.data.success) {
+        // API yanıtını frontend modeliyle eşleştir
+        const item = response.data.data;
+        
+        return {
+          productCode: item.itemCode,
+          productDescription: item.itemDescription,
+          productTypeCode: item.productTypeCode,
+          productTypeDescription: item.productTypeDescription,
+          itemDimTypeCode: item.itemDimTypeCode,
+          itemDimTypeDescription: item.itemDimTypeDescription,
+          unitOfMeasureCode1: item.unitOfMeasureCode1,
+          unitOfMeasureCode2: item.unitOfMeasureCode2,
+          companyBrandCode: item.companyBrandCode,
+          usePOS: item.usePOS,
+          useStore: item.useStore,
+          useRoll: item.useRoll,
+          useBatch: item.useBatch,
+          generateSerialNumber: item.generateSerialNumber,
+          useSerialNumber: item.useSerialNumber,
+          isUTSDeclaratedItem: item.isUTSDeclaratedItem,
+          createdDate: item.createdDate,
+          lastUpdatedDate: item.lastUpdatedDate,
+          isBlocked: item.isBlocked
+        };
+      }
+      
+      throw new Error('Failed to fetch product details');
+    } catch (error) {
+      console.error('Error fetching product details:', error);
+      throw error;
+    }
+  },
+  
+  // Yeni ürün oluştur
+  async createProduct(product: CreateProductRequest): Promise<Product> {
+    try {
+      // API endpoint'ini değiştir: /api/products -> /api/Item
+      // Request modelini ItemController'ın beklediği modele dönüştür
+      const createItemRequest = {
+        itemCode: product.productCode,
+        itemDescription: product.productDescription,
+        productTypeCode: product.productTypeCode,
+        itemDimTypeCode: product.itemDimTypeCode,
+        unitOfMeasureCode1: product.unitOfMeasureCode1,
+        unitOfMeasureCode2: product.unitOfMeasureCode2,
+        companyBrandCode: product.companyBrandCode,
+        usePOS: product.usePOS,
+        useStore: product.useStore,
+        useRoll: product.useRoll,
+        useBatch: product.useBatch,
+        generateSerialNumber: product.generateSerialNumber,
+        useSerialNumber: product.useSerialNumber,
+        isUTSDeclaratedItem: product.isUTSDeclaratedItem,
+        isBlocked: product.isBlocked
+      };
+      
+      const response = await api.post('/api/Item', createItemRequest);
+      
+      if (response.data && response.data.success) {
+        // API yanıtını frontend modeliyle eşleştir
+        const item = response.data.data;
+        
+        return {
+          productCode: item.itemCode,
+          productDescription: item.itemDescription,
+          productTypeCode: item.productTypeCode,
+          productTypeDescription: item.productTypeDescription,
+          itemDimTypeCode: item.itemDimTypeCode,
+          itemDimTypeDescription: item.itemDimTypeDescription,
+          unitOfMeasureCode1: item.unitOfMeasureCode1,
+          unitOfMeasureCode2: item.unitOfMeasureCode2,
+          companyBrandCode: item.companyBrandCode,
+          usePOS: item.usePOS,
+          useStore: item.useStore,
+          useRoll: item.useRoll,
+          useBatch: item.useBatch,
+          generateSerialNumber: item.generateSerialNumber,
+          useSerialNumber: item.useSerialNumber,
+          isUTSDeclaratedItem: item.isUTSDeclaratedItem,
+          createdDate: item.createdDate,
+          lastUpdatedDate: item.lastUpdatedDate,
+          isBlocked: item.isBlocked
+        };
+      }
+      
+      throw new Error('Failed to create product');
+    } catch (error) {
+      console.error('Error creating product:', error);
+      throw error;
+    }
+  },
+  
+  // Ürün güncelle
+  async updateProduct(productCode: string, product: UpdateProductRequest): Promise<Product> {
+    try {
+      // API endpoint'ini değiştir: /api/products/{productCode} -> /api/Item/{itemCode}
+      // Request modelini ItemController'ın beklediği modele dönüştür
+      const updateItemRequest = {
+        itemDescription: product.productDescription,
+        productTypeCode: product.productTypeCode,
+        itemDimTypeCode: product.itemDimTypeCode,
+        unitOfMeasureCode1: product.unitOfMeasureCode1,
+        unitOfMeasureCode2: product.unitOfMeasureCode2,
+        companyBrandCode: product.companyBrandCode,
+        usePOS: product.usePOS,
+        useStore: product.useStore,
+        useRoll: product.useRoll,
+        useBatch: product.useBatch,
+        generateSerialNumber: product.generateSerialNumber,
+        useSerialNumber: product.useSerialNumber,
+        isUTSDeclaratedItem: product.isUTSDeclaratedItem,
+        isBlocked: product.isBlocked
+      };
+      
+      const response = await api.put(`/api/Item/${productCode}`, updateItemRequest);
+      
+      if (response.data && response.data.success) {
+        // API yanıtını frontend modeliyle eşleştir
+        const item = response.data.data;
+        
+        return {
+          productCode: item.itemCode,
+          productDescription: item.itemDescription,
+          productTypeCode: item.productTypeCode,
+          productTypeDescription: item.productTypeDescription,
+          itemDimTypeCode: item.itemDimTypeCode,
+          itemDimTypeDescription: item.itemDimTypeDescription,
+          unitOfMeasureCode1: item.unitOfMeasureCode1,
+          unitOfMeasureCode2: item.unitOfMeasureCode2,
+          companyBrandCode: item.companyBrandCode,
+          usePOS: item.usePOS,
+          useStore: item.useStore,
+          useRoll: item.useRoll,
+          useBatch: item.useBatch,
+          generateSerialNumber: item.generateSerialNumber,
+          useSerialNumber: item.useSerialNumber,
+          isUTSDeclaratedItem: item.isUTSDeclaratedItem,
+          createdDate: item.createdDate,
+          lastUpdatedDate: item.lastUpdatedDate,
+          isBlocked: item.isBlocked
+        };
+      }
+      
+      throw new Error('Failed to update product');
+    } catch (error) {
+      console.error('Error updating product:', error);
+      throw error;
+    }
+  },
+  
+  // Ürün sil
+  async deleteProduct(productCode: string): Promise<void> {
+    try {
+      // API endpoint'ini değiştir: /api/products/{productCode} -> /api/Item/{itemCode}
+      const response = await api.delete(`/api/Item/${productCode}`);
+      
+      if (!response.data || !response.data.success) {
+        throw new Error('Failed to delete product');
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      throw error;
+    }
+  },
+  
+  // Ürün tiplerini getir
+  async getProductTypes(): Promise<{ code: string; description: string }[]> {
+    try {
+      // Ürün tiplerini getirmek için yeni endpoint kullan
+      const response = await api.get('/api/Item/product-types');
+      
+      if (response.data && response.data.success) {
+        return response.data.data.map((type: any) => ({
+          code: type.productTypeCode,
+          description: type.productTypeDescription
+        }));
+      }
+      
+      throw new Error('Failed to fetch product types');
+    } catch (error) {
+      console.error('Error fetching product types:', error);
+      throw error;
+    }
+  },
+  
+  // Ölçü birimlerini getir
+  async getUnitOfMeasures(): Promise<{ code: string; description: string }[]> {
+    try {
+      // Ölçü birimlerini getirmek için yeni endpoint kullan
+      const response = await api.get('/api/Item/unit-of-measures');
+      
+      if (response.data && response.data.success) {
+        return response.data.data.map((unit: any) => ({
+          code: unit.unitOfMeasureCode,
+          description: unit.unitOfMeasureDescription
+        }));
+      }
+      
+      throw new Error('Failed to fetch unit of measures');
+    } catch (error) {
+      console.error('Error fetching unit of measures:', error);
+      throw error;
+    }
+  }
+};
+
+export default productApi;

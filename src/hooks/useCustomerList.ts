@@ -1,7 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
 import { customerApi, CustomerFilterRequest, CustomerListResponse } from '../services/api';
 import { Customer } from '../types/customer';
 import { ApiResponse, PagedResponse } from '../api-helpers';
+import { useQuery } from '@tanstack/react-query';
 
 interface CustomerListResult {
   customers: CustomerListResponse[];
@@ -60,45 +60,51 @@ export const useCustomerList = ({
           console.log('useCustomerList: API response structure:', JSON.stringify(apiResponse.data, null, 2));
           
           // API yanıtının farklı yapılarını kontrol et
-          let items = [];
+          let items: any[] = [];
           let totalCount = 0;
           let pageNumber = page;
           let totalPages = 1;
           let hasNextPage = false;
           let hasPreviousPage = false;
           
-          const pagedData = apiResponse.data;
+          // TypeScript'in PagedResponse tipinde data özelliği olmadığını biliyoruz
+          // Bu yüzden any tipine dönüştürüyoruz
+          const anyData = apiResponse.data as any;
           
-          // 1. Durum: data.data yapısı (iç içe data objesi)
-          if (pagedData.data && Array.isArray(pagedData.data)) {
+          // 1. Durum: response.data.data yapısı (iç içe data objesi)
+          if (anyData.data && Array.isArray(anyData.data)) {
             console.log('useCustomerList: Found data.data array structure');
-            items = pagedData.data;
-            totalCount = items.length;
+            items = anyData.data;
+            totalCount = anyData.totalRecords || anyData.totalCount || items.length;
+            pageNumber = anyData.pageNumber || page;
+            totalPages = anyData.totalPages || Math.ceil(totalCount / pageSize);
+            hasNextPage = anyData.hasNextPage || false;
+            hasPreviousPage = anyData.hasPreviousPage || false;
           } 
           // 2. Durum: data.items yapısı (sayfalama bilgisi ile birlikte)
-          else if (pagedData.items && Array.isArray(pagedData.items)) {
+          else if (anyData.items && Array.isArray(anyData.items)) {
             console.log('useCustomerList: Found data.items array structure');
-            items = pagedData.items;
-            totalCount = pagedData.totalCount || items.length;
-            pageNumber = pagedData.pageNumber || page;
-            totalPages = pagedData.totalPages || Math.ceil(totalCount / pageSize);
-            hasNextPage = pagedData.hasNextPage || false;
-            hasPreviousPage = pagedData.hasPreviousPage || false;
+            items = anyData.items;
+            totalCount = anyData.totalCount || items.length;
+            pageNumber = anyData.pageNumber || page;
+            totalPages = anyData.totalPages || Math.ceil(totalCount / pageSize);
+            hasNextPage = anyData.hasNextPage || false;
+            hasPreviousPage = anyData.hasPreviousPage || false;
           } 
           // 3. Durum: data doğrudan bir dizi
-          else if (Array.isArray(pagedData)) {
+          else if (Array.isArray(anyData)) {
             console.log('useCustomerList: Found direct array structure');
-            items = pagedData;
+            items = anyData;
             totalCount = items.length;
           }
           // 4. Durum: Bilinmeyen yapı
           else {
             console.warn('useCustomerList: Unknown data structure, trying to extract customers');
             // Objenin içinde bir dizi bulmaya çalış
-            for (const key in pagedData) {
-              if (Array.isArray(pagedData[key])) {
+            for (const key in anyData) {
+              if (Array.isArray(anyData[key])) {
                 console.log(`useCustomerList: Found array in property "${key}"`);
-                items = pagedData[key];
+                items = anyData[key];
                 totalCount = items.length;
                 break;
               }
@@ -133,4 +139,4 @@ export const useCustomerList = ({
       return failureCount < 2; // Maksimum 2 deneme yap
     }
   });
-}; 
+};

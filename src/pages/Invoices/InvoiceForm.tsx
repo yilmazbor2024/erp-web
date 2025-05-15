@@ -57,6 +57,10 @@ interface InvoiceLine {
   description?: string;
 }
 
+interface InvoiceFormProps {
+  type?: 'purchase' | 'sales' | 'wholesale' | 'wholesale-purchase';
+}
+
 const calculateLineAmounts = (line: InvoiceLine): InvoiceLine => {
   const netAmount = line.quantity * line.unitPrice * (1 - line.discountRate / 100);
   const taxAmount = netAmount * (line.taxRate / 100);
@@ -70,7 +74,7 @@ const calculateLineAmounts = (line: InvoiceLine): InvoiceLine => {
   };
 };
 
-const InvoiceForm: React.FC = () => {
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ type = 'sales' }) => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEditMode = Boolean(id);

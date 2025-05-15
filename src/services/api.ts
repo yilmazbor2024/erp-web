@@ -1,1134 +1,380 @@
-import axios from 'axios';
+import axiosInstance from '../config/axios';
 import { ApiResponse, PagedResponse } from '../api-helpers';
-import { AddressResponse, AddressTypeResponse, AddressCreateRequest } from '../types/address';
+import { Customer } from '../types/customer';
+import { AddressTypeResponse, AddressResponse } from '../types/address';
+import { CurrencyResponse } from '../hooks/useCurrencies'; 
+import { TaxOfficeResponse } from '../hooks/useTaxOffices';
 
-// API'nin base URL'i
-const API_BASE_URL = process.env.REACT_APP_API_URL;
+// Geçici olarak any kullanıyoruz, bu tiplerin types/customer.ts içinde doğru şekilde tanımlanması gerekir.
+export type CustomerDetailResponse = any;
+export type CustomerFilterRequest = any;
+export type CustomerUpdateRequest = any;
+export type CustomerCreateRequestNew = any;
+export type CustomerUpdateResponseNew = any;
+export type CustomerCreateResponseNew = any;
+export type CustomerListResponse = any;
+export type CustomerResponse = any;
 
-// Log the base URL to debug 
-console.log('API Base URL:', API_BASE_URL);
-
-// Axios instance oluştur
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor - her istekten önce çalışır
-api.interceptors.request.use(
-  (config) => {
-    // Log the request URL for debugging
-    console.log(`Request URL: ${config.baseURL}${config.url}`);
-    
-    // Token öncelik sırası: 
-    // 1. localStorage'daki 'accessToken'
-    // 2. localStorage'daki 'token'
-    // 3. sessionStorage'daki 'token'
-    // 4. .env dosyasındaki REACT_APP_API_TOKEN
-    const accessToken = localStorage.getItem('accessToken');
-    const localStorageToken = localStorage.getItem('token');
-    const sessionToken = sessionStorage.getItem('token');
-    const envToken = process.env.REACT_APP_API_TOKEN;
-    
-    const token = accessToken || localStorageToken || sessionToken || envToken;
-    
-    if (token) {
-      console.log('Using token for request:', token.substring(0, 15) + '...');
-      
-      // Authorization header'ı ekle (Bearer token)
-      config.headers.Authorization = `Bearer ${token}`;
-      
-      // Bazı API'ler farklı header formatları kullanabilir, bunları da ekleyelim
-      config.headers['x-access-token'] = token;
-      config.headers['x-auth-token'] = token;
-    } else {
-      console.warn('No token available for request');
-    }
-    
-    return config;
-  },
-  (error) => {
-    console.error('Request interceptor error:', error);
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor
-api.interceptors.response.use(
-  (response) => {
-    // Başarılı yanıtları log'la
-    console.log(`API Success (${response.status}):`, response.config.url);
-    return response;
-  },
-  (error) => {
-    const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-    const statusCode = error.response?.status;
-    
-    console.error(`API Error (${statusCode}):`, errorMessage, error);
-    
-    // Handle auth errors
-    if (statusCode === 401) {
-      console.log('Unauthorized access detected');
-      
-      // Token'ı temizle
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('token');
-      sessionStorage.removeItem('token');
-      
-      // Özel bir hata objesi döndür, böylece uygulamanın geri kalanı bu durumu yönetebilir
-      return Promise.reject({
-        ...error,
-        isAuthError: true,
-        message: 'Oturum süresi doldu veya geçersiz. Lütfen tekrar giriş yapın.'
-      });
-    }
-    
-    return Promise.reject(error);
-  }
-);
-
-// Auth Models
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface LoginResponse {
-  token: string;
-  expiration: string;
-}
-
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-}
-
-export interface ForgotPasswordRequest {
-  email: string;
-  clientUrl: string;
-}
-
-export interface ResetPasswordRequest {
-  token: string;
-  email: string;
-  newPassword: string;
-}
-
-export interface ChangePasswordRequest {
-  currentPassword: string;
-  newPassword: string;
-}
-
-// User Models
-export interface User {
-  id: string;
-  userName: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  isActive: boolean;
-  roles: string[];
-  userGroupId?: string;
-  userGroupName?: string;
-}
-
-export interface CreateUserRequest {
-  userName: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  password: string;
-  userGroupId?: string;
-  roles: string[];
-}
-
-export interface UpdateUserRequest {
-  firstName: string;
-  lastName: string;
-  email: string;
-  userGroupId?: string;
-  roles: string[];
-  isActive: boolean;
-}
-
-// Order Models
-export interface Order {
-  id: string;
-  orderNumber: string;
-  customerName: string;
-  date: string;
-  status: string;
-  totalAmount: number;
-}
-
-// Product Models
-export interface Product {
-  id: string;
-  code: string;
-  name: string;
-  unitPrice: number;
-  stockQuantity: number;
-  status: string;
-}
-
-// Role Models
-export interface Role {
-  id: string;
-  name: string;
-  description: string;
-  isActive: boolean;
-}
-
-export interface CreateRoleRequest {
-  name: string;
-  description?: string;
-}
-
-export interface UpdateRoleRequest {
-  name?: string;
-  description?: string;
-  isActive?: boolean;
-}
-
-export interface UserInRoleDto {
-  id: string;
-  userName: string;
-  email: string;
-  userCode: string;
-  firstName: string;
-  lastName: string;
-}
-
-// UserGroup Models
-export interface ModulePermissionDto {
-  moduleName: string;
-  canCreate: boolean;
-  canRead: boolean;
-  canUpdate: boolean;
-  canDelete: boolean;
-}
-
-export interface UserGroupDto {
-  id: string;
-  name: string;
-  description: string;
-  isActive: boolean;
-  permissions: ModulePermissionDto[];
-}
-
-export interface CreateUserGroupRequest {
-  name: string;
-  description: string;
-  permissions: ModulePermissionDto[];
-}
-
-export interface UpdateUserGroupRequest {
-  name: string;
-  description: string;
-  permissions: ModulePermissionDto[];
-}
-
-// Auth API - Note: These endpoints might require 'api/' or 'v1/' prefixes based on backend configuration
-export const authApi = {
-  // Try both '/Auth/login' and '/api/Auth/login' if one fails
-  login: async (data: LoginRequest) => {
-    console.log('API: Attempting login for:', data.email);
-    
-    // Tüm olası login endpoint'lerini dene
-    const endpoints = [
-      '/api/Auth/login',
-      '/api/v1/Auth/login',
-      '/api/User/login',
-      '/api/v1/User/login'
-    ];
-    
-    let lastError = null;
-    
-    // Her endpoint'i sırayla dene
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`API: Trying login endpoint ${endpoint}`);
-        const response = await api.post(endpoint, data);
-        console.log(`API: Login successful from ${endpoint}:`, response.data);
-        
-        // Token'ı doğru formatta döndür
-        if (response.data && response.data.token) {
-          return {
-            token: response.data.token,
-            expiration: response.data.expiration || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          };
-        } else if (response.data && response.data.accessToken) {
-          return {
-            token: response.data.accessToken,
-            expiration: response.data.expiration || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          };
-        } else {
-          console.warn(`API: Login response from ${endpoint} does not contain token:`, response.data);
-          continue; // Token yoksa bir sonraki endpoint'i dene
-        }
-      } catch (error) {
-        console.warn(`API: Login endpoint ${endpoint} failed:`, error);
-        lastError = error;
-        // Devam et ve bir sonraki endpoint'i dene
-      }
-    }
-    
-    // Tüm endpoint'ler başarısız olduysa, son hatayı fırlat
-    console.error('API: All login endpoints failed');
-    throw lastError || new Error('Giriş başarısız: Tüm endpoint\'ler başarısız oldu');
-  },
-  
-  // Kullanıcı giriş çıkış loglarını getir
-  getUserLoginLogs: () => {
-    console.log('Fetching user login logs');
-    
-    return api.get<any>('/api/Auth/login-logs')
-      .then(response => {
-        console.log('Login logs fetched successfully:', response.data);
-        return response.data;
-      })
-      .catch(error => {
-        console.error('Failed to fetch login logs:', error);
-        
-        // Eğer API henüz bu endpoint'i desteklemiyorsa veya başka bir hata varsa, örnek veri döndür
-        console.warn('Login logs endpoint not available, returning mock data');
-        
-        // Son 10 giriş için örnek veri
-        const mockLogs = Array.from({ length: 10 }).map((_, index) => {
-          const date = new Date();
-          date.setDate(date.getDate() - index);
-          
-          return {
-            id: `log-${index}`,
-            loginDate: date.toISOString(),
-            ipAddress: `192.168.1.${Math.floor(Math.random() * 255)}`,
-            userAgent: navigator.userAgent,
-            success: Math.random() > 0.2, // %80 başarılı giriş
-            failureReason: Math.random() > 0.2 ? null : 'Geçersiz şifre',
-          };
-        });
-        
-        return { data: mockLogs };
-      });
-  },
-  
-  register: (data: RegisterRequest) => api.post('/api/Auth/register', data).then(response => response.data),
-  logout: async () => {
-    try {
-      console.log('API: Attempting logout');
-      
-      // Tüm olası logout endpoint'lerini dene
-      const endpoints = [
-        '/api/Auth/logout',
-        '/api/v1/Auth/logout',
-        '/api/User/logout',
-        '/api/v1/User/logout'
-      ];
-      
-      let lastError = null;
-      let success = false;
-      
-      // Her endpoint'i sırayla dene
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`API: Trying logout endpoint ${endpoint}`);
-          const response = await api.post(endpoint);
-          console.log(`API: Logout successful from ${endpoint}:`, response.data);
-          success = true;
-          break; // Başarılı olduysa döngüden çık
-        } catch (error) {
-          console.warn(`API: Logout endpoint ${endpoint} failed:`, error);
-          lastError = error;
-          // Devam et ve bir sonraki endpoint'i dene
-        }
-      }
-      
-      // Tüm endpoint'ler başarısız olduysa ama bu kritik değil
-      if (!success) {
-        console.warn('API: All logout endpoints failed, but proceeding with local logout');
-      }
-      
-      // Her durumda başarılı kabul et, çünkü client-side logout her zaman çalışmalı
-      return { success: true };
-    } catch (error: any) {
-      console.error('API: Error during logout:', error);
-      // Hata olsa bile başarılı kabul et, çünkü client-side logout her zaman çalışmalı
-      return { success: true };
-    }
-  },
-  forgotPassword: (data: ForgotPasswordRequest) => api.post('/api/Auth/forgot-password', data).then(response => response.data),
-  resetPassword: (data: ResetPasswordRequest) => api.post('/api/Auth/reset-password', data).then(response => response.data),
-  
-  changePassword: (data: ChangePasswordRequest) => {
-    console.log('Attempting to change password');
-    
-    return api.post<any>('/api/Auth/change-password', data)
-      .then(response => {
-        console.log('Password changed successfully:', response.data);
-        return response.data;
-      })
-      .catch(error => {
-        console.error('Password change failed:', error);
-        
-        // API'den gelen hata mesajını kullan
-        if (error.response && error.response.data && error.response.data.message) {
-          throw new Error(error.response.data.message);
-        }
-        
-        // API henüz desteklemiyorsa başarılı olmuş gibi davran (geliştirme aşamasında)
-        console.warn('Password change endpoint not available, simulating success');
-        return { success: true, message: 'Şifre başarıyla değiştirildi (Simülasyon)' };
-      });
-  },
-  
-  getCurrentUser: () => {
-    console.log('Fetching current user data');
-    
-    // Doğru API endpoint'ini kullan - hem /api/User/current hem de /api/Auth/current dene
-    return api.get<User>('/api/User/current')
-      .then(response => {
-        console.log('Current user data fetched successfully:', response.data);
-        return response.data;
-      })
-      .catch(error => {
-        console.error('Failed to fetch current user data from /api/User/current:', error);
-        
-        // Alternatif endpoint'i dene
-        console.log('Trying alternative endpoint /api/Auth/current');
-        return api.get<User>('/api/Auth/current')
-          .then(response => {
-            console.log('Current user data fetched successfully from alternative endpoint:', response.data);
-            return response.data;
-          })
-          .catch(altError => {
-            console.error('Failed to fetch current user data from alternative endpoint:', altError);
-            
-            // Hata fırlat, mock veri döndürme
-            throw new Error('Kullanıcı bilgileri alınamadı');
-          });
-      });
-  }
+// API metodlarını içeren temel nesne
+export const api = {
+  get: axiosInstance.get.bind(axiosInstance),
+  post: axiosInstance.post.bind(axiosInstance),
+  put: axiosInstance.put.bind(axiosInstance),
+  delete: axiosInstance.delete.bind(axiosInstance),
+  patch: axiosInstance.patch.bind(axiosInstance)
 };
 
-// User API
-export const userApi = {
-  getCurrentUser: async (): Promise<User> => {
-    try {
-      console.log('userApi: Fetching current user data');
-      const response = await api.get<User>('/api/User/current');
-      console.log('userApi: Current user data fetched successfully:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('userApi: Error fetching current user:', error);
-      
-      // Alternatif endpoint'i dene
-      try {
-        console.log('userApi: Trying alternative endpoint /api/Auth/current');
-        const altResponse = await api.get<User>('/api/Auth/current');
-        console.log('userApi: Current user data fetched successfully from alternative endpoint:', altResponse.data);
-        return altResponse.data;
-      } catch (altError) {
-        console.error('userApi: Error fetching current user from alternative endpoint:', altError);
-        // Hata fırlat, mock veri döndürme
-        throw new Error('Kullanıcı bilgileri alınamadı');
-      }
-    }
-  },
+// Diğer API çağrılarınızın olduğu varsayılan bir yapı
 
-  list: async (): Promise<User[]> => {
-    const response = await api.get<User[]>('/api/User');
-    return response.data;
-  },
-
-  getById: async (id: string): Promise<User> => {
-    const response = await api.get<User>(`/api/User/${id}`);
-    return response.data;
-  },
-
-  create: async (data: CreateUserRequest): Promise<User> => {
-    const response = await api.post<User>('/api/User', data);
-    return response.data;
-  },
-
-  update: async (id: string, data: UpdateUserRequest): Promise<User> => {
-    const response = await api.put<User>(`/api/User/${id}`, data);
-    return response.data;
-  },
-
-  delete: async (id: string): Promise<void> => {
-    await api.delete(`/api/User/${id}`);
-  },
-
-  updateProfile: async (data: Partial<User>): Promise<User> => {
-    const response = await api.put<User>('/api/User/profile', data);
-    return response.data;
-  },
-
-  changePassword: async (currentPassword: string, newPassword: string): Promise<void> => {
-    await api.post('/api/User/change-password', { currentPassword, newPassword });
-  }
-};
-
-// Role API
-export const roleApi = {
-  getRoles: () => api.get<Role[]>('/api/Role').then(response => response.data),
-  getRole: (id: string) => api.get<Role>(`/api/Role/${id}`).then(response => response.data),
-  createRole: (data: CreateRoleRequest) => api.post<Role>('/api/Role', data).then(response => response.data),
-  updateRole: (id: string, data: UpdateRoleRequest) => api.put<Role>(`/api/Role/${id}`, data).then(response => response.data),
-  deleteRole: (id: string) => api.delete(`/api/Role/${id}`).then(response => response.data),
-  getUsersInRole: (id: string) => api.get<UserInRoleDto[]>(`/api/Role/${id}/users`).then(response => response.data)
-};
-
-// UserGroup API
-export const userGroupApi = {
-  list: async (): Promise<UserGroupDto[]> => {
-    const response = await api.get<UserGroupDto[]>('/api/UserGroup');
-    return response.data;
-  },
-
-  getById: async (id: string): Promise<UserGroupDto> => {
-    const response = await api.get<UserGroupDto>(`/api/UserGroup/${id}`);
-    return response.data;
-  },
-
-  create: async (data: CreateUserGroupRequest): Promise<UserGroupDto> => {
-    const response = await api.post<UserGroupDto>('/api/UserGroup', data);
-    return response.data;
-  },
-
-  update: async (id: string, data: UpdateUserGroupRequest): Promise<void> => {
-    await api.put(`/api/UserGroup/${id}`, data);
-  },
-
-  delete: async (id: string): Promise<void> => {
-    await api.delete(`/api/UserGroup/${id}`);
-  }
-};
-
-// Customer API
 export const customerApi = {
-  getCustomer: async (customerCode: string): Promise<any> => {
-    try {
-      const response = await api.get(`/api/v1/customer/${customerCode}`);
-      return response.data;
-    } catch (error) {
-      console.error(`API: Error fetching customer ${customerCode}:`, error);
-      throw error;
-    }
+  getCustomers: async (filter: CustomerFilterRequest): Promise<ApiResponse<PagedResponse<CustomerListResponse>>> => {
+    console.log('API: Fetching customers with filter:', filter);
+    const response = await axiosInstance.get('/api/v1/CustomerBasic/customers', { params: filter });
+    console.log('API: Customers response:', response.data);
+    return response.data;
   },
-  
-  getCustomerAddresses: async (customerCode: string): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/customer/${customerCode}/addresses`);
-      return response.data;
-    } catch (error) {
-      console.error(`API: Error fetching addresses for customer ${customerCode}:`, error);
-      return [];
-    }
+  getCustomerByCode: async (customerCode: string): Promise<ApiResponse<CustomerDetailResponse>> => {
+    console.log('API: Fetching customer by code:', customerCode);
+    const response = await axiosInstance.get<ApiResponse<CustomerDetailResponse>>(`/api/v1/CustomerBasic/${customerCode}`);
+    console.log('API: Customer detail response:', response.data);
+    return response.data;
   },
-  
+  createCustomer: async (customerData: any): Promise<ApiResponse<CustomerResponse>> => { // Tipini CustomerCreateRequest olarak güncelleyebilirsiniz
+    console.log('API: Creating customer:', customerData);
+    const response = await axiosInstance.post<ApiResponse<CustomerResponse>>('/api/v1/Customer/Create', customerData);
+    console.log('API: Create customer response:', response.data);
+    return response.data;
+  },
+  createCustomerBasic: async (customerData: CustomerCreateRequestNew): Promise<ApiResponse<CustomerCreateResponseNew>> => {
+    console.log('API: Creating customer basic:', customerData);
+    const response = await axiosInstance.post<ApiResponse<CustomerCreateResponseNew>>('/api/v1/Customer/create-basic', customerData);
+    console.log('API: Create customer basic response:', response.data);
+    return response.data;
+  },
+  updateCustomer: async (customerData: CustomerUpdateRequest): Promise<ApiResponse<CustomerUpdateResponseNew>> => {
+    console.log('API: Updating customer:', customerData.customerCode, customerData);
+    const response = await axiosInstance.post<ApiResponse<CustomerUpdateResponseNew>>(`/api/v1/Customer/update`, customerData);
+    console.log('API: Update customer response:', response.data);
+    return response.data;
+  },
+  getCustomerAddresses: async (customerCode: string): Promise<AddressResponse[]> => {
+    console.log('API: Fetching addresses for customer:', customerCode);
+    const response = await axiosInstance.get<ApiResponse<AddressResponse[]>>(`/api/v1/CustomerAddress/${customerCode}/addresses`);
+    if (response.data.success) {
+      console.log('API: Customer addresses fetched successfully', response.data.data);
+      return response.data.data;
+    }
+    console.error('API: Error fetching customer addresses', response.data.message);
+    throw new Error(response.data.message || 'Müşteri adresleri alınamadı');
+  },
+  getCustomerAddressById: async (customerCode: string, addressId: string): Promise<AddressResponse> => {
+    // Bu endpoint backend'de olmayabilir, kontrol edin.
+    const response = await axiosInstance.get<ApiResponse<AddressResponse>>(`/api/v1/CustomerAddress/${customerCode}/addresses/${addressId}`);
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Adres detayı alınamadı');
+  },
+  createCustomerAddress: async (customerCode: string, address: any): Promise<ApiResponse<AddressResponse>> => {
+    const response = await axiosInstance.post<ApiResponse<AddressResponse>>(`/api/v1/CustomerAddress/${customerCode}/addresses`, address);
+    return response.data; 
+  },
   getCustomerCommunications: async (customerCode: string): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/customer/${customerCode}/communications`);
-      return response.data;
-    } catch (error) {
-      console.error(`API: Error fetching communications for customer ${customerCode}:`, error);
-      return [];
-    }
+    const response = await axiosInstance.get<ApiResponse<any[]>>(`/api/v1/CustomerCommunication/${customerCode}/communications`);
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'İletişim bilgileri alınamadı');
   },
-  
   getCustomerContacts: async (customerCode: string): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/customer/${customerCode}/contacts`);
-      return response.data;
-    } catch (error) {
-      console.error(`API: Error fetching contacts for customer ${customerCode}:`, error);
-      return [];
-    }
+    const response = await axiosInstance.get<ApiResponse<any[]>>(`/api/v1/CustomerContact/${customerCode}/contacts`);
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Kişi bilgileri alınamadı');
   },
-  
+  getCountries: async (langCode: string = 'TR'): Promise<any[]> => {
+    const response = await axiosInstance.get<ApiResponse<any[]>>('/api/v1/Location/countries', { params: { langCode } });
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Ülkeler alınamadı');
+  },
   getCustomerTypes: async (): Promise<any[]> => {
-    try {
-      const response = await api.get('/api/v1/customer/types');
-      return response.data;
-    } catch (error) {
-      console.error('API: Error fetching customer types:', error);
-      return [];
-    }
+    const response = await axiosInstance.get<ApiResponse<any[]>>('/api/v1/CustomerBasic/customer-types');
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Müşteri tipleri alınamadı');
   },
-  
-  getAddressTypes: async (): Promise<any[]> => {
+  getLocationHierarchy: async (langCode: string = 'TR', countryCode: string = 'TR'): Promise<any> => {
+    const response = await axiosInstance.get<ApiResponse<any>>('/api/v1/Location/hierarchy', { params: { langCode, countryCode } });
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Lokasyon hiyerarşisi alınamadı');
+  },
+  getRegions: async (langCode: string = 'TR'): Promise<any[]> => { // State/Bölge için
+    const response = await axiosInstance.get<ApiResponse<any[]>>('/api/v1/Location/states', { params: { langCode } });
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Bölgeler alınamadı');
+  },
+  getCitiesByRegion: async (regionCode: string, langCode: string = 'TR'): Promise<any[]> => {
+    const response = await axiosInstance.get<ApiResponse<any[]>>(`/api/v1/CustomerLocation/states/${regionCode}/cities`, { params: { langCode } }); // Endpoint'i kontrol edin, CustomerLocation veya Location olabilir
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Şehirler alınamadı');
+  },
+  getDistrictsByCity: async (cityCode: string, langCode: string = 'TR'): Promise<any[]> => {
+    const response = await axiosInstance.get<ApiResponse<any[]>>(`/api/v1/CustomerLocation/cities/${cityCode}/districts`, { params: { langCode } }); // Endpoint'i kontrol edin
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'İlçeler alınamadı');
+  },
+  getTaxOffices: async (): Promise<TaxOfficeResponse[]> => {
     try {
-      const response = await api.get('/api/v1/customer/address-types');
-      console.log('Adres tipleri API yanıtı:', response.data);
+      console.log('API: Fetching tax offices from backend');
+      const response = await axiosInstance.get<ApiResponse<TaxOfficeResponse[]>>('/api/v1/Warehouse/tax-offices');
       
-      // API yanıtı kontrol et ve doğru veriyi döndür
-      if (response.data && response.data.data) {
+      if (response.data.success && response.data.data) {
+        console.log(`API: Successfully fetched ${response.data.data.length} tax offices`);
         return response.data.data;
-      } else if (Array.isArray(response.data)) {
-        return response.data;
+      } else {
+        console.warn('API: Tax offices endpoint returned success=false or no data', response.data);
+        return [];
       }
-      
-      return [];
     } catch (error) {
-      console.error('API: Error fetching address types:', error);
+      console.error('API: Error fetching tax offices', error);
+      // Kullanıcının isteği doğrultusunda hata durumunda boş dizi döndürüyoruz, mock veri kullanmıyoruz
       return [];
     }
   },
-  
-  getAddressTypeByCode: async (code: string): Promise<any> => {
-    try {
-      const response = await api.get(`/api/v1/customer/address-types/${code}`);
-      return response.data;
-    } catch (error) {
-      console.error(`API: Error fetching address type ${code}:`, error);
-      throw error;
-    }
+  getTaxOfficesByCity: async (cityCode: string, langCode: string = 'TR'): Promise<TaxOfficeResponse[]> => {
+     console.log(`API: Fetching tax offices for city: ${cityCode}`);
+     // Bu endpoint backend'de olmayabilir, CustomerBasic/tax-offices/{cityCode} gibi bir yapı gerekebilir
+     // Şimdilik tümünü çekip filtrelemeyi deneyebiliriz veya backend'de endpoint oluşturulmalı
+     // const response = await axiosInstance.get<ApiResponse<TaxOfficeResponse[]>>(`/api/v1/CustomerBasic/tax-offices/${cityCode}`, { params: { langCode } });
+     // Geçici olarak tümünü çekip filtreleyelim (performans sorunlarına yol açabilir)
+     const allTaxOfficesResponse = await customerApi.getTaxOffices(); // Parametresiz çağrı
+     const filtered = allTaxOfficesResponse.filter(office => office.cityCode === cityCode); // cityCode alanı TaxOfficeResponse tipinde olmalı
+     console.log(`API: Tax offices for city ${cityCode} (filtered):`, filtered);
+     return filtered;
   },
-  
-  getCustomerAddressById: async (customerCode: string, addressId: string): Promise<any> => {
-    try {
-      const response = await api.get(`/api/v1/customer/${customerCode}/addresses/${addressId}`);
-      return response.data;
-    } catch (error) {
-      console.error(`API: Error fetching address ${addressId} for customer ${customerCode}:`, error);
-      throw error;
-    }
+  getAddressTypes: async (langCode: string = 'TR'): Promise<AddressTypeResponse[]> => {
+    const response = await axiosInstance.get<ApiResponse<AddressTypeResponse[]>>('/api/v1/CustomerAddress/address-types', { params: { langCode }});
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Adres tipleri alınamadı');
   },
-  
-  createCustomerAddress: async (customerCode: string, address: any): Promise<any> => {
-    try {
-      const response = await api.post(`/api/v1/customer/${customerCode}/addresses`, address);
-      return response.data;
-    } catch (error) {
-      console.error(`API: Error creating address for customer ${customerCode}:`, error);
-      throw error;
-    }
+  getAddressTypeByCode: async (code: string, langCode: string = 'TR'): Promise<AddressTypeResponse> => {
+    const response = await axiosInstance.get<ApiResponse<AddressTypeResponse>>(`/api/v1/CustomerAddress/address-types/${code}`, { params: { langCode }});
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Adres tipi alınamadı');
   },
-  
-  getRegions: async (): Promise<any[]> => {
-    try {
-      const response = await api.get('/api/v1/Customer/states');
-      console.log('Bölgeler API yanıtı:', response.data);
-      // API yanıtı kontrol et ve doğru veriyi döndür
-      if (response.data && response.data.data) {
-        return response.data.data;
-      } else if (Array.isArray(response.data)) {
-        return response.data;
-      }
-      return [];
-    } catch (error) {
-      console.error('API: Error fetching states:', error);
-      return [];
-    }
-  },
-  
-  getCitiesByRegion: async (stateCode: string): Promise<any[]> => {
-    try {
-      // Doğru endpoint'i kullan: states/{stateCode}/cities
-      const response = await api.get(`/api/v1/Customer/states/${stateCode}/cities`);
-      console.log(`${stateCode} bölgesinin şehirleri API yanıtı:`, response.data);
-      // API yanıtı kontrol et ve doğru veriyi döndür
-      if (response.data && response.data.data) {
-        return response.data.data;
-      } else if (Array.isArray(response.data)) {
-        return response.data;
-      }
-      return [];
-    } catch (error) {
-      console.error(`API: Error fetching cities for state ${stateCode}:`, error);
-      return [];
-    }
-  },
-  
-  getDistrictsByCity: async (cityCode: string): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/Customer/cities/${cityCode}/districts`);
-      console.log(`${cityCode} şehrinin ilçeleri API yanıtı:`, response.data);
-      // API yanıtı kontrol et ve doğru veriyi döndür
-      if (response.data && response.data.data) {
-        return response.data.data;
-      } else if (Array.isArray(response.data)) {
-        return response.data;
-      }
-      return [];
-    } catch (error) {
-      console.error(`API: Error fetching districts for city ${cityCode}:`, error);
-      return [];
-    }
-  },
-  
-  getTaxOffices: async (langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      console.log('Vergi daireleri için API isteği yapılıyor...', `${API_BASE_URL}/api/v1/Customer/tax-offices?langCode=${langCode}`);
-      
-      const response = await api.get(`/api/v1/Customer/tax-offices`, { 
-        params: { langCode },
-        timeout: 30000,
-      });
-      
-      console.log('Vergi daireleri API yanıtı status:', response.status);
-      console.log('Vergi daireleri API yanıtı success:', response.data?.success);
-      console.log('Vergi daireleri API yanıtı veri sayısı:', response.data?.data?.length || 0);
-      
-      // API yanıtı ApiResponse<List<TaxOfficeResponse>> formatında
-      if (response.data && response.data.data && Array.isArray(response.data.data)) {
-        console.log('Vergi daireleri başarıyla alındı, ilk 3 kayıt:', response.data.data.slice(0, 3));
-        return response.data.data;
-      } else if (Array.isArray(response.data)) {
-        console.log('Vergi daireleri array formatında alındı, ilk 3 kayıt:', response.data.slice(0, 3));
-        return response.data;
-      } else if (response.data && response.data.success === false) {
-        console.error('API vergi daireleri hatası:', response.data.message);
-        throw new Error(`Vergi daireleri alınamadı: ${response.data.message}`);
-      }
-      
-      console.warn('Vergi daireleri için uygun veri formatı bulunamadı, boş liste döndürülüyor');
-      return [];
-    } catch (error) {
-      console.error('API: Error fetching tax offices:', error);
-      throw error; // Hatayı fırlat, hook'ta yakalanacak
-    }
-  },
-  
   getBankAccounts: async (langCode: string = 'TR'): Promise<any[]> => {
+    const response = await axiosInstance.get<ApiResponse<any[]>>('/api/v1/CustomerLocation/bank-accounts', { params: { langCode } });
+    if (response.data.success) return response.data.data;
+    throw new Error(response.data.message || 'Banka hesapları alınamadı');
+  }
+};
+
+export const currencyApi = {
+  getCurrencies: async (langCode: string = 'TR'): Promise<CurrencyResponse[]> => {
+    console.log('API: Fetching currencies with langCode:', langCode);
+    // CurrencyService.GetCurrenciesAsync için uygun endpoint'i kullanıyoruz
+    // Swagger'da doğrudan bir endpoint görünmüyor, ancak deneme yapabiliriz
     try {
-      const response = await api.get(`/api/v1/Customer/bank-accounts`, { params: { langCode } });
-      console.log('Banka hesapları yüklendi:', response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error('API: Error fetching bank accounts:', error);
-      return [];
-    }
-  },
-  
-  getCustomers: async (filter?: any): Promise<any> => {
-    try {
-      console.log('API: Fetching customers with filter:', filter);
-      
-      // Tüm olası endpoint'leri dene
-      const endpoints = [
-        '/api/v1/Customer/customers',
-        '/api/Customer/customers',
-        '/api/Customer/list',
-        '/api/v1/Customer/list',
-        '/api/Customer',
-        '/api/v1/Customer'
-      ];
-      
-      let lastError = null;
-      
-      // Her endpoint'i sırayla dene
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`API: Trying endpoint ${endpoint}`);
-          const response = await api.get(endpoint, { params: filter });
-          console.log(`API: Customers fetched successfully from ${endpoint}:`, response.data);
-          
-          // API yanıtının yapısını kontrol et
-          let responseData = response.data;
-          
-          // Eğer response.data.data yapısı varsa (iç içe data objesi)
-          if (responseData.data) {
-            console.log('API: Found nested data structure in response');
-            responseData = responseData.data;
-          }
-          
-          // Sayfalama bilgisi içeren bir yanıt mı?
-          const isPaginated = responseData.items !== undefined && 
-                             responseData.totalCount !== undefined;
-          
-          // Doğrudan bir dizi mi?
-          const isArray = Array.isArray(responseData);
-          
-          // Standart bir yanıt formatına dönüştür
-          let formattedResponse;
-          
-          if (isPaginated) {
-            // Sayfalama bilgisi içeren yanıt
-            formattedResponse = responseData;
-          } else if (isArray) {
-            // Doğrudan dizi yanıtı
-            formattedResponse = {
-              items: responseData,
-              totalCount: responseData.length,
-              pageNumber: filter?.pageNumber || 1,
-              pageSize: filter?.pageSize || responseData.length,
-              totalPages: 1,
-              hasNextPage: false,
-              hasPreviousPage: false
-            };
-          } else {
-            // Bilinmeyen yapı, içinde bir dizi bulmaya çalış
-            let items = [];
-            for (const key in responseData) {
-              if (Array.isArray(responseData[key])) {
-                console.log(`API: Found array in property "${key}"`);
-                items = responseData[key];
-                break;
-              }
-            }
-            
-            formattedResponse = {
-              items: items,
-              totalCount: items.length,
-              pageNumber: filter?.pageNumber || 1,
-              pageSize: filter?.pageSize || items.length,
-              totalPages: 1,
-              hasNextPage: false,
-              hasPreviousPage: false
-            };
-          }
-          
-          console.log('API: Formatted customer response:', formattedResponse);
-          
-          return {
-            success: true,
-            data: formattedResponse,
-            message: ''
-          };
-        } catch (error) {
-          console.warn(`API: Endpoint ${endpoint} failed:`, error);
-          lastError = error;
-          // Devam et ve bir sonraki endpoint'i dene
-        }
+      const response = await axiosInstance.get<ApiResponse<CurrencyResponse[]>>('/api/v1/Currency', { params: { langCode } });
+      if (response.data.success) {
+        console.log('API: Currencies fetched successfully', response.data.data);
+        return response.data.data || [];
       }
-      
-      // Tüm endpoint'ler başarısız olduysa, son hatayı fırlat
-      throw lastError;
-    } catch (error: any) {
-      console.error('API: All customer endpoints failed:', error);
-      
-      // Hata durumunda boş bir liste döndür, uygulamanın çökmesini önle
-      return {
-        success: false,
-        data: {
-          items: [],
-          totalCount: 0,
-          pageNumber: 1,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPreviousPage: false
-        },
-        message: error.message || 'Müşteri listesi alınamadı'
-      };
-    }
-  },
-  
-  createCustomer: async (customer: any): Promise<any> => {
-    console.log('API createCustomer çağrılıyor, veriler:', JSON.stringify(customer, null, 2));
-    
-    try {
-      const response = await api.post('/api/v1/customer/create-new', customer);
-      console.log('API createCustomer yanıtı:', response.data);
-      return response.data;
+      console.error('API: Error fetching currencies', response.data.message);
+      throw new Error(response.data.message || 'Para birimleri alınamadı');
     } catch (error) {
-      console.error('API createCustomer hatası:', error);
+      console.error('API: Exception while fetching currencies', error);
       throw error;
     }
   },
-  
-  updateCustomer: async (customer: any): Promise<any> => {
-    console.log('API updateCustomer çağrılıyor, veriler:', JSON.stringify(customer, null, 2));
-    
-    try {
-      const response = await api.put(`/api/v1/customer/${customer.customerCode}`, customer);
-      console.log('API updateCustomer yanıtı:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('API updateCustomer hatası:', error);
-      throw error;
-    }
+};
+
+export const authApi = {
+  login: async (credentials: any) => {
+    const response = await axiosInstance.post('/api/v1/Auth/login', credentials);
+    return response.data; // Genellikle { token: '...', user: {...} } gibi bir yapı döner
+  },
+  logout: async () => {
+    return await axiosInstance.post('/api/v1/Auth/logout');
+  },
+  getCurrentUser: async () => {
+    console.log('Fetching current user data');
+    const response = await axiosInstance.get('/api/User/current'); // veya /api/v1/Auth/current-user
+    console.log('Current user data fetched successfully:', response.data);
+    return response.data;
+  },
+  changePassword: async (data: any) => {
+    return await axiosInstance.post('/api/v1/Auth/change-password', data);
+  },
+  forgotPassword: async (data: any) => {
+    return await axiosInstance.post('/api/v1/Auth/forgot-password', data);
+  },
+  resetPassword: async (data: any) => {
+    return await axiosInstance.post('/api/v1/Auth/reset-password', data);
+  },
+  getUserLoginLogs: async () => { // Örnek bir endpoint, sizinkine göre ayarlayın
+    const response = await axiosInstance.get('/api/v1/Auth/login-logs'); 
+    return response.data;
   }
 };
 
-// Müşteri borçları için API fonksiyonları
-export const customerDebtApi = {
-  // Tüm müşteri borçlarını getirir
-  getAllCustomerDebts: async (langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerDebt/all`, { params: { langCode } });
-      console.log('Müşteri borçları yüklendi:', response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error('API: Error fetching customer debts:', error);
-      return [];
-    }
-  },
+// Diğer API grupları (invoiceApi, productApi vb.) burada olabilir
 
-  // Belirli bir müşterinin borçlarını getirir
-  getCustomerDebtsByCustomerCode: async (customerCode: string, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerDebt/customer/${customerCode}`, { params: { langCode } });
-      console.log(`${customerCode} kodlu müşterinin borçları yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching debts for customer ${customerCode}:`, error);
-      return [];
-    }
+export const invoiceApi = {
+  // Örnek fatura API çağrıları
+  getInvoices: async (params: any) => {
+    const response = await axiosInstance.get('/api/v1/SalesInvoice', { params });
+    return response.data; 
   },
-  
-  // Belirli bir para birimine ait müşteri borçlarını getirir
-  getCustomerDebtsByCurrency: async (currencyCode: string, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerDebt/currency/${currencyCode}`, { params: { langCode } });
-      console.log(`${currencyCode} para birimine ait müşteri borçları yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching customer debts for currency ${currencyCode}:`, error);
-      return [];
-    }
+  getInvoiceById: async (id: string) => {
+    const response = await axiosInstance.get(`/api/v1/SalesInvoice/${id}`);
+    return response.data;
   },
-
-  // Belirli bir ödeme tipine ait müşteri borçlarını getirir
-  getCustomerDebtsByPaymentType: async (paymentTypeCode: number, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerDebt/payment-type/${paymentTypeCode}`, { params: { langCode } });
-      console.log(`${paymentTypeCode} ödeme tipine ait müşteri borçları yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching customer debts for payment type ${paymentTypeCode}:`, error);
-      return [];
-    }
+  createInvoice: async (data: any) => {
+    const response = await axiosInstance.post('/api/v1/SalesInvoice', data);
+    return response.data;
   },
-
-  // Vadesi geçmiş müşteri borçlarını getirir
-  getOverdueCustomerDebts: async (langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerDebt/overdue`, { params: { langCode } });
-      console.log('Vadesi geçmiş müşteri borçları yüklendi:', response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error('API: Error fetching overdue customer debts:', error);
-      return [];
-    }
+  cancelInvoice: async (id: string) => {
+    const response = await axiosInstance.patch(`/api/v1/SalesInvoice/${id}/cancel`);
+    return response.data;
   },
-
-  // Belirli bir müşterinin borç özetini getirir
-  getCustomerDebtSummary: async (customerCode: string, langCode: string = 'TR'): Promise<any> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerDebt/summary/customer/${customerCode}`, { params: { langCode } });
-      console.log(`${customerCode} kodlu müşterinin borç özeti yüklendi:`, response.data);
-      return response.data.data || {};
-    } catch (error) {
-      console.error(`API: Error fetching debt summary for customer ${customerCode}:`, error);
-      return {};
-    }
+  getPaymentPlans: async (forCreditCardPlan?: boolean, isBlocked?: boolean) => {
+    const response = await axiosInstance.get('/api/v1/SalesInvoice/payment-plans', { params: { forCreditCardPlan, isBlocked }});
+    return response.data;
   },
-
-  // Tüm müşterilerin borç özetlerini getirir
-  getAllCustomerDebtSummaries: async (langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerDebt/summary/all`, { params: { langCode } });
-      console.log('Tüm müşterilerin borç özetleri yüklendi:', response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error('API: Error fetching all customer debt summaries:', error);
-      return [];
-    }
-  }
+  getOffices: async (isBlocked?: boolean) => {
+    const response = await axiosInstance.get('/api/v1/SalesInvoice/offices', { params: { isBlocked }});
+    return response.data;
+  },
+  getWholesaleInvoices: async (params: any) => {
+    const response = await axiosInstance.get('/api/v1/Invoice/wholesale', { params });
+    return response.data;
+  },
+  getPurchaseInvoices: async (params: any) => {
+    const response = await axiosInstance.get('/api/v1/Invoice/purchase', { params });
+    return response.data;
+  },
+   getSalesInvoices: async (params: any) => {
+    const response = await axiosInstance.get('/api/v1/Invoice/sales', { params }); // SalesInvoiceController'a göre düzenlenebilir
+    return response.data;
+  },
+  getWholesalePurchaseInvoices: async (params: any) => {
+    const response = await axiosInstance.get('/api/v1/Invoice/wholesale-purchase', { params });
+    return response.data;
+  },
+  createWholesaleInvoice: async (data: any) => {
+    const response = await axiosInstance.post('/api/v1/Invoice', data); // Genel InvoiceController POST endpoint'i
+    return response.data;
+  },
+  getInvoicePdf: async (invoiceHeaderID: string): Promise<Blob> => {
+    const response = await axiosInstance.get(`/api/v1/Invoice/${invoiceHeaderID}/pdf`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+  sendEInvoice: async (invoiceHeaderID: string): Promise<any> => {
+    const response = await axiosInstance.post(`/api/v1/Invoice/${invoiceHeaderID}/send-einvoice`);
+    return response.data;
+  },
+   downloadInvoicePdf: async (invoiceId: string): Promise<Blob> => {
+    const response = await axiosInstance.get(`/api/v1/Invoice/download/${invoiceId}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
 };
 
-// Kasa hareketleri için API fonksiyonları
+
 export const cashApi = {
-  // Tüm kasa hareketlerini getirir
-  getAllCashTransactions: async (langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/Cash/transactions`, { params: { langCode } });
-      console.log('Kasa hareketleri yüklendi:', response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error('API: Error fetching cash transactions:', error);
-      return [];
-    }
+  getAllCashTransactions: async (langCode: string = 'TR') => {
+    const response = await axiosInstance.get('/api/v1/Cash/transactions', { params: { langCode } });
+    return response.data.data; 
   },
-
-  // Belirli bir para birimine ait kasa hareketlerini getirir
-  getCashTransactionsByCurrency: async (currencyCode: string, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/Cash/transactions/currency/${currencyCode}`, { params: { langCode } });
-      console.log(`${currencyCode} para birimine ait kasa hareketleri yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching ${currencyCode} cash transactions:`, error);
-      return [];
-    }
+  getCashTransactionsByCurrency: async (currencyCode: string, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/Cash/transactions/currency/${currencyCode}`, { params: { langCode } });
+    return response.data.data;
   },
-
-  // Belirli bir hareket tipine ait kasa hareketlerini getirir
-  getCashTransactionsByType: async (cashTransTypeCode: number, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/Cash/transactions/type/${cashTransTypeCode}`, { params: { langCode } });
-      console.log(`${cashTransTypeCode} tipine ait kasa hareketleri yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching cash transactions of type ${cashTransTypeCode}:`, error);
-      return [];
-    }
+  getCashTransactionsByType: async (cashTransTypeCode: number, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/Cash/transactions/type/${cashTransTypeCode}`, { params: { langCode } });
+    return response.data.data;
   },
-
-  // Belirli bir para birimi ve hareket tipine ait kasa hareketlerini getirir
-  getCashTransactionsByCurrencyAndType: async (currencyCode: string, cashTransTypeCode: number, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/Cash/transactions/currency/${currencyCode}/type/${cashTransTypeCode}`, { params: { langCode } });
-      console.log(`${currencyCode} para birimi ve ${cashTransTypeCode} tipine ait kasa hareketleri yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching ${currencyCode} cash transactions of type ${cashTransTypeCode}:`, error);
-      return [];
-    }
+  getCashTransactionsByCurrencyAndType: async (currencyCode: string, cashTransTypeCode: number, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/Cash/transactions/currency/${currencyCode}/type/${cashTransTypeCode}`, { params: { langCode } });
+    return response.data.data;
   },
-
-  // Belirli bir tarih aralığındaki kasa hareketlerini getirir
-  getCashTransactionsByDateRange: async (startDate: Date, endDate: Date, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const formattedStartDate = startDate.toISOString();
-      const formattedEndDate = endDate.toISOString();
-      
-      const response = await api.get(`/api/v1/Cash/transactions/date-range`, { 
-        params: { 
-          startDate: formattedStartDate, 
-          endDate: formattedEndDate,
-          langCode 
-        } 
-      });
-      console.log(`${formattedStartDate} - ${formattedEndDate} tarih aralığındaki kasa hareketleri yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching cash transactions by date range:`, error);
-      return [];
-    }
+  getCashTransactionsByDateRange: async (startDate: Date, endDate: Date, langCode: string = 'TR') => {
+    const response = await axiosInstance.get('/api/v1/Cash/transactions/date-range', { 
+      params: { 
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        langCode 
+      }
+    });
+    return response.data.data;
   }
 };
 
-// Müşteri alacakları için API fonksiyonları
 export const customerCreditApi = {
-  // Tüm müşteri alacaklarını getirir
-  getAllCustomerCredits: async (langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerCredit/all`, { params: { langCode } });
-      console.log('Müşteri alacakları yüklendi:', response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error('API: Error fetching customer credits:', error);
-      return [];
-    }
+  getAllCustomerCredits: async (langCode: string = 'TR') => {
+    const response = await axiosInstance.get('/api/v1/CustomerCredit/all', { params: { langCode } });
+    return response.data.data;
   },
-
-  // Belirli bir müşterinin alacaklarını getirir
-  getCustomerCreditsByCustomerCode: async (customerCode: string, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerCredit/customer/${customerCode}`, { params: { langCode } });
-      console.log(`${customerCode} kodlu müşterinin alacakları yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching credits for customer ${customerCode}:`, error);
-      return [];
-    }
+  getCustomerCreditsByCustomerCode: async (customerCode: string, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/CustomerCredit/customer/${customerCode}`, { params: { langCode } });
+    return response.data.data;
   },
-
-  // Belirli bir para birimine ait müşteri alacaklarını getirir
-  getCustomerCreditsByCurrency: async (currencyCode: string, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerCredit/currency/${currencyCode}`, { params: { langCode } });
-      console.log(`${currencyCode} para birimine ait müşteri alacakları yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching customer credits for currency ${currencyCode}:`, error);
-      return [];
-    }
+  getCustomerCreditsByCurrency: async (currencyCode: string, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/CustomerCredit/currency/${currencyCode}`, { params: { langCode } });
+    return response.data.data;
   },
-
-  // Belirli bir ödeme tipine ait müşteri alacaklarını getirir
-  getCustomerCreditsByPaymentType: async (paymentTypeCode: number, langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerCredit/payment-type/${paymentTypeCode}`, { params: { langCode } });
-      console.log(`${paymentTypeCode} ödeme tipine ait müşteri alacakları yüklendi:`, response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error(`API: Error fetching customer credits for payment type ${paymentTypeCode}:`, error);
-      return [];
-    }
+  getCustomerCreditsByPaymentType: async (paymentTypeCode: number, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/CustomerCredit/payment-type/${paymentTypeCode}`, { params: { langCode } });
+    return response.data.data;
   },
-
-  // Vadesi geçmiş müşteri alacaklarını getirir
-  getOverdueCustomerCredits: async (langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerCredit/overdue`, { params: { langCode } });
-      console.log('Vadesi geçmiş müşteri alacakları yüklendi:', response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error('API: Error fetching overdue customer credits:', error);
-      return [];
-    }
+  getOverdueCustomerCredits: async (langCode: string = 'TR') => {
+    const response = await axiosInstance.get('/api/v1/CustomerCredit/overdue', { params: { langCode } });
+    return response.data.data;
   },
-
-  // Belirli bir müşterinin alacak özetini getirir
-  getCustomerCreditSummary: async (customerCode: string, langCode: string = 'TR'): Promise<any> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerCredit/summary/customer/${customerCode}`, { params: { langCode } });
-      console.log(`${customerCode} kodlu müşterinin alacak özeti yüklendi:`, response.data);
-      return response.data.data || {};
-    } catch (error) {
-      console.error(`API: Error fetching credit summary for customer ${customerCode}:`, error);
-      return {};
-    }
+  getCustomerCreditSummary: async (customerCode: string, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/CustomerCredit/summary/customer/${customerCode}`, { params: { langCode } });
+    return response.data.data;
   },
-
-  // Tüm müşterilerin alacak özetlerini getirir
-  getAllCustomerCreditSummaries: async (langCode: string = 'TR'): Promise<any[]> => {
-    try {
-      const response = await api.get(`/api/v1/CustomerCredit/summary/all`, { params: { langCode } });
-      console.log('Tüm müşterilerin alacak özetleri yüklendi:', response.data);
-      return response.data.data || [];
-    } catch (error) {
-      console.error('API: Error fetching all customer credit summaries:', error);
-      return [];
-    }
+  getAllCustomerCreditSummaries: async (langCode: string = 'TR') => {
+    const response = await axiosInstance.get('/api/v1/CustomerCredit/summary/all', { params: { langCode } });
+    return response.data.data;
   }
 };
 
-// Customer models
-export interface CustomerListResponse {
-  customerCode: string;
-  customerName: string;
-  taxNumber: string;
-  taxOffice: string;
-  customerTypeCode: number;
-  customerTypeDescription: string;
-  discountGroupCode: string;
-  discountGroupDescription: string;
-  paymentPlanGroupCode: string;
-  paymentPlanGroupDescription: string;
-  regionCode: string;
-  regionDescription: string;
-  cityCode: string;
-  cityDescription: string;
-  districtCode: string;
-  districtDescription: string;
-  isBlocked: boolean;
-}
+export const customerDebtApi = {
+  getAllCustomerDebts: async (langCode: string = 'TR') => {
+    const response = await axiosInstance.get('/api/v1/CustomerDebt/all', { params: { langCode } });
+    return response.data.data;
+  },
+  getCustomerDebtsByCustomerCode: async (customerCode: string, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/CustomerDebt/customer/${customerCode}`, { params: { langCode } });
+    return response.data.data;
+  },
+  getCustomerDebtsByCurrency: async (currencyCode: string, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/CustomerDebt/currency/${currencyCode}`, { params: { langCode } });
+    return response.data.data;
+  },
+  getOverdueCustomerDebts: async (langCode: string = 'TR') => {
+    const response = await axiosInstance.get('/api/v1/CustomerDebt/overdue', { params: { langCode } });
+    return response.data.data;
+  },
+  getCustomerDebtSummary: async (customerCode: string, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/CustomerDebt/summary/customer/${customerCode}`, { params: { langCode } });
+    return response.data.data;
+  },
+  getAllCustomerDebtSummaries: async (langCode: string = 'TR') => {
+    const response = await axiosInstance.get('/api/v1/CustomerDebt/summary/all', { params: { langCode } });
+    return response.data.data;
+  }
+};
 
-export interface CustomerFilterRequest {
-  customerCode?: string;
-  customerName?: string;
-  taxNumber?: string;
-  taxOffice?: string;
-  customerTypeCode?: number;
-  discountGroupCode?: string;
-  paymentPlanGroupCode?: string;
-  regionCode?: string;
-  cityCode?: string;
-  districtCode?: string;
-  isBlocked?: boolean;
-  pageNumber?: number;
-  pageSize?: number;
-  sortColumn?: string;
-  sortDirection?: string;
-}
+export * from './authApi';
+export * from './roleApi';
+export * from './userApi';
 
-export default api;
+// Diğer API exportları...
+
+// Default export ekliyoruz, böylece diğer servisler import edebilir
+export default {
+  ...api,
+  customerApi,
+  customerDebtApi
+};

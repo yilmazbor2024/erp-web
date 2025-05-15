@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import HomePage from './pages/HomePage';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/Customers/CustomerDetail';
+import CustomerCreate from './pages/Customers/CustomerCreate';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Siparisler from './pages/Siparisler';
@@ -16,6 +17,8 @@ import Profile from './pages/Profile';
 import UsersPage from './pages/Users/index';
 import RolesPage from './pages/Roles/index';
 import SettingsPage from './pages/SettingsPage';
+import WholesaleInvoices from './pages/Invoices/WholesaleInvoices';
+import CreateWholesaleInvoice from './pages/Invoices/CreateWholesaleInvoice';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Rota değişikliklerini izlemek için bileşen
@@ -60,7 +63,7 @@ const AppRoutes: React.FC = () => {
           <Route index element={<HomePage />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="customers" element={<Customers />} />
-          <Route path="customers/new" element={<CustomerDetail isNew={true} />} />
+          <Route path="customers/new" element={<CustomerCreate />} />
           <Route path="customers/edit/:customerCode" element={<CustomerDetail isEdit={true} />} />
           <Route path="customers/:customerCode" element={<CustomerDetail />} />
           <Route path="siparisler" element={<Siparisler />} />
@@ -69,6 +72,10 @@ const AppRoutes: React.FC = () => {
           <Route path="roles" element={<RolesPage />} />
           <Route path="profile" element={<Profile />} />
           <Route path="settings" element={<SettingsPage />} />
+          
+          {/* Fatura Sayfaları */}
+          <Route path="invoices/wholesale" element={<WholesaleInvoices />} />
+          <Route path="invoices/wholesale/new" element={<CreateWholesaleInvoice />} />
         </Route>
         
         <Route path="*" element={<Navigate to="/" />} />

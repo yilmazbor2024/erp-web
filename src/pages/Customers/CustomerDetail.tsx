@@ -32,7 +32,10 @@ import {
   Container,
   Snackbar,
   SelectChangeEvent,
-  FormHelperText
+  FormHelperText,
+  Stepper,
+  Step,
+  StepLabel
 } from '@mui/material';
 import { 
   ArrowBack as ArrowBackIcon, 
@@ -253,6 +256,9 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
+  // Adım takibi için state
+  const [activeStep, setActiveStep] = useState<number>(0);
+
   // Müşteri kodu işleme
   const effectiveCustomerCode = customerCodeOverride || customerCode || '';
   const sanitizedCustomerCode = effectiveCustomerCode ? decodeURIComponent(effectiveCustomerCode.split('/')[0]) : undefined;
@@ -312,15 +318,15 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
           // İletişim tipi kodlarına göre sınıflandır
           // Tipik olarak: 1=İş Telefonu, 2=Cep Telefonu, 3=E-posta, 4=Ev Telefonu
           if (comm.communicationTypeCode === '1' || comm.communicationTypeCode === 'ISTEL') {
-            workPhone = comm.communication || '';
+            workPhone = comm.communication || comm.commAddress || '';
           } else if (comm.communicationTypeCode === '2' || comm.communicationTypeCode === 'CEPTEL') {
-            mobilePhone = comm.communication || '';
+            mobilePhone = comm.communication || comm.commAddress || '';
           } else if (comm.communicationTypeCode === '4' || comm.communicationTypeCode === 'EVTEL') {
-            homePhone = comm.communication || '';
+            homePhone = comm.communication || comm.commAddress || '';
           } else if (comm.communicationTypeCode === '3' || 
                     comm.communicationTypeCode === 'EMAIL' || 
                     (comm.commAddress && comm.commAddress.includes('@'))) {
-            email = comm.communication || '';
+            email = comm.communication || comm.commAddress || '';
           }
         });
       }
@@ -335,6 +341,31 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
         (customer.customerCode && customer.customerCode.startsWith('A'));
       
       console.log('Calculated isRealPerson:', isRealPerson);
+      
+      // Bölge ve şehir bilgilerini ayarla
+      if (customer.regionCode) {
+        setSelectedRegion(customer.regionCode);
+        // Şehirleri yükle
+        customerApi.getCitiesByRegion(customer.regionCode)
+          .then(citiesData => {
+            setCities(citiesData);
+            
+            // Eğer müşterinin şehir kodu varsa, ilçeleri yükle
+            if (customer.cityCode) {
+              setSelectedCity(customer.cityCode);
+              customerApi.getDistrictsByCity(customer.cityCode)
+                .then(districtsData => {
+                  setDistricts(districtsData);
+                })
+                .catch(error => {
+                  console.error('İlçeler yüklenirken hata:', error);
+                });
+            }
+          })
+          .catch(error => {
+            console.error('Şehirler yüklenirken hata:', error);
+          });
+      }
       
       // Form verilerini güvenli bir şekilde ayarla
       const updatedFormData: CustomerFormData = {
@@ -392,6 +423,30 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
   useEffect(() => {
     if (!isNew && customerAddresses && customerAddresses.length > 0) {
       console.log('Adding customer addresses to form:', customerAddresses);
+      
+      // Adres verilerini işle ve ilk adresin bölge ve şehir bilgilerini ayarla
+      if (customerAddresses[0]) {
+        const firstAddress = customerAddresses[0];
+        
+        // Bölge kodu varsa ayarla
+        if (firstAddress.regionCode) {
+          setSelectedRegion(firstAddress.regionCode);
+        }
+        
+        // Şehir kodu varsa ayarla
+        if (firstAddress.cityCode) {
+          setSelectedCity(firstAddress.cityCode);
+        }
+        
+        // İlçe kodu varsa yeni adres verisine ekle
+        if (firstAddress.districtCode) {
+          setNewAddressData(prev => ({
+            ...prev,
+            districtCode: firstAddress.districtCode
+          }));
+        }
+      }
+      
       setFormData((prev: CustomerFormData) => ({
         ...prev,
         addresses: customerAddresses
@@ -514,9 +569,23 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
           }
           
           setCities(processedCities);
-          setSelectedCity(''); // Şehir seçimini sıfırla
-          setNewAddressData(prev => ({ ...prev, cityCode: '', districtCode: '' }));
-          setDistricts([]); // İlçeleri sıfırla
+          
+          // Eğer düzenleme modundaysa ve müşterinin şehir kodu varsa, o şehri seç
+          if (isEdit && customer && customer.cityCode) {
+            setSelectedCity(customer.cityCode);
+            
+            // İlçeleri yükle
+            try {
+              const districtsData = await customerApi.getDistrictsByCity(customer.cityCode);
+              setDistricts(districtsData);
+            } catch (error) {
+              console.error('İlçeler yüklenirken hata:', error);
+            }
+          } else {
+            setSelectedCity(''); // Şehir seçimini sıfırla
+            setNewAddressData(prev => ({ ...prev, cityCode: '', districtCode: '' }));
+            setDistricts([]); // İlçeleri sıfırla
+          }
         } catch (error) {
           console.error('Şehirler yüklenirken hata:', error);
         }
@@ -529,8 +598,8 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
       setNewAddressData(prev => ({ ...prev, cityCode: '', districtCode: '' }));
       setDistricts([]);
     }
-  }, [selectedRegion]);
-  
+  }, [selectedRegion, isEdit, customer]);
+
   // Şehir değiştiğinde ilçeleri yükle
   useEffect(() => {
     if (selectedCity) {
@@ -999,10 +1068,9 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
           type: 'success'
         });
         
-        // Başarılı güncelleme sonrası müşteri detay sayfasına dön
-        setTimeout(() => {
-          navigate(`/customers/${formData.customerCode}`);
-        }, 1500);
+        // Bir sonraki adıma geç (maksimum 3)
+        const nextStep = Math.min(activeStep + 1, 3);
+        setActiveStep(nextStep);
       }
     } catch (error: any) {
       console.error('Müşteri kaydetme hatası:', error);
@@ -1050,824 +1118,416 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
     return <div className="p-4">Hata: {(error as Error).message}</div>;
   }
 
-  // Adres formu için ortak render fonksiyonu
-  const renderAddressSelectionFields = () => {
-    return (
-      <>
-        <FormControl fullWidth margin="normal">
-          <InputLabel>Adres Tipi</InputLabel>
+  // Temel Bilgiler Formu
+  const renderBasicInfoForm = () => (
+    <Box component="form" noValidate sx={{ mt: 1 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+        <TextField
+          required
+          fullWidth
+          id="customerCode"
+          label="Müşteri Kodu"
+          name="customerCode"
+          value={formData.customerCode}
+          onChange={handleInputChange}
+          disabled={!isNew} // Düzenleme modunda müşteri kodu değiştirilemez
+        />
+        <TextField
+          required
+          fullWidth
+          id="customerName"
+          label="Müşteri Adı"
+          name="customerName"
+          value={formData.customerName}
+          onChange={handleInputChange}
+        />
+        <TextField
+          fullWidth
+          id="taxNumber"
+          label="Vergi Numarası"
+          name="taxNumber"
+          value={formData.taxNumber}
+          onChange={handleInputChange}
+        />
+        <FormControl fullWidth>
+          <InputLabel id="taxOffice-label">Vergi Dairesi</InputLabel>
           <Select
-            name="addressTypeCode"
-            value={newAddressData.addressTypeCode || ""}
-            onChange={(e: SelectChangeEvent) => setNewAddressData({...newAddressData, addressTypeCode: e.target.value})}
-            label="Adres Tipi"
-            sx={{ backgroundColor: 'white', color: 'black' }}
-            MenuProps={{
-              PaperProps: {
-                style: {
-                  maxHeight: 300,
-                  zIndex: 9999
-                }
-              }
+            labelId="taxOffice-label"
+            id="taxOfficeCode"
+            name="taxOfficeCode"
+            value={formData.taxOfficeCode || ''}
+            onChange={(e) => {
+              setFormData({
+                ...formData,
+                taxOfficeCode: e.target.value
+              });
             }}
+            label="Vergi Dairesi"
           >
-            <MenuItem key="empty-type" value="">Seçiniz</MenuItem>
-            {addressTypesData && addressTypesData.length > 0 ? (
-              addressTypesData.map((type: any, index: number) => (
-                <MenuItem key={index} value={type.addressTypeCode || type.code}>
-                  {type.addressTypeDescription || type.description || type.name || type.addressTypeCode || type.code}
-                </MenuItem>
-              ))
-            ) : (
-              <MenuItem disabled>Adres tipi bulunamadı</MenuItem>
-            )}
+            <MenuItem value="">
+              <em>Seçiniz</em>
+            </MenuItem>
+            {taxOfficesData && taxOfficesData.map((office: any) => (
+              <MenuItem key={office.code} value={office.code}>
+                {office.description || office.name}
+              </MenuItem>
+            ))}
           </Select>
         </FormControl>
-
-        <FormControl fullWidth margin="normal">
-          <InputLabel>Bölge</InputLabel>
-          <Select
-            name="regionCode"
-            value={selectedRegion}
-            onChange={handleRegionChange}
-            label="Bölge"
-            sx={{ backgroundColor: 'white', color: 'black' }}
-            MenuProps={{
-              PaperProps: {
-                style: {
-                  maxHeight: 300,
-                  zIndex: 9999
-                }
-              }
-            }}
-          >
-            <MenuItem key="empty-region" value="">Seçiniz</MenuItem>
-            {regions.map((region: any, index: number) => {
-              // Bölge verilerini kontrol et ve doğru alanları kullan
-              let regionCode = '';
-              let regionName = '';
-              
-              if (typeof region === 'string') {
-                try {
-                  const regionObj = JSON.parse(region);
-                  regionCode = regionObj.stateCode || regionObj.regionCode || '';
-                  regionName = regionObj.stateDescription || regionObj.regionDescription || regionObj.stateName || regionObj.regionName || regionCode;
-                } catch (e) {
-                  regionCode = region;
-                  regionName = region;
-                }
-              } else {
-                regionCode = region.stateCode || region.regionCode || '';
-                regionName = region.stateDescription || region.regionDescription || region.stateName || region.regionName || regionCode;
-              }
-              
-              // Boş değerleri kontrol et
-              if (!regionName || regionName === '') {
-                regionName = regionCode || `Bölge ${index + 1}`;
-              }
-              
-              return (
-                <MenuItem key={index} value={regionCode}>
-                  {regionName}
-                </MenuItem>
-              );
-            })}
-          </Select>
-        </FormControl>
-
-        <FormControl fullWidth margin="normal">
-          <InputLabel>Şehir</InputLabel>
-          <Select
-            name="cityCode"
-            value={selectedCity}
-            onChange={handleCityChange}
-            label="Şehir"
-            disabled={!selectedRegion}
-            sx={{ backgroundColor: 'white', color: 'black' }}
-            MenuProps={{
-              PaperProps: {
-                style: {
-                  maxHeight: 300,
-                  zIndex: 9999
-                }
-              }
-            }}
-          >
-            <MenuItem key="empty-city" value="">Seçiniz</MenuItem>
-            {cities.map((city: any, index: number) => {
-              let cityCode = '';
-              let cityName = '';
-              
-              if (typeof city === 'string') {
-                try {
-                  const cityObj = JSON.parse(city);
-                  cityCode = cityObj.cityCode || '';
-                  cityName = cityObj.cityDescription || cityObj.cityName || cityCode;
-                } catch (e) {
-                  cityCode = city;
-                  cityName = city;
-                }
-              } else {
-                cityCode = city.cityCode || '';
-                cityName = city.cityDescription || city.cityName || cityCode;
-              }
-              
-              if (!cityName || cityName === '') {
-                cityName = cityCode || `Şehir ${index + 1}`;
-              }
-              
-              return (
-                <MenuItem key={index} value={cityCode}>
-                  {cityName}
-                </MenuItem>
-              );
-            })}
-          </Select>
-        </FormControl>
-
-        <FormControl fullWidth margin="normal">
-          <InputLabel>İlçe</InputLabel>
-          <Select
-            name="districtCode"
-            value={newAddressData.districtCode || ""}
-            onChange={handleDistrictChange}
-            label="İlçe"
-            disabled={!selectedCity}
-            sx={{ backgroundColor: 'white', color: 'black' }}
-            MenuProps={{
-              PaperProps: {
-                style: {
-                  maxHeight: 300,
-                  zIndex: 9999
-                }
-              }
-            }}
-          >
-            <MenuItem key="empty-district" value="">Seçiniz</MenuItem>
-            {districts.map((district: any, index: number) => {
-              let districtCode = '';
-              let districtName = '';
-              
-              if (typeof district === 'string') {
-                try {
-                  const districtObj = JSON.parse(district);
-                  districtCode = districtObj.districtCode || '';
-                  districtName = districtObj.districtDescription || districtObj.districtName || districtCode;
-                } catch (e) {
-                  districtCode = district;
-                  districtName = district;
-                }
-              } else {
-                districtCode = district.districtCode || '';
-                districtName = district.districtDescription || district.districtName || districtCode;
-              }
-              
-              if (!districtName || districtName === '') {
-                districtName = districtCode || `İlçe ${index + 1}`;
-              }
-              
-              return (
-                <MenuItem key={index} value={districtCode}>
-                  {districtName}
-                </MenuItem>
-              );
-            })}
-          </Select>
-        </FormControl>
-      </>
-    );
-  };
-
-  // Müşteri formu - Hem yeni ekleme hem de düzenleme için kullanılır
-  const renderCustomerForm = () => {
-    return (
-      <Box component="div">
-        <Typography variant="h6" gutterBottom>Temel Bilgiler</Typography>
-        
-        {/* Gerçek Kişi (Şahıs) Checkbox */}
-        <Box sx={{ mb: 2 }}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={formData.isRealPerson}
-                onChange={handleRealPersonChange}
-                name="isRealPerson"
-              />
-            }
-            label="Gerçek Kişilik (Şahıs)"
-          />
-        </Box>
-        
-        {/* Müşteri Kodu */}
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-          <Box sx={{ flex: '1 1 300px' }}>
-            <TextField
-              fullWidth
-              label="Müşteri Kodu *"
-              name="customerCode"
-              value={formData.customerCode}
-              onChange={handleInputChange}
-              error={!!errors.customerCode}
-              helperText={errors.customerCode || "Müşteri kodu benzersiz olmalıdır"}
-              disabled={isEdit}
-              required
-              margin="normal"
-              placeholder={formData.isRealPerson ? "Örn: A001" : "Örn: 120.001"}
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={formData.isRealPerson}
+              onChange={handleRealPersonChange}
+              name="isRealPerson"
             />
-          </Box>
-          
-          {/* Gerçek kişi ise isim/soyad, değilse şirket adı */}
-          <Box sx={{ flex: '1 1 300px' }}>
-            <TextField
-              fullWidth
-              label={formData.isRealPerson ? "Müşteri Adı Soyadı *" : "Şirket Adı *"}
-              name="customerName"
-              value={formData.customerName}
-              onChange={handleInputChange}
-              error={!!errors.customerName}
-              helperText={errors.customerName}
-              required
-              margin="normal"
-              placeholder={formData.isRealPerson ? "Ad Soyad" : "Şirket Ünvanı"}
-            />
-          </Box>
-        </Box>
-        
-        {/* Gerçek kişi ise kimlik bilgileri */}
-        {formData.isRealPerson && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-            <Box sx={{ flex: '1 1 300px' }}>
-              <TextField
-                fullWidth
-                label="TC Kimlik No *"
-                name="identityNum"
-                value={formData.identityNum || ""}
-                onChange={handleInputChange}
-                margin="normal"
-                inputProps={{ maxLength: 11, minLength: 11 }}
-                placeholder="11 haneli TC Kimlik No"
-              />
-            </Box>
-            <Box sx={{ flex: '1 1 300px' }}>
-              <TextField
-                fullWidth
-                label="Doğum Tarihi"
-                name="birthDate"
-                type="date"
-                value={formData.birthDate || ""}
-                onChange={handleInputChange}
-                margin="normal"
-                InputLabelProps={{ shrink: true }}
-              />
-            </Box>
-          </Box>
-        )}
-        
-        {/* Vergi Bilgileri - Gerçek kişi değilse daha belirgin göster */}
-        <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
-          {!formData.isRealPerson ? "Şirket Vergi Bilgileri" : "Vergi Bilgileri"}
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              label={!formData.isRealPerson ? "Şirket Vergi Numarası *" : "Vergi Numarası"}
-              name="taxNumber"
-              value={formData.taxNumber}
-              onChange={handleInputChange}
-              required={!formData.isRealPerson}
-              margin="normal"
-              placeholder={!formData.isRealPerson ? "10 haneli vergi numarası" : ""}
-              inputProps={{ maxLength: 10, minLength: !formData.isRealPerson ? 10 : 0 }}
-              error={!!errors.taxNumber}
-              helperText={errors.taxNumber}
-            />
-          </Box>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <FormControl fullWidth margin="normal" error={!!errors.taxOfficeCode}>
-              <InputLabel>Vergi Dairesi {!formData.isRealPerson ? "*" : ""}</InputLabel>
-              <Select
-                name="taxOfficeCode"
-                value={formData.taxOfficeCode || ""}
-                onChange={handleSelectChange}
-                label="Vergi Dairesi"
-                sx={{ backgroundColor: 'white', color: 'black' }}
-                MenuProps={{
-                  PaperProps: {
-                    style: {
-                      maxHeight: 300,
-                      zIndex: 9999
-                    }
-                  }
-                }}
-              >
-                <MenuItem key="empty-tax-office" value="">Seçiniz</MenuItem>
-                {isLoadingTaxOffices ? (
-                  <MenuItem disabled>Yükleniyor...</MenuItem>
-                ) : taxOfficesData && taxOfficesData.length > 0 ? (
-                  taxOfficesData.map((office: any) => (
-                    <MenuItem key={office.taxOfficeCode || `tax-office-${Math.random()}`} value={office.taxOfficeCode || ""}>
-                      {office.taxOfficeDescription || office.taxOfficeCode || "İsimsiz Vergi Dairesi"}
-                    </MenuItem>
-                  ))
-                ) : (
-                  <MenuItem disabled>Vergi dairesi bulunamadı</MenuItem>
-                )}
-              </Select>
-              {errors.taxOfficeCode && (
-                <FormHelperText>{errors.taxOfficeCode}</FormHelperText>
-              )}
-            </FormControl>
-          </Box>
-        </Box>
-        
-        {/* İletişim Bilgileri */}
-        <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>İletişim Bilgileri</Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              label="İş Telefonu"
-              name="workPhone"
-              value={formData.workPhone || ""}
-              onChange={handleInputChange}
-              margin="normal"
-              placeholder="Örn: 0212 123 4567"
-              InputProps={{
-                startAdornment: <InputAdornment position="start"><PhoneIcon fontSize="small" /></InputAdornment>,
-              }}
-            />
-          </Box>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              label="Cep Telefonu"
-              name="mobilePhone"
-              value={formData.mobilePhone || ""}
-              onChange={handleInputChange}
-              margin="normal"
-              placeholder="Örn: 0532 123 4567"
-              InputProps={{
-                startAdornment: <InputAdornment position="start"><SmartphoneIcon fontSize="small" /></InputAdornment>,
-              }}
-            />
-          </Box>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              label="Ev Telefonu"
-              name="homePhone"
-              value={formData.homePhone || ""}
-              onChange={handleInputChange}
-              margin="normal"
-              placeholder="Örn: 0216 123 4567"
-              InputProps={{
-                startAdornment: <InputAdornment position="start"><HomeIcon fontSize="small" /></InputAdornment>,
-              }}
-            />
-          </Box>
-        </Box>
-        
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-          <Box sx={{ flex: '1 1 100%' }}>
-            <TextField
-              fullWidth
-              label="E-posta"
-              name="email"
-              type="email"
-              value={formData.email || ""}
-              onChange={handleInputChange}
-              margin="normal"
-              placeholder="ornek@sirket.com"
-              InputProps={{
-                startAdornment: <InputAdornment position="start"><EmailIcon fontSize="small" /></InputAdornment>,
-              }}
-            />
-          </Box>
-        </Box>
-        
-        {/* Adres Bilgileri */}
-        <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>Adres Bilgisi</Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', mb: 3 }}>
-          {renderAddressSelectionFields()}
-          
-          <TextField
-            fullWidth
-            label="Adres"
-            name="address"
-            multiline
-            rows={3}
-            value={newAddressData.address || ""}
-            onChange={(e) => setNewAddressData({...newAddressData, address: e.target.value})}
-            margin="normal"
-            placeholder="Adres bilgilerini giriniz"
-            sx={{ backgroundColor: 'white' }}
-          />
-          
-          <TextField
-            fullWidth
-            label="Posta Kodu"
-            name="postalCode"
-            value={newAddressData.postalCode || ""}
-            onChange={(e) => setNewAddressData({...newAddressData, postalCode: e.target.value})}
-            margin="normal"
-            placeholder="Posta kodu giriniz"
-            sx={{ backgroundColor: 'white' }}
-          />
-        </Box>
-        
-        {/* Finansal Bilgiler */}
-        <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>Finansal Bilgiler</Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              label="Kredi Limiti"
-              name="creditLimit"
-              type="number"
-              value={formData.creditLimit}
-              onChange={handleInputChange}
-              margin="normal"
-              InputProps={{
-                startAdornment: <InputAdornment position="start">₺</InputAdornment>,
-              }}
-            />
-          </Box>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <TextField
-              fullWidth
-              label="Ödeme Süresi (Gün)"
-              name="paymentTerm"
-              type="number"
-              value={formData.paymentTerm}
-              onChange={handleInputChange}
-              margin="normal"
-            />
-          </Box>
-          <Box sx={{ flex: '1 1 250px' }}>
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Para Birimi</InputLabel>
-              <Select
-                name="currencyCode"
-                value={formData.currencyCode}
-                onChange={handleSelectChange}
-                label="Para Birimi"
-                sx={{ backgroundColor: 'white', color: 'black' }}
-                MenuProps={{
-                  PaperProps: {
-                    style: {
-                      maxHeight: 300,
-                      zIndex: 9999
-                    }
-                  }
-                }}
-              >
-                <MenuItem value="TRY">Türk Lirası (TRY)</MenuItem>
-                <MenuItem value="USD">Amerikan Doları (USD)</MenuItem>
-                <MenuItem value="EUR">Euro (EUR)</MenuItem>
-                <MenuItem value="GBP">İngiliz Sterlini (GBP)</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
-        
-        {/* E-Devlet Parametreleri */}
-        <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>E-Devlet Parametreleri</Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-          <Box sx={{ flex: '1 1 300px' }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.eInvoiceEnabled}
-                  onChange={(e) => setFormData({...formData, eInvoiceEnabled: e.target.checked})}
-                  name="eInvoiceEnabled"
-                />
-              }
-              label="E-Faturaya Tabidir"
-            />
-            <TextField
-              fullWidth
-              label="E-Fatura Başlangıç Tarihi"
-              name="eInvoiceStartDate"
-              type="date"
-              value={formData.eInvoiceStartDate}
-              onChange={handleInputChange}
-              margin="normal"
-              InputLabelProps={{ shrink: true }}
-              disabled={!formData.eInvoiceEnabled}
-            />
-          </Box>
-          <Box sx={{ flex: '1 1 300px' }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.eArchiveEnabled}
-                  onChange={(e) => setFormData({...formData, eArchiveEnabled: e.target.checked})}
-                  name="eArchiveEnabled"
-                />
-              }
-              label="E-Arşivlemeye Tabidir"
-            />
-            <TextField
-              fullWidth
-              label="E-Arşiv Başlangıç Tarihi"
-              name="eArchiveStartDate"
-              type="date"
-              value={formData.eArchiveStartDate}
-              onChange={handleInputChange}
-              margin="normal"
-              InputLabelProps={{ shrink: true }}
-              disabled={!formData.eArchiveEnabled}
-            />
-          </Box>
-        </Box>
-        
-        {/* Diğer Bilgiler */}
-        <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>Diğer Bilgiler</Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-          <Box sx={{ flex: '1 1 300px' }}>
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Ofis</InputLabel>
-              <Select
-                name="officeCode"
-                value={formData.officeCode}
-                onChange={handleSelectChange}
-                label="Ofis"
-                sx={{ backgroundColor: 'white', color: 'black' }}
-                MenuProps={{
-                  PaperProps: {
-                    style: {
-                      maxHeight: 300,
-                      zIndex: 9999
-                    }
-                  }
-                }}
-              >
-                <MenuItem value="MERKEZ">Merkez Ofis</MenuItem>
-                <MenuItem value="SUBE1">Şube 1</MenuItem>
-                <MenuItem value="SUBE2">Şube 2</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-          <Box sx={{ flex: '1 1 300px' }}>
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Veri Dil Kodu</InputLabel>
-              <Select
-                name="dataLanguageCode"
-                value={formData.dataLanguageCode}
-                onChange={handleSelectChange}
-                label="Veri Dil Kodu"
-                sx={{ backgroundColor: 'white', color: 'black' }}
-                MenuProps={{
-                  PaperProps: {
-                    style: {
-                      maxHeight: 300,
-                      zIndex: 9999
-                    }
-                  }
-                }}
-              >
-                <MenuItem value="TR">Türkçe</MenuItem>
-                <MenuItem value="EN">İngilizce</MenuItem>
-                <MenuItem value="DE">Almanca</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Box>
-        
-        {/* Bakiye Bilgileri (Sadece görüntüleme) */}
-        {isEdit && (
-          <>
-            <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>Bakiye Bilgileri</Typography>
-            <TableContainer component={Paper} sx={{ mb: 3 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Borç</TableCell>
-                    <TableCell>Alacak</TableCell>
-                    <TableCell>Bakiye</TableCell>
-                    <TableCell>Açık Ç/R Riski</TableCell>
-                    <TableCell>Bakiye + Risk</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>{formData.debit.toLocaleString('tr-TR')} ₺</TableCell>
-                    <TableCell>{formData.credit.toLocaleString('tr-TR')} ₺</TableCell>
-                    <TableCell>{formData.balance.toLocaleString('tr-TR')} ₺</TableCell>
-                    <TableCell>{formData.openRisk.toLocaleString('tr-TR')} ₺</TableCell>
-                    <TableCell>{formData.totalRisk.toLocaleString('tr-TR')} ₺</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </>
-        )}
-        
-        {/* Butonlar */}
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            variant="outlined"
-            color="secondary"
-            onClick={() => navigate('/customers')}
-            sx={{ mr: 1 }}
-          >
-            İPTAL
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? <CircularProgress size={24} /> : (isNew ? 'KAYDET' : 'GÜNCELLE')}
-          </Button>
-        </Box>
+          }
+          label="Gerçek Kişi"
+        />
+        <TextField
+          fullWidth
+          id="identityNum"
+          label="TC Kimlik No"
+          name="identityNum"
+          value={formData.identityNum}
+          onChange={handleInputChange}
+        />
       </Box>
-    );
-  };
+    </Box>
+  );
 
-  // Adres ekleme formu
-  const renderAddressForm = () => (
-    <div>
-      <Typography variant="h6" gutterBottom>Adres Bilgileri</Typography>
-      <Divider sx={{ mb: 2 }} />
+  // İletişim Bilgileri Formu
+  const renderCommunicationForm = () => (
+    <Box component="form" noValidate sx={{ mt: 1 }}>
+      <Typography variant="h6" gutterBottom>
+        İletişim Bilgileri
+      </Typography>
       
-      <Box sx={{ mb: 2 }}>
-        {renderAddressSelectionFields()}
-        
-        <TextField
-          fullWidth
-          label="Adres"
-          name="address"
-          multiline
-          rows={4}
-          value={newAddressData.address || ""}
-          onChange={(e) => setNewAddressData({...newAddressData, address: e.target.value})}
-          sx={{ mb: 2, backgroundColor: 'white' }}
-        />
-        
-        <TextField
-          fullWidth
-          label="Posta Kodu"
-          name="postalCode"
-          value={newAddressData.postalCode || ""}
-          onChange={(e) => setNewAddressData({...newAddressData, postalCode: e.target.value})}
-          sx={{ mb: 2, backgroundColor: 'white' }}
-        />
-      </Box>
+      {formData.communications.length > 0 ? (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>İletişim Tipi</TableCell>
+                <TableCell>İletişim Bilgisi</TableCell>
+                <TableCell>Varsayılan</TableCell>
+                <TableCell>İşlemler</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {formData.communications.map((comm, index) => (
+                <TableRow key={index}>
+                  <TableCell>
+                    <FormControl fullWidth>
+                      <Select
+                        value={comm.communicationTypeCode}
+                        onChange={(e) => handleUpdateCommunication(index, 'communicationTypeCode', e.target.value)}
+                      >
+                        <MenuItem value="PHONE">Telefon</MenuItem>
+                        <MenuItem value="EMAIL">E-posta</MenuItem>
+                        <MenuItem value="MOBILE">Cep Telefonu</MenuItem>
+                        <MenuItem value="FAX">Faks</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      fullWidth
+                      value={comm.communication || comm.commAddress || ''}
+                      onChange={(e) => handleUpdateCommunication(index, 'communication', e.target.value)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Checkbox
+                      checked={comm.isDefault || false}
+                      onChange={(e) => handleUpdateCommunication(index, 'isDefault', e.target.checked)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="outlined" 
+                      color="error"
+                      onClick={() => handleRemoveCommunication(index)}
+                    >
+                      Sil
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : (
+        <Typography variant="body2" color="textSecondary" sx={{ my: 2 }}>
+          Henüz iletişim bilgisi eklenmemiş.
+        </Typography>
+      )}
       
       <Button 
         variant="contained" 
         color="primary" 
-        onClick={handleSaveAddress}
-        startIcon={<SaveIcon />}
+        onClick={handleAddCommunication}
+        sx={{ mt: 2 }}
       >
-        Adresi Kaydet
+        İletişim Bilgisi Ekle
       </Button>
-    </div>
+    </Box>
   );
 
-  // Detay görünümü - Sadece görüntüleme modu
-  const renderDetailView = () => {
-    // Adres metnini getir
-    const getAddressText = (address: any) => {
-      if (!address) return '';
-      return address.address || '';
-    };
-    
-    // Helper function to get address type with fallbacks
-    const getAddressType = (address: any) => {
-      if (!address) return '';
+  // Adres Bilgileri Formu
+  const renderAddressForm = () => (
+    <Box component="form" noValidate sx={{ mt: 1 }}>
+      <Typography variant="h6" gutterBottom>
+        Adres Bilgileri
+      </Typography>
       
-      // Adres tipi açıklaması varsa onu kullan
-      if (address.addressTypeDescription) {
-        return address.addressTypeDescription;
-      }
-      
-      // Adres tipi kodu varsa ona göre açıklama döndür
-      switch (address.addressTypeCode) {
-        case '1':
-          return 'Fatura Adresi';
-        case '2':
-          return 'Sevkiyat Adresi';
-        case '3':
-          return 'İş Adresi';
-        case '4':
-          return 'Ev Adresi';
-        default:
-          return `Adres (${address.addressTypeCode || 'Belirtilmemiş'})`;
-      }
-    };
-    
-    // Helper function to get communication type with fallbacks
-    const getCommunicationType = (communication: any) => {
-      if (!communication) return '';
-      
-      // İletişim tipi açıklaması varsa onu kullan
-      if (communication.communicationTypeDescription) {
-        return communication.communicationTypeDescription;
-      }
-      
-      // İletişim tipi kodu varsa ona göre açıklama döndür
-      switch (communication.communicationTypeCode) {
-        case '1':
-          return 'Telefon';
-        case '2':
-          return 'Cep Telefonu';
-        case '3':
-          return 'E-posta';
-        case '4':
-          return 'Faks';
-        case '5':
-          return 'Web Sitesi';
-        default:
-          return `İletişim (${communication.communicationTypeCode || 'Belirtilmemiş'})`;
-      }
-    };
-    
-    // Aktif sekmeye göre içerik göster
-    if (activeTab === 'addresses' && customerAddresses && customerAddresses.length > 0) {
-      return (
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h5" gutterBottom>Adres Bilgileri</Typography>
-          <Divider sx={{ mb: 2 }} />
-          
-          {customerAddresses.map((address: any, index: number) => (
-            <Paper key={index} sx={{ p: 2, mb: 2 }}>
-              <Typography variant="subtitle1">{getAddressType(address)}</Typography>
-              <Typography variant="body2">{getAddressText(address)}</Typography>
-              <Typography variant="body2">
-                {address.cityDescription || address.cityCode} / 
-                {address.districtDescription || address.districtCode}
-              </Typography>
-              {address.isDefault && (
-                <Typography variant="caption" color="primary">Varsayılan Adres</Typography>
-              )}
-            </Paper>
-          ))}
-        </Paper>
-      );
-    }
-    
-    if (activeTab === 'emails' && customerCommunications && customerCommunications.length > 0) {
-      // E-posta iletişim bilgilerini filtrele (communicationTypeCode = 3)
-      const emailCommunications = customerCommunications.filter(
-        comm => comm.communicationTypeCode === '3' || 
-                getCommunicationType(comm).toLowerCase().includes('e-posta') || 
-                getCommunicationType(comm).toLowerCase().includes('email')
-      );
-      
-      return (
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h5" gutterBottom>E-posta Bilgileri</Typography>
-          <Divider sx={{ mb: 2 }} />
-          
-          {emailCommunications.length > 0 ? (
-            <List>
-              {emailCommunications.map((communication: any, index: number) => (
-                <ListItem key={index}>
-                  <ListItemText
-                    primary={`${getCommunicationType(communication)}: ${communication.communication || communication.commAddress || ''}`}
-                    secondary={communication.isDefault ? 'Varsayılan E-posta' : ''}
-                  />
-                </ListItem>
+      {formData.addresses.length > 0 ? (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Adres Tipi</TableCell>
+                <TableCell>Adres</TableCell>
+                <TableCell>Ülke/Bölge/Şehir/İlçe</TableCell>
+                <TableCell>Varsayılan</TableCell>
+                <TableCell>İşlemler</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {formData.addresses.map((address, index) => (
+                <TableRow key={index}>
+                  <TableCell>
+                    <FormControl fullWidth>
+                      <Select
+                        value={address.addressTypeCode}
+                        onChange={(e) => handleUpdateAddress(index, 'addressTypeCode', e.target.value)}
+                      >
+                        <MenuItem value="WORK">İş Adresi</MenuItem>
+                        <MenuItem value="HOME">Ev Adresi</MenuItem>
+                        <MenuItem value="SHIPPING">Sevkiyat Adresi</MenuItem>
+                        <MenuItem value="BILLING">Fatura Adresi</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      fullWidth
+                      value={address.address || ''}
+                      onChange={(e) => handleUpdateAddress(index, 'address', e.target.value)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Ülke</InputLabel>
+                        <Select
+                          value="TR" // Şimdilik sabit Türkiye
+                          label="Ülke"
+                          disabled
+                        >
+                          <MenuItem value="TR">Türkiye</MenuItem>
+                        </Select>
+                      </FormControl>
+                      
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Bölge</InputLabel>
+                        <Select
+                          value={address.regionCode || ''}
+                          onChange={(e) => {
+                            handleUpdateAddress(index, 'regionCode', e.target.value);
+                            handleRegionChange(e);
+                          }}
+                          label="Bölge"
+                        >
+                          <MenuItem value="">
+                            <em>Seçiniz</em>
+                          </MenuItem>
+                          {regions.map((region: any) => (
+                            <MenuItem key={region.code} value={region.code}>
+                              {region.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Şehir</InputLabel>
+                        <Select
+                          value={address.cityCode || ''}
+                          onChange={(e) => {
+                            handleUpdateAddress(index, 'cityCode', e.target.value);
+                            handleCityChange(e);
+                          }}
+                          label="Şehir"
+                        >
+                          <MenuItem value="">
+                            <em>Seçiniz</em>
+                          </MenuItem>
+                          {cities.map((city: any) => (
+                            <MenuItem key={city.code} value={city.code}>
+                              {city.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      
+                      <FormControl fullWidth size="small">
+                        <InputLabel>İlçe</InputLabel>
+                        <Select
+                          value={address.districtCode || ''}
+                          onChange={(e) => {
+                            handleUpdateAddress(index, 'districtCode', e.target.value);
+                            handleDistrictChange(e);
+                          }}
+                          label="İlçe"
+                        >
+                          <MenuItem value="">
+                            <em>Seçiniz</em>
+                          </MenuItem>
+                          {districts.map((district: any) => (
+                            <MenuItem key={district.code} value={district.code}>
+                              {district.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Checkbox
+                      checked={address.isDefault || false}
+                      onChange={(e) => handleUpdateAddress(index, 'isDefault', e.target.checked)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="outlined" 
+                      color="error"
+                      onClick={() => handleRemoveAddress(index)}
+                    >
+                      Sil
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </List>
-          ) : (
-            <Typography variant="body1">Bu müşteri için kayıtlı e-posta adresi bulunamadı.</Typography>
-          )}
-        </Paper>
-      );
-    }
-    
-    // Varsayılan olarak müşteri bilgilerini göster
-    return (
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h5" gutterBottom>Müşteri Bilgileri</Typography>
-        <List>
-          <ListItem>
-            <ListItemText primary="Müşteri Kodu" secondary={customer.customerCode} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Müşteri Adı" secondary={customer.customerName} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Vergi Numarası" secondary={customer.taxNumber || 'Belirtilmemiş'} />
-          </ListItem>
-          <ListItem>
-            <ListItemText primary="Vergi Dairesi" secondary={customer.taxOfficeDescription || customer.taxOfficeCode || 'Belirtilmemiş'} />
-          </ListItem>
-          <ListItem>
-            <ListItemText 
-              primary="Müşteri Tipi" 
-              secondary={customer.customerTypeCode === 1 ? 'Bireysel' : customer.customerTypeCode === 2 ? 'Kurumsal' : 'Diğer'} 
-            />
-          </ListItem>
-        </List>
-      </Paper>
-    );
-  };
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : (
+        <Typography variant="body2" color="textSecondary" sx={{ my: 2 }}>
+          Henüz adres bilgisi eklenmemiş.
+        </Typography>
+      )}
+      
+      <Button 
+        variant="contained" 
+        color="primary" 
+        onClick={handleAddAddress}
+        sx={{ mt: 2 }}
+      >
+        Adres Bilgisi Ekle
+      </Button>
+    </Box>
+  );
+
+  // Kişi Bilgileri Formu
+  const renderContactForm = () => (
+    <Box component="form" noValidate sx={{ mt: 1 }}>
+      <Typography variant="h6" gutterBottom>
+        Kişi Bilgileri
+      </Typography>
+      
+      {formData.contacts.length > 0 ? (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Kişi Tipi</TableCell>
+                <TableCell>Ad</TableCell>
+                <TableCell>Soyad</TableCell>
+                <TableCell>Unvan</TableCell>
+                <TableCell>Varsayılan</TableCell>
+                <TableCell>İşlemler</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {formData.contacts.map((contact, index) => (
+                <TableRow key={index}>
+                  <TableCell>
+                    <FormControl fullWidth>
+                      <Select
+                        value={contact.contactTypeCode}
+                        onChange={(e) => handleUpdateContact(index, 'contactTypeCode', e.target.value)}
+                      >
+                        <MenuItem value="PRIMARY">Birincil Kişi</MenuItem>
+                        <MenuItem value="SECONDARY">İkincil Kişi</MenuItem>
+                        <MenuItem value="AUTHORIZED">Yetkili Kişi</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      fullWidth
+                      value={contact.firstName || ''}
+                      onChange={(e) => handleUpdateContact(index, 'firstName', e.target.value)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      fullWidth
+                      value={contact.lastName || ''}
+                      onChange={(e) => handleUpdateContact(index, 'lastName', e.target.value)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <FormControl fullWidth>
+                      <Select
+                        value={contact.titleCode || ''}
+                        onChange={(e) => handleUpdateContact(index, 'titleCode', e.target.value)}
+                      >
+                        <MenuItem value="MR">Bay</MenuItem>
+                        <MenuItem value="MRS">Bayan</MenuItem>
+                        <MenuItem value="DR">Dr.</MenuItem>
+                        <MenuItem value="PROF">Prof.</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell>
+                    <Checkbox
+                      checked={contact.isDefault || false}
+                      onChange={(e) => handleUpdateContact(index, 'isDefault', e.target.checked)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button 
+                      variant="outlined" 
+                      color="error"
+                      onClick={() => handleRemoveContact(index)}
+                    >
+                      Sil
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      ) : (
+        <Typography variant="body2" color="textSecondary" sx={{ my: 2 }}>
+          Henüz kişi bilgisi eklenmemiş.
+        </Typography>
+      )}
+      
+      <Button 
+        variant="contained" 
+        color="primary" 
+        onClick={handleAddContact}
+        sx={{ mt: 2 }}
+      >
+        Kişi Bilgisi Ekle
+      </Button>
+    </Box>
+  );
 
   return (
     <Container maxWidth="lg">
@@ -1898,6 +1558,26 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
           )}
         </Box>
 
+        {/* Adım göstergesi */}
+        {(isNew || isEdit) && (
+          <Box sx={{ mb: 4 }}>
+            <Stepper activeStep={activeStep}>
+              <Step key="temel">
+                <StepLabel>Temel Bilgiler</StepLabel>
+              </Step>
+              <Step key="iletisim">
+                <StepLabel>İletişim Bilgileri</StepLabel>
+              </Step>
+              <Step key="adres">
+                <StepLabel>Adres Bilgileri</StepLabel>
+              </Step>
+              <Step key="finansal">
+                <StepLabel>Finansal Bilgiler</StepLabel>
+              </Step>
+            </Stepper>
+          </Box>
+        )}
+        
         {/* Loading indicator */}
         {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
@@ -1953,15 +1633,16 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
         {/* Yeni müşteri ekleme veya düzenleme formu */}
         {(isNew || isEdit) && (
           <Box component="form" onSubmit={handleSubmit} noValidate>
-            {renderCustomerForm()}
+            {renderBasicInfoForm()}
+            {renderCommunicationForm()}
+            {renderAddressForm()}
+            {renderContactForm()}
           </Box>
         )}
         
         {/* Müşteri detay görünümü */}
         {!isNew && !isEdit && !isLoading && customer && (
           <>
-            {renderDetailView()}
-            
             {/* Adres formu */}
             {activeTab === "addresses" && showAddressForm && renderAddressForm()}
             
