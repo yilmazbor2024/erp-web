@@ -166,19 +166,19 @@ export const customerApi = {
 export const currencyApi = {
   getCurrencies: async (langCode: string = 'TR'): Promise<CurrencyResponse[]> => {
     console.log('API: Fetching currencies with langCode:', langCode);
-    // CurrencyService.GetCurrenciesAsync için uygun endpoint'i kullanıyoruz
-    // Swagger'da doğrudan bir endpoint görünmüyor, ancak deneme yapabiliriz
     try {
-      const response = await axiosInstance.get<ApiResponse<CurrencyResponse[]>>('/api/v1/Currency', { params: { langCode } });
-      if (response.data.success) {
-        console.log('API: Currencies fetched successfully', response.data.data);
-        return response.data.data || [];
+      // API yanıtı doğrudan dizi olarak dönüyor, ApiResponse yapısında değil
+      const response = await axiosInstance.get<CurrencyResponse[]>('/api/v1/Currency', { params: { langCode } });
+      if (response.data && Array.isArray(response.data)) {
+        console.log(`API: Successfully fetched ${response.data.length} currencies`);
+        return response.data;
       }
-      console.error('API: Error fetching currencies', response.data.message);
-      throw new Error(response.data.message || 'Para birimleri alınamadı');
+      console.warn('API: Currency endpoint returned unexpected format', response.data);
+      return [];
     } catch (error) {
       console.error('API: Exception while fetching currencies', error);
-      throw error;
+      // Kullanıcının isteği doğrultusunda hata durumunda boş dizi döndürüyoruz, mock veri kullanmıyoruz
+      return [];
     }
   },
 };

@@ -27,6 +27,7 @@ import {
 import {
   useTaxOffices
 } from '../../../../hooks/useTaxOffices';
+import { useCurrencies } from '../../../../hooks/useCurrencies';
 import { customerApi } from '../../../../services/api';
 
 interface Customer {
@@ -91,7 +92,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     taxOfficeCode: '',
     creditLimit: 0,
     paymentTerm: 30,
-    currency: 'TRY',
+    currency: 'USD', // Varsayılan para birimi USD olarak değiştirildi
     isVIP: false,
     isBlocked: false,
     communications: [],
@@ -103,14 +104,33 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   // Vergi dairelerini API'den al
   const { data: taxOfficesData, isLoading: isLoadingTaxOffices } = useTaxOffices();
   
-  // Vergi daireleri yüklendiğinde konsola yazdır
+  // Para birimlerini API'den al
+  const { data: currenciesData, isLoading: isLoadingCurrencies } = useCurrencies();
+  
+  // Seçilen vergi dairesinin adını bulmak için state
+  const [selectedTaxOfficeName, setSelectedTaxOfficeName] = useState<string>('');
+  
+  // Vergi daireleri ve para birimleri yüklendiğinde konsola yazdır
   useEffect(() => {
     console.log('CustomerForm: Vergi daireleri yüklendi mi?', !isLoadingTaxOffices);
     console.log('CustomerForm: Vergi daireleri veri sayısı:', taxOfficesData?.length || 0);
     if (taxOfficesData && taxOfficesData.length > 0) {
       console.log('CustomerForm: İlk 3 vergi dairesi:', JSON.stringify(taxOfficesData.slice(0, 3)));
     }
-  }, [taxOfficesData, isLoadingTaxOffices]);
+    
+    console.log('CustomerForm: Para birimleri yüklendi mi?', !isLoadingCurrencies);
+    console.log('CustomerForm: Para birimleri veri sayısı:', currenciesData?.length || 0);
+  }, [taxOfficesData, isLoadingTaxOffices, currenciesData, isLoadingCurrencies]);
+  
+  // Vergi dairesi seçildiğinde adını güncelle
+  useEffect(() => {
+    if (data.taxOfficeCode && taxOfficesData) {
+      const selectedOffice = taxOfficesData.find(office => office.taxOfficeCode === data.taxOfficeCode);
+      if (selectedOffice) {
+        setSelectedTaxOfficeName(selectedOffice.taxOfficeDescription || '');
+      }
+    }
+  }, [data.taxOfficeCode, taxOfficesData]);
   
   // Form değişikliklerini işle
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -364,43 +384,76 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               helperText={errors.taxNumber}
             />
             
-            <FormControl 
-              sx={{ flex: '1 1 45%', minWidth: '250px' }}
-              fullWidth 
-              required 
-              error={!!errors.taxOfficeCode}
-            >
-              <InputLabel id="tax-office-label">Vergi Dairesi</InputLabel>
-              <Select
-                labelId="tax-office-label"
-                name="taxOfficeCode"
-                value={data.taxOfficeCode || ''}
-                onChange={handleSelectChange}
-                label="Vergi Dairesi"
-              >
-                <MenuItem value=""><em>Seçiniz</em></MenuItem>
-                {isLoadingTaxOffices ? (
-                  <MenuItem disabled>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <CircularProgress size={20} sx={{ mr: 1 }} />
-                      Yükleniyor...
-                    </Box>
-                  </MenuItem>
-                ) : taxOfficesData && taxOfficesData.length > 0 ? (
-                  taxOfficesData.map((office: any) => (
-                    <MenuItem 
-                      key={office.taxOfficeCode || `tax-office-${Math.random()}`} 
-                      value={office.taxOfficeCode || ""}
-                    >
-                      {office.taxOfficeDescription || office.taxOfficeCode || "İsimsiz Vergi Dairesi"}
-                    </MenuItem>
-                  ))
-                ) : (
-                  <MenuItem disabled>Vergi dairesi bulunamadı</MenuItem>
-                )}
-              </Select>
-              {errors.taxOfficeCode && <FormHelperText>{errors.taxOfficeCode}</FormHelperText>}
-            </FormControl>
+            <Box sx={{ flex: '1 1 45%', minWidth: '250px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {data.taxOfficeCode ? (
+                // Vergi dairesi seçilmişse, kod ve adı göster
+                <>
+                  <TextField
+                    fullWidth
+                    label="Vergi Dairesi Kodu"
+                    value={data.taxOfficeCode}
+                    disabled
+                    sx={{ mb: 1 }}
+                    helperText="Seçildi"
+                  />
+                  <TextField
+                    fullWidth
+                    label="Vergi Dairesi Adı"
+                    value={selectedTaxOfficeName}
+                    disabled
+                  />
+                  <Button 
+                    size="small" 
+                    color="primary" 
+                    onClick={() => {
+                      setData({ ...data, taxOfficeCode: '' });
+                      setSelectedTaxOfficeName('');
+                    }}
+                    sx={{ alignSelf: 'flex-start', mt: 1 }}
+                  >
+                    Değiştir
+                  </Button>
+                </>
+              ) : (
+                // Vergi dairesi seçilmemişse, seçim listesini göster
+                <FormControl 
+                  fullWidth 
+                  required 
+                  error={!!errors.taxOfficeCode}
+                >
+                  <InputLabel id="tax-office-label">Vergi Dairesi</InputLabel>
+                  <Select
+                    labelId="tax-office-label"
+                    name="taxOfficeCode"
+                    value={data.taxOfficeCode || ''}
+                    onChange={handleSelectChange}
+                    label="Vergi Dairesi"
+                  >
+                    <MenuItem value=""><em>Seçiniz</em></MenuItem>
+                    {isLoadingTaxOffices ? (
+                      <MenuItem disabled>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <CircularProgress size={20} sx={{ mr: 1 }} />
+                          Yükleniyor...
+                        </Box>
+                      </MenuItem>
+                    ) : taxOfficesData && taxOfficesData.length > 0 ? (
+                      taxOfficesData.map((office: any) => (
+                        <MenuItem 
+                          key={office.taxOfficeCode || `tax-office-${Math.random()}`} 
+                          value={office.taxOfficeCode || ""}
+                        >
+                          {office.taxOfficeDescription || office.taxOfficeCode || "İsimsiz Vergi Dairesi"}
+                        </MenuItem>
+                      ))
+                    ) : (
+                      <MenuItem disabled>Vergi dairesi bulunamadı</MenuItem>
+                    )}
+                  </Select>
+                  {errors.taxOfficeCode && <FormHelperText>{errors.taxOfficeCode}</FormHelperText>}
+                </FormControl>
+              )}
+            </Box>
           </Box>
         )}
       </Box>
@@ -632,17 +685,80 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
         
         <FormControl sx={{ minWidth: 200 }}>
           <InputLabel id="currency-label">Para Birimi</InputLabel>
+          {/* Para birimi seçimi için arama yapılabilir Select */}
           <Select
             labelId="currency-label"
             id="currency"
             name="currency"
-            value={data.currency || 'TRY'}
+            value={data.currency || 'USD'}
             label="Para Birimi"
             onChange={handleSelectChange}
+            // Arama yapabilmek için
+            MenuProps={{
+              PaperProps: {
+                style: {
+                  maxHeight: 300
+                },
+              },
+            }}
           >
-            <MenuItem value="TRY">Türk Lirası (₺)</MenuItem>
-            <MenuItem value="USD">Amerikan Doları ($)</MenuItem>
-            <MenuItem value="EUR">Euro (€)</MenuItem>
+            {/* Arama kutusu */}
+            <Box sx={{ p: 1, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 1 }}>
+              <TextField
+                autoFocus
+                placeholder="Para birimi ara..."
+                fullWidth
+                size="small"
+                sx={{ mb: 1 }}
+                onChange={(e) => {
+                  // Bu arama işlevi sadece UI tarafında çalışır
+                  const searchInput = e.target.value.toLowerCase();
+                  const menuItems = document.querySelectorAll('[role="listbox"] [role="option"]');
+                  menuItems.forEach((item: any) => {
+                    const text = item.textContent.toLowerCase();
+                    if (text.includes(searchInput)) {
+                      item.style.display = 'flex';
+                    } else {
+                      item.style.display = 'none';
+                    }
+                  });
+                }}
+                // Menü kapanmasını önlemek için
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Escape') {
+                    e.stopPropagation();
+                  }
+                }}
+              />
+            </Box>
+            
+            {isLoadingCurrencies ? (
+              <MenuItem disabled>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  Yükleniyor...
+                </Box>
+              </MenuItem>
+            ) : currenciesData && currenciesData.length > 0 ? (
+              currenciesData.map((currency: any) => (
+                <MenuItem 
+                  key={currency.currencyCode || `currency-${Math.random()}`} 
+                  value={currency.currencyCode || ""}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span><strong>{currency.currencyCode}</strong> - {currency.currencyDescription}</span>
+                  </Box>
+                </MenuItem>
+              ))
+            ) : (
+              // API'den veri gelmezse varsayılan değerleri göster
+              <>
+                <MenuItem value="USD">USD - Amerikan Doları ($)</MenuItem>
+                <MenuItem value="TRY">TRY - Türk Lirası (₺)</MenuItem>
+                <MenuItem value="EUR">EUR - Euro (€)</MenuItem>
+              </>
+            )}
           </Select>
         </FormControl>
         

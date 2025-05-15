@@ -127,19 +127,18 @@ const CustomerCreate = () => {
     loadReferenceData();
   }, []);
 
-  // Para birimleri yüklendiğinde ve TRY varsa exchangeTypeCode'u set et
+  // Para birimleri yüklendiğinde ve USD varsa onu varsayılan yap, yoksa ilk para birimini al
   useEffect(() => {
     if (currenciesDataFromHook && currenciesDataFromHook.length > 0) {
-      const tryCurrencyExists = currenciesDataFromHook.some(c => c.currencyCode === 'TRY');
-      if (tryCurrencyExists) {
-        if (formData.exchangeTypeCode !== 'TRY') { // Sadece farklıysa güncelle
-          setFormData(prev => ({ ...prev, exchangeTypeCode: 'TRY' }));
-        }
-      } else if (formData.exchangeTypeCode === '' && currenciesDataFromHook.length > 0) {
+      const usdCurrencyExists = currenciesDataFromHook.some(c => c.currencyCode === 'USD');
+      if (usdCurrencyExists) {
+        setFormData(prev => ({ ...prev, exchangeTypeCode: 'USD' }));
+      } else {
         setFormData(prev => ({ ...prev, exchangeTypeCode: currenciesDataFromHook[0].currencyCode }));
       }
+      console.log('Para birimi varsayılan değeri USD olarak ayarlandı');
     }
-  }, [currenciesDataFromHook, formData.exchangeTypeCode]);
+  }, [currenciesDataFromHook]);
 
   // Ülke değiştiğinde bölge ve şehir verilerini yükle
   useEffect(() => {
@@ -420,28 +419,56 @@ const CustomerCreate = () => {
 
           {formData.formType === 'detailed' && !formData.isIndividual && (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-              <FormControl fullWidth required sx={{ flex: '1 1 45%', minWidth: '200px' }}>
-                <InputLabel>Vergi Dairesi</InputLabel>
-                <Select
-                  name="taxOffice"
-                  value={formData.taxOffice || ''}
-                  label="Vergi Dairesi"
-                  onChange={handleSelectChange}
-                  disabled={isLoadingTaxOfficesHook}
-                >
-                  {isLoadingTaxOfficesHook ? (
-                    <MenuItem value="" disabled>Yükleniyor...</MenuItem>
-                  ) : taxOfficesDataFromHook && taxOfficesDataFromHook.length > 0 ? (
-                    taxOfficesDataFromHook.map((office: any) => (
-                      <MenuItem key={office.taxOfficeCode} value={office.taxOfficeCode}>
-                        {office.taxOfficeDescription}
-                      </MenuItem>
-                    ))
-                  ) : (
-                    <MenuItem value="" disabled>Vergi dairesi bulunamadı</MenuItem>
-                  )}
-                </Select>
-              </FormControl>
+              {formData.taxOffice ? (
+                // Vergi dairesi seçilmişse, kod ve adı göster
+                <Box sx={{ flex: '1 1 45%', minWidth: '200px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <TextField
+                    fullWidth
+                    label="Vergi Dairesi Kodu"
+                    value={formData.taxOffice}
+                    disabled
+                    helperText="Seçildi"
+                  />
+                  <TextField
+                    fullWidth
+                    label="Vergi Dairesi Adı"
+                    value={taxOfficesDataFromHook?.find(office => office.taxOfficeCode === formData.taxOffice)?.taxOfficeDescription || ''}
+                    disabled
+                  />
+                  <Button 
+                    size="small" 
+                    color="primary" 
+                    onClick={() => setFormData({...formData, taxOffice: ''})}
+                    sx={{ alignSelf: 'flex-start' }}
+                  >
+                    Değiştir
+                  </Button>
+                </Box>
+              ) : (
+                // Vergi dairesi seçilmemişse, seçim listesini göster
+                <FormControl fullWidth required sx={{ flex: '1 1 45%', minWidth: '200px' }}>
+                  <InputLabel>Vergi Dairesi</InputLabel>
+                  <Select
+                    name="taxOffice"
+                    value={formData.taxOffice || ''}
+                    label="Vergi Dairesi"
+                    onChange={handleSelectChange}
+                    disabled={isLoadingTaxOfficesHook}
+                  >
+                    {isLoadingTaxOfficesHook ? (
+                      <MenuItem value="" disabled>Yükleniyor...</MenuItem>
+                    ) : taxOfficesDataFromHook && taxOfficesDataFromHook.length > 0 ? (
+                      taxOfficesDataFromHook.map((office: any) => (
+                        <MenuItem key={office.taxOfficeCode} value={office.taxOfficeCode}>
+                          {office.taxOfficeDescription}
+                        </MenuItem>
+                      ))
+                    ) : (
+                      <MenuItem value="" disabled>Vergi dairesi bulunamadı</MenuItem>
+                    )}
+                  </Select>
+                </FormControl>
+              )}
               <TextField
                 fullWidth
                 required
@@ -622,13 +649,54 @@ const CustomerCreate = () => {
                 label="Para Birimi"
                 onChange={handleSelectChange}
                 disabled={isLoadingCurrenciesHook}
+                // Arama yapılabilmesi için
+                MenuProps={{
+                  PaperProps: {
+                    style: {
+                      maxHeight: 300
+                    },
+                  },
+                }}
               >
+                {/* Arama kutusu */}
+                <Box sx={{ p: 1, position: 'sticky', top: 0, bgcolor: 'background.paper', zIndex: 1 }}>
+                  <TextField
+                    autoFocus
+                    placeholder="Para birimi ara..."
+                    fullWidth
+                    size="small"
+                    sx={{ mb: 1 }}
+                    onChange={(e) => {
+                      // Bu arama işlevi sadece UI tarafında çalışır
+                      const searchInput = e.target.value.toLowerCase();
+                      const menuItems = document.querySelectorAll('[role="listbox"] [role="option"]');
+                      menuItems.forEach((item: any) => {
+                        const text = item.textContent.toLowerCase();
+                        if (text.includes(searchInput)) {
+                          item.style.display = 'flex';
+                        } else {
+                          item.style.display = 'none';
+                        }
+                      });
+                    }}
+                    // Menü kapanmasını önlemek için
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Escape') {
+                        e.stopPropagation();
+                      }
+                    }}
+                  />
+                </Box>
+                
                 {isLoadingCurrenciesHook ? (
                   <MenuItem value="" disabled>Yükleniyor...</MenuItem>
                 ) : currenciesDataFromHook && currenciesDataFromHook.length > 0 ? (
                   currenciesDataFromHook.map((currency: any) => (
                     <MenuItem key={currency.currencyCode} value={currency.currencyCode}>
-                      {currency.currencyDescription} ({currency.symbol})
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                        <span><strong>{currency.currencyCode}</strong> - {currency.currencyDescription}</span>
+                      </Box>
                     </MenuItem>
                   ))
                 ) : (
