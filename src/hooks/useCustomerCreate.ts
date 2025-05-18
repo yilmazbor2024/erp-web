@@ -73,32 +73,38 @@ const useCustomerCreate = (): UseCustomerCreateResult => {
         // Zorunlu alanlar (backend'de Required attribute ile işaretlenmiş)
         CustomerCode: customerData.customerCode,
         CustomerName: customerData.customerName,
-        CustomerTypeCode: customerData.customerTypeCode ? Number(customerData.customerTypeCode) : 1, // byte tipinde
+        CustomerTypeCode: Number(customerData.customerTypeCode), // byte tipinde
         CompanyCode: 1, // short tipinde
         OfficeCode: 'M', // string tipinde, varsayılan 'M'
+        CountryCode: 'TR', // string tipinde, varsayılan 'TR'
+        StateCode: '',
+        CityCode: customerData.cityCode ?? '',
+        DistrictCode: customerData.districtCode ?? '',
+        Address: '',
+        ContactName: '',
         
         // Diğer alanlar (opsiyonel)
-        CustomerSurname: customerData.customerSurname || '',
+        CustomerSurname: customerData.customerSurname ?? '',
         IsIndividualAcc: false, // Kurumsal müşteri için false
-        TaxNumber: customerData.taxNumber || '',
-        TaxOfficeCode: customerData.taxOffice || '',
-        IdentityNum: '',
-        CustomerIdentityNumber: '',
+        TaxNumber: customerData.taxNumber ?? '',
+        TaxOfficeCode: customerData.taxOffice ?? '',
+        IdentityNum: '', //string
+        CustomerIdentityNumber: '', //string
         MersisNum: null, // null olarak gönder, boş string değil
         TitleCode: null, // null olarak gönder, boş string değil
         Patronym: null, // null olarak gönder, boş string değil
         DueDateFormulaCode: null, // Eksik alanı ekledik
-        CityCode: customerData.cityCode || '',
-        DistrictCode: customerData.districtCode || '',
-        RegionCode: customerData.regionCode || '',
-        IsBlocked: customerData.isBlocked || false,
+        RegionCode: customerData.regionCode ?? '',
+        IsBlocked: customerData.isBlocked ?? false,
+        ExchangeTypeCode: 'TRY',
         
         // Finansal bilgiler
+        IsIndividualAcc: false,
         CurrencyCode: 'TRY', // Varsayılan para birimi
-        DiscountGroupCode: '',
-        PaymentPlanGroupCode: '',
-        RiskLimit: 0,
-        CreditLimit: 0,
+        DiscountGroupCode: customerData.discountGroupCode ?? '',
+        PaymentPlanGroupCode: customerData.paymentPlanGroupCode ?? '',
+        RiskLimit: customerData.riskLimit ?? 0,
+        CreditLimit: customerData.creditLimit ?? 0,
         
         // Sistem bilgileri
         CreatedUserName: 'SYSTEM',

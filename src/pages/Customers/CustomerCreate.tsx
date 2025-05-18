@@ -30,6 +30,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../config/constants';
 import { useTaxOffices } from '../../hooks/useTaxOffices';
 import { useCurrencies } from '../../hooks/useCurrencies';
+import axios from 'axios';
 
 // Müşteri oluşturma formu
 const CustomerCreate = () => {
@@ -233,103 +234,245 @@ const CustomerCreate = () => {
   const handleDateChange = (name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value ? new Date(value) : null }));
   };
+  
+  // Form sıfırlama fonksiyonu
+  const resetForm = () => {
+    setFormData({
+      formType: 'quick',
+      customerType: '3',
+      isIndividual: false,
+      region: '', 
+      city: '', 
+      district: '',
+      taxOffice: '',
+      taxNumber: '', 
+      identityNum: '',
+      firstName: '',
+      lastName: '',
+      customerName: '', 
+      customerCode: '', 
+      country: 'TR', 
+      address: '', 
+      phone: '', 
+      email: '',
+      contactName: '',
+      isSubjectToEInvoice: false,
+      eInvoiceStartDate: null,
+      isSubjectToEShipment: false,
+      eShipmentStartDate: null,
+      exchangeTypeCode: 'TRY'
+    });
+  };
 
+  // Snackbar kapatma fonksiyonu
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
+  
+  // Müşteri oluşturma işlemi
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsLoading(true);
+    let error: any = null;
+    let errorMessage = '';
+
     try {
-      const customerCode = formData.customerCode || `121.${Date.now().toString().slice(-8)}`;
+      // Temel doğrulama
+      if (!formData.customerName || formData.customerName.trim() === '') {
+        errorMessage = 'Müşteri adı alanı zorunludur';
+        error = new Error(errorMessage);
+      }
+
+      // Form tipine göre doğrulama
+      if (formData.formType === 'detailed') {
+        // Detaylı form için ek doğrulamalar
+        if (formData.isIndividual) {
+          // Bireysel müşteri için doğrulamalar
+          if (!formData.identityNum || formData.identityNum.trim() === '') {
+            errorMessage = 'TC Kimlik Numarası zorunludur';
+            error = new Error(errorMessage);
+          }
+        } else {
+          // Kurumsal müşteri için doğrulamalar
+          if (!formData.taxNumber || formData.taxNumber.trim() === '') {
+            errorMessage = 'Vergi Numarası zorunludur';
+            error = new Error(errorMessage);
+          }
+          if (!formData.taxOffice || formData.taxOffice.trim() === '') {
+            errorMessage = 'Vergi Dairesi zorunludur';
+            error = new Error(errorMessage);
+          }
+        }
+      } else {
+        // Hızlı form için doğrulamalar
+        if (!formData.phone && !formData.email) {
+          errorMessage = 'Telefon veya E-posta alanlarından en az biri zorunludur';
+          error = new Error(errorMessage);
+        }
+      }
+
+      if (error) {
+        setSnackbar({
+          open: true,
+          message: `Müşteri oluşturulurken hata oluştu: ${errorMessage}`,
+          severity: 'error'
+        });
+        return;
+      }
+
+      // TypeScript için any tipini kullanarak genişletilebilir nesne oluştur
       const customerData: any = {
-        customerCode: customerCode,
+        customerCode: formData.customerCode,
         customerName: formData.customerName,
-        customerTypeCode: parseInt(formData.customerType, 10), // string to number
+        customerTypeCode: formData.customerType, // 3 = Müşteri, 1 = Tedarikçi
         countryCode: formData.country,
+        stateCode: formData.region,
         cityCode: formData.city,
         districtCode: formData.district,
         address: formData.address,
         contactName: formData.contactName,
-        officeCode: "1", // Varsayılan ofis kodu
+        officeCode: "M", // Varsayılan ofis kodu (test ettiğimiz ve çalıştığını bildiğimiz kod)
         exchangeTypeCode: formData.exchangeTypeCode,
-        isIndividualAcc: formData.isIndividual
+        isIndividualAcc: formData.isIndividual,
+        companyCode: 1, // Şirket kodu sayı olarak gönderilmeli
+        createdUserName: localStorage.getItem('userName') || 'system' // Oluşturan kullanıcı adı
       };
 
-      if (formData.isIndividual) {
-        customerData.identityNum = formData.identityNum;
-        customerData.firstName = formData.firstName;
-        customerData.lastName = formData.lastName;
-      } else {
-        customerData.taxOfficeCode = formData.taxOffice; // taxOffice kullanıyoruz
-        customerData.taxNumber = formData.taxNumber;
+      // Detaylı mod için ek alanlar
+      if (formData.formType === 'detailed') {
+        if (formData.isIndividual) {
+          // Bireysel müşteri için TC kimlik numarası
+          customerData.identityNum = formData.identityNum;
+        }
+        // Vergi bilgileri
+        if (formData.taxNumber) {
+          customerData.taxNumber = formData.taxNumber;
+          customerData.taxOffice = formData.taxOffice;
+          customerData.taxOfficeCode = formData.taxOffice; // Vergi dairesi kodu olarak vergi dairesini kullan
+        }
       }
 
-      if (formData.country === 'TR') {
-        customerData.isSubjectToEInvoice = formData.isSubjectToEInvoice;
-        customerData.eInvoiceStartDate = formData.eInvoiceStartDate;
-        customerData.isSubjectToEShipment = formData.isSubjectToEShipment;
-        customerData.eShipmentStartDate = formData.eShipmentStartDate;
-      }
+      // Kullanıcı adını al
+      const userName = localStorage.getItem('userName') || 'system';
       
-      customerData.communications = [];
-      if (formData.phone) customerData.communications.push({ communicationTypeCode: "PHONE", communication: formData.phone, isDefault: true });
-      if (formData.email) customerData.communications.push({ communicationTypeCode: "EMAIL", communication: formData.email, isDefault: true });
-
-      customerData.addresses = [];
-      if (formData.address) customerData.addresses.push({ 
-        addressTypeCode: "WORK",
-        address: formData.address, 
-        cityCode: formData.city, 
-        districtCode: formData.district, 
-        countryCode: formData.country,
-        isDefault: true
-      });
-
-
+      // Benzersiz adres ID'si oluştur
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+      
       console.log('Gönderilecek müşteri verisi:', customerData);
-      const response = await customerApi.createCustomerBasic(customerData); // customerApi üzerinden çağır
-      setSnackbar({ open: true, message: 'Müşteri başarıyla oluşturuldu', severity: 'success' });
       
-      // Formu temizle
-      setFormData({
-        formType: 'quick',
-        customerType: '3',
-        isIndividual: false,
-        region: '', 
-        city: '', 
-        district: '',
-        taxOffice: '', // taxOffice kullanılıyor, taxOfficeCode değil
-        taxNumber: '', 
-        identityNum: '',
-        firstName: '',
-        lastName: '',
-        customerName: '', 
-        customerCode: '', 
-        country: 'TR', 
-        address: '', 
-        phone: '', 
-        email: '',
-        contactName: '',
-        isSubjectToEInvoice: false,
-        eInvoiceStartDate: null,
-        isSubjectToEShipment: false,
-        eShipmentStartDate: null,
-        exchangeTypeCode: 'TRY'
-      });
+      // 1. Adım: Temel müşteri bilgilerini gönder ve müşteri kodunu al
+      const customerResponse = await customerApi.createCustomerBasic(customerData);
       
-      navigate('/customers');
-    } catch (error: any) {
-      console.error('Müşteri oluşturma hatası:', error);
+      if (customerResponse.success) {
+        // Müşteri başarıyla oluşturuldu
+        const createdCustomerCode = customerResponse.data.customerCode;
+        console.log('Müşteri başarıyla oluşturuldu. Müşteri kodu:', createdCustomerCode);
+        
+        // 2. Adım: Adres ve iletişim bilgilerini ekle
+        try {
+          const addressPromises = [];
+          const communicationPromises = [];
+          
+          // Adres bilgisi ekle
+          if (formData.address) {
+            const addressData = { 
+              addressTypeCode: "WORK",
+              address: formData.address,
+              street: formData.address,
+              cityCode: formData.city, 
+              districtCode: formData.district,
+              stateCode: formData.region,
+              countryCode: formData.country,
+              zipCode: "00000",
+              siteName: "-",
+              addressID: generateUUID(),
+              taxNumber: formData.taxNumber || "",
+              taxOffice: formData.taxOffice || "",
+              taxOfficeCode: formData.taxOffice || "",
+              buildingNum: "-",
+              quarterName: "-",
+              buildingName: "-",
+              customerCode: createdCustomerCode,
+              drivingDirections: "-",
+              isDefault: true,
+              isBlocked: false,
+              createdUserName: userName,
+              lastUpdatedUserName: userName
+            };
+        
+            addressPromises.push(customerApi.createCustomerAddress(createdCustomerCode, addressData));
+          }
+
+          // İletişim bilgisi ekle
+          if (formData.phone) {
+            const communicationData = {
+              communicationTypeCode: "PHONE",
+              commAddress: formData.phone,
+              customerCode: createdCustomerCode,
+              isDefault: true,
+              isBlocked: false,
+              createdUserName: userName,
+              lastUpdatedUserName: userName
+            };
+            communicationPromises.push(customerApi.createCustomerCommunication(createdCustomerCode, communicationData));
+          }
+          if (formData.email) {
+            const communicationData = {
+              communicationTypeCode: "EMAIL",
+              commAddress: formData.email,
+              customerCode: createdCustomerCode,
+              isDefault: true,
+              isBlocked: false,
+              createdUserName: userName,
+              lastUpdatedUserName: userName
+            };
+            // communicationPromises.push(customerApi.createCustomerCommunication(createdCustomerCode, communicationData));
+          }
+
+          // Tüm adres ve iletişim bilgilerini aynı anda gönder
+          await Promise.all([...addressPromises, ...communicationPromises]);
+
+          setSnackbar({
+            open: true,
+            message: 'Müşteri ve iletişim bilgileri başarıyla oluşturuldu!',
+            severity: 'success'
+          });
+        } catch (addressError: any) {
+          error = addressError;
+          console.error("Adres veya iletişim bilgileri oluşturulurken hata oluştu:", error);
+          setSnackbar({
+            open: true,
+            message: error.response?.data?.message || 'Adres veya iletişim bilgileri oluşturulurken bir hata oluştu!',
+            severity: 'error'
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        errorMessage = customerResponse.message || 'Müşteri oluşturulurken bir hata oluştu!';
+        setSnackbar({
+          open: true,
+          message: `Müşteri oluşturulurken hata oluştu: ${errorMessage}`,
+          severity: 'error'
+        });
+        setIsLoading(false);
+      }
+    } catch (customerError: any) {
+      error = customerError;
+      console.error("Müşteri oluşturulurken hata oluştu:", error);
       setSnackbar({
         open: true,
-        message: `Müşteri oluşturulurken hata oluştu: ${error.response?.data?.message || error.message || 'Bilinmeyen hata'}`,
+        message: error.response?.data?.message || 'Müşteri oluşturulurken bir hata oluştu!',
         severity: 'error'
       });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
   };
 
   return (
@@ -350,10 +493,25 @@ const CustomerCreate = () => {
           </FormControl>
 
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+            <FormControl fullWidth sx={{ flex: '1 1 100%' }}>
+              <InputLabel id="customer-type-label">Müşteri Tipi</InputLabel>
+              <Select
+                labelId="customer-type-label"
+                id="customer-type"
+                name="customerType"
+                value={formData.customerType}
+                label="Müşteri Tipi"
+                onChange={handleSelectChange}
+              >
+                <MenuItem value="3">Müşteri (121.XXXX)</MenuItem>
+                <MenuItem value="1">Tedarikçi (320.XXXX)</MenuItem>
+              </Select>
+            </FormControl>
+            
             <TextField
               fullWidth
               required
-              label="Müşteri Adı"
+              label={formData.customerType === '3' ? 'Müşteri Adı' : 'Tedarikçi Adı'}
               name="customerName"
               value={formData.customerName}
               onChange={handleInputChange}
@@ -361,11 +519,11 @@ const CustomerCreate = () => {
             />
             <TextField
               fullWidth
-              label="Müşteri Kodu (Opsiyonel)"
+              label={formData.customerType === '3' ? 'Müşteri Kodu (Opsiyonel)' : 'Tedarikçi Kodu (Opsiyonel)'}
               name="customerCode"
               value={formData.customerCode}
               onChange={handleInputChange}
-              helperText="Boş bırakılırsa otomatik oluşturulur (121.XXXXXXXX)"
+              helperText={`Boş bırakılırsa otomatik oluşturulur (${formData.customerType === '3' ? '121.' : '320.'}XXXX)`}
               sx={{ flex: '1 1 100%' }}
             />
           </Box>
