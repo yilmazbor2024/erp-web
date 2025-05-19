@@ -377,81 +377,147 @@ const CustomerCreate = () => {
         try {
           const addressPromises = [];
           const communicationPromises = [];
+          let adresEklendiMi = false;
+          let iletisimEklendiMi = false;
           
           // Adres bilgisi ekle
           if (formData.address) {
-            const addressData = { 
-              addressTypeCode: "WORK",
-              address: formData.address,
-              street: formData.address,
-              cityCode: formData.city, 
-              districtCode: formData.district,
-              stateCode: formData.region,
-              countryCode: formData.country,
-              zipCode: "00000",
-              siteName: "-",
-              addressID: generateUUID(),
-              taxNumber: formData.taxNumber || "",
-              taxOffice: formData.taxOffice || "",
-              taxOfficeCode: formData.taxOffice || "",
-              buildingNum: "-",
-              quarterName: "-",
-              buildingName: "-",
-              customerCode: createdCustomerCode,
-              drivingDirections: "-",
-              isDefault: true,
-              isBlocked: false,
-              createdUserName: userName,
-              lastUpdatedUserName: userName
-            };
-        
-            addressPromises.push(customerApi.createCustomerAddress(createdCustomerCode, addressData));
+            try {
+              // Backend'in beklediği formatta adres nesnesi oluştur
+              // CustomerAddressCreateRequest sınıfına uygun alanları kullan
+              // Kullanıcının seçtiği değerleri veya varsayılan değerleri kullan
+              // prCurrAccPostalAddress tablosuyla %100 uyumlu adres verisi oluşturma
+              const addressData = { 
+                // Müşteri bilgileri - prCurrAccPostalAddress.CurrAccCode
+                CustomerCode: createdCustomerCode, // Müşteri kodu, NOT NULL alan
+                
+                // Adres tipi bilgileri - prCurrAccPostalAddress.AddressTypeCode
+                AddressTypeCode: "2", // "2" = "İş Adresi" - veritabanındaki geçerli kod, NOT NULL alan
+                
+                // Adres bilgileri - prCurrAccPostalAddress.Address
+                Address: formData.address || "", // Açık adres, NOT NULL alan
+                
+                // Ülke, şehir, bölge bilgileri - prCurrAccPostalAddress tablosundaki ilgili alanlar
+                CountryCode: "TR", // Ülke kodu, NOT NULL alan, varsayılan: Türkiye
+                StateCode: formData.region || "TR.00", // Eyalet/Bölge kodu, NOT NULL alan
+                CityCode: formData.city || "TR.00", // Şehir kodu, NOT NULL alan
+                DistrictCode: formData.district || "", // İlçe kodu, NOT NULL alan
+                
+                // Posta ve vergi bilgileri - prCurrAccPostalAddress tablosundaki ilgili alanlar
+                // Backend'de ZipCode için varsayılan değer kullanılacak, burada göndermiyoruz
+                TaxOffice: "", // Vergi dairesi adı, backend'de zorunlu alan, boş string olarak gönderiyoruz
+                TaxOfficeCode: formData.taxOffice || "", // Vergi dairesi kodu, backend'de zorunlu alan
+                TaxNumber: formData.taxNumber || "", // Vergi numarası, NOT NULL alan
+                
+                // Adres ID - prCurrAccPostalAddress tablosundaki ilgili alan
+                AddressID: 0, // Adres ID, NOT NULL alan, otomatik artan
+                
+                // Durum bilgileri
+                IsBlocked: false, // Adres bloke mi?, NOT NULL alan, varsayılan: false
+                IsDefault: true, // Varsayılan adres mi?
+                IsBillingAddress: true, // Fatura adresi mi?
+                IsShippingAddress: true, // Sevkiyat adresi mi?
+                
+                // Kullanıcı bilgileri - prCurrAccPostalAddress tablosundaki ilgili alanlar
+                CreatedUserName: "SYSTEM", // Oluşturan kullanıcı, NOT NULL alan
+                LastUpdatedUserName: "SYSTEM" // Son güncelleyen kullanıcı, NOT NULL alan
+              };
+              const adresResponse = await customerApi.createCustomerAddress(createdCustomerCode, addressData);
+              console.log('Adres ekleme yanıtı:', adresResponse);
+              adresEklendiMi = adresResponse.success;
+            } catch (adresHata) {
+              console.error('Adres eklenirken hata:', adresHata);
+            }
+          } else {
+            adresEklendiMi = true; // Adres girilmediyse başarılı sayıyoruz
           }
 
-          // İletişim bilgisi ekle
+          // İletişim bilgisi ekle - Telefon
           if (formData.phone) {
-            const communicationData = {
-              communicationTypeCode: "PHONE",
-              commAddress: formData.phone,
-              customerCode: createdCustomerCode,
-              isDefault: true,
-              isBlocked: false,
-              createdUserName: userName,
-              lastUpdatedUserName: userName
-            };
-            communicationPromises.push(customerApi.createCustomerCommunication(createdCustomerCode, communicationData));
+            try {
+              // CustomerCommunicationCreateRequest sınıfına uygun alanları kullan
+              const communicationData = {
+                CustomerCode: createdCustomerCode,
+                CommunicationTypeCode: "1", // "1" = "Telefon" - veritabanında yaygın kullanılan kod
+                Communication: formData.phone,
+                IsDefault: true // Varsayılan iletişim olarak işaretle - prCurrAccDefault tablosunu güncelleyecek
+              };
+              const telefonResponse = await customerApi.createCustomerCommunication(createdCustomerCode, communicationData);
+              console.log('Telefon ekleme yanıtı:', telefonResponse);
+              iletisimEklendiMi = telefonResponse.success;
+            } catch (telefonHata) {
+              console.error('Telefon eklenirken hata:', telefonHata);
+            }
+          } else {
+            iletisimEklendiMi = true; // Telefon girilmediyse başarılı sayıyoruz
           }
+
+          // İletişim bilgisi ekle - E-posta
           if (formData.email) {
-            const communicationData = {
-              communicationTypeCode: "EMAIL",
-              commAddress: formData.email,
-              customerCode: createdCustomerCode,
-              isDefault: true,
-              isBlocked: false,
-              createdUserName: userName,
-              lastUpdatedUserName: userName
-            };
-            // communicationPromises.push(customerApi.createCustomerCommunication(createdCustomerCode, communicationData));
+            try {
+              // CustomerCommunicationCreateRequest sınıfına uygun alanları kullan
+              const communicationData = {
+                CustomerCode: createdCustomerCode,
+                CommunicationTypeCode: "3", // "3" = "E-Posta" - veritabanındaki geçerli kod
+                Communication: formData.email,
+                IsDefault: !formData.phone // Telefon yoksa e-posta varsayılan olsun
+              };
+              const emailResponse = await customerApi.createCustomerCommunication(createdCustomerCode, communicationData);
+              console.log('Email ekleme yanıtı:', emailResponse);
+              if (!iletisimEklendiMi) {
+                iletisimEklendiMi = emailResponse.success;
+              }
+            } catch (emailHata) {
+              console.error('Email eklenirken hata:', emailHata);
+            }
+          } else if (!formData.phone) {
+            iletisimEklendiMi = true; // Ne telefon ne email girilmediyse başarılı sayıyoruz
           }
-
-          // Tüm adres ve iletişim bilgilerini aynı anda gönder
-          await Promise.all([...addressPromises, ...communicationPromises]);
-
+          
+          // Bildirim mesajını oluştur
+          let bildirimMesaji = 'Müşteri başarıyla oluşturuldu';
+          let bildirimTipi: 'success' | 'error' = 'success';
+          
+          if (!adresEklendiMi && !iletisimEklendiMi) {
+            bildirimMesaji += ', ancak adres ve iletişim bilgileri eklenemedi';
+            bildirimTipi = 'error'; // warning yerine error kullan
+          } else if (!adresEklendiMi) {
+            bildirimMesaji += ', ancak adres bilgisi eklenemedi';
+            bildirimTipi = 'error'; // warning yerine error kullan
+          } else if (!iletisimEklendiMi) {
+            bildirimMesaji += ', ancak iletişim bilgisi eklenemedi';
+            bildirimTipi = 'error'; // warning yerine error kullan
+          } else {
+            bildirimMesaji += ' ve tüm bilgiler kaydedildi';
+          }
+          
+          // Bildirim göster
           setSnackbar({
             open: true,
-            message: 'Müşteri ve iletişim bilgileri başarıyla oluşturuldu!',
-            severity: 'success'
+            message: bildirimMesaji,
+            severity: bildirimTipi
           });
-        } catch (addressError: any) {
-          error = addressError;
-          console.error("Adres veya iletişim bilgileri oluşturulurken hata oluştu:", error);
+          
+          // Formu sıfırla
+          resetForm();
+          
+          // Müşteri listesine yönlendir
+          setTimeout(() => {
+            navigate('/customers');
+          }, 1500); // 1.5 saniye sonra yönlendir (kullanıcının bildirimi görmesi için)
+        } catch (error: any) {
+          console.error('Müşteri işlemi sırasında genel hata:', error);
           setSnackbar({
             open: true,
-            message: error.response?.data?.message || 'Adres veya iletişim bilgileri oluşturulurken bir hata oluştu!',
+            message: `Müşteri oluşturuldu fakat diğer bilgiler eklenirken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
             severity: 'error'
           });
-        } finally {
-          setIsLoading(false);
+          
+          // Hata olsa bile müşteri oluşturulduğu için yönlendir
+          resetForm();
+          setTimeout(() => {
+            navigate('/customers');
+          }, 1500); // 1.5 saniye sonra yönlendir
         }
       } else {
         errorMessage = customerResponse.message || 'Müşteri oluşturulurken bir hata oluştu!';
