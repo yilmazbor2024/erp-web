@@ -223,17 +223,28 @@ export const customerApi = {
   },
   createCustomerContact: async (customerCode: string, contactData: any): Promise<ApiResponse<any>> => {
     // Backend'in beklediği formata uygun veri yapısı oluştur
-    const data = {
+    const data: any = {
       CustomerCode: customerCode,
       FirstName: contactData.FirstName,
       LastName: contactData.LastName,
       ContactTypeCode: contactData.ContactTypeCode || "1", // Varsayılan kişi tipi kodu
+      TitleCode: contactData.TitleCode || "1", // Varsayılan unvan kodu
+      
       IsDefault: contactData.IsDefault !== undefined ? contactData.IsDefault : true,
       IsBlocked: contactData.IsBlocked !== undefined ? contactData.IsBlocked : false,
       IsAuthorized: contactData.IsAuthorized !== undefined ? contactData.IsAuthorized : false,
       CreatedUserName: contactData.CreatedUserName || "SYSTEM",
       LastUpdatedUserName: contactData.LastUpdatedUserName || "SYSTEM"
     };
+    
+    // Opsiyonel alanları sadece değer varsa ekle
+    if (contactData.JobTitleCode) {
+      data.JobTitleCode = contactData.JobTitleCode;
+    }
+    
+    if (contactData.IdentityNum) {
+      data.IdentityNum = contactData.IdentityNum;
+    }
     
     try {
       console.log('Gönderilen bağlantılı kişi verisi:', data);
