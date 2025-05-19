@@ -479,11 +479,28 @@ const CustomerCreate = () => {
           if (formData.contactName) {
             try {
               // Bağlantılı kişi verisi oluştur
+              // contactName alanını FirstName ve LastName olarak ayır
+              const nameParts = formData.contactName.split(' ');
+              const firstName = nameParts[0] || "Kişi";
+              const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : "Soyad";
+              
+              // Backend'in beklediği formata uygun veri yapısı oluştur
               const contactData = {
-                contactName: formData.contactName,
-                contactPhone: formData.phone || "",
-                contactEmail: formData.email || "",
-                isDefault: true
+                // Zorunlu alanlar
+                FirstName: firstName,
+                LastName: lastName,
+                ContactTypeCode: "1", // Varsayılan kişi tipi kodu (1: Müşteri Yetkilisi)
+                
+                // İletişim bilgileri - bunlar backend'e ayrıca gönderilecek
+                Phone: formData.phone || "",
+                Email: formData.email || "",
+                
+                // Diğer alanlar
+                IsDefault: true,
+                IsBlocked: false,
+                IsAuthorized: false,
+                CreatedUserName: "SYSTEM",
+                LastUpdatedUserName: "SYSTEM"
               };
               
               const contactResponse = await customerApi.createCustomerContact(createdCustomerCode, contactData);

@@ -222,14 +222,56 @@ export const customerApi = {
     return response.data.data || [];
   },
   createCustomerContact: async (customerCode: string, contactData: any): Promise<ApiResponse<any>> => {
+    // Backend'in beklediği formata uygun veri yapısı oluştur
     const data = {
-      ...contactData,
-      isDefault: contactData.isDefault !== undefined ? contactData.isDefault : true
+      CustomerCode: customerCode,
+      FirstName: contactData.FirstName,
+      LastName: contactData.LastName,
+      ContactTypeCode: contactData.ContactTypeCode || "1", // Varsayılan kişi tipi kodu
+      IsDefault: contactData.IsDefault !== undefined ? contactData.IsDefault : true,
+      IsBlocked: contactData.IsBlocked !== undefined ? contactData.IsBlocked : false,
+      IsAuthorized: contactData.IsAuthorized !== undefined ? contactData.IsAuthorized : false,
+      CreatedUserName: contactData.CreatedUserName || "SYSTEM",
+      LastUpdatedUserName: contactData.LastUpdatedUserName || "SYSTEM"
     };
     
     try {
       console.log('Gönderilen bağlantılı kişi verisi:', data);
       const response = await axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerContact/${customerCode}/contacts`, data);
+      
+      // Bağlantılı kişi başarıyla eklendiyse ve iletişim bilgileri varsa, bunları da ekle
+      if (response.data.success) {
+        // Telefon numarası varsa ekle
+        if (contactData.Phone) {
+          try {
+            const phoneData = {
+              CommunicationTypeCode: "1", // 1: Telefon
+              Communication: contactData.Phone,
+              IsDefault: true
+            };
+            await axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerCommunication/${customerCode}/communications`, phoneData);
+            console.log('Bağlantılı kişi telefon bilgisi eklendi');
+          } catch (phoneError) {
+            console.error('Bağlantılı kişi telefon bilgisi eklenirken hata:', phoneError);
+          }
+        }
+        
+        // E-posta adresi varsa ekle
+        if (contactData.Email) {
+          try {
+            const emailData = {
+              CommunicationTypeCode: "3", // 3: E-posta
+              Communication: contactData.Email,
+              IsDefault: !contactData.Phone // Telefon yoksa e-posta varsayılan olsun
+            };
+            await axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerCommunication/${customerCode}/communications`, emailData);
+            console.log('Bağlantılı kişi e-posta bilgisi eklendi');
+          } catch (emailError) {
+            console.error('Bağlantılı kişi e-posta bilgisi eklenirken hata:', emailError);
+          }
+        }
+      }
+      
       return response.data;
     } catch (error: any) {
       console.error('Bağlantılı kişi eklerken hata detayı:', {
