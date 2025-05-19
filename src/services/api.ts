@@ -229,6 +229,8 @@ export const customerApi = {
       LastName: contactData.LastName,
       ContactTypeCode: contactData.ContactTypeCode || "1", // Varsayılan kişi tipi kodu
       TitleCode: contactData.TitleCode || "1", // Varsayılan unvan kodu
+      JobTitleCode: contactData.JobTitleCode || "1", // Varsayılan iş unvanı kodu
+      IdentityNum: contactData.IdentityNum || "11111111111", // Varsayılan kimlik numarası
       
       IsDefault: contactData.IsDefault !== undefined ? contactData.IsDefault : true,
       IsBlocked: contactData.IsBlocked !== undefined ? contactData.IsBlocked : false,
@@ -236,15 +238,6 @@ export const customerApi = {
       CreatedUserName: contactData.CreatedUserName || "SYSTEM",
       LastUpdatedUserName: contactData.LastUpdatedUserName || "SYSTEM"
     };
-    
-    // Opsiyonel alanları sadece değer varsa ekle
-    if (contactData.JobTitleCode) {
-      data.JobTitleCode = contactData.JobTitleCode;
-    }
-    
-    if (contactData.IdentityNum) {
-      data.IdentityNum = contactData.IdentityNum;
-    }
     
     try {
       console.log('Gönderilen bağlantılı kişi verisi:', data);

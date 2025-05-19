@@ -491,6 +491,8 @@ const CustomerCreate = () => {
                 LastName: lastName,
                 ContactTypeCode: "1", // Varsayılan kişi tipi kodu (1: Müşteri Yetkilisi)
                 TitleCode: "1", // Varsayılan unvan kodu (1: Sayın)
+                JobTitleCode: "1", // Varsayılan iş unvanı kodu (1: Genel Müdür)
+                IdentityNum: "11111111111", // Varsayılan kimlik numarası
                 
                 // İletişim bilgileri - bunlar backend'e ayrıca gönderilecek
                 Phone: formData.phone || "",
