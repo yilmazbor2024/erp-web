@@ -474,18 +474,40 @@ const CustomerCreate = () => {
             iletisimEklendiMi = true; // Ne telefon ne email girilmediyse başarılı sayıyoruz
           }
           
+          // Bağlantılı kişi ekle
+          let contactEklendiMi = false;
+          if (formData.contactName) {
+            try {
+              // Bağlantılı kişi verisi oluştur
+              const contactData = {
+                contactName: formData.contactName,
+                contactPhone: formData.phone || "",
+                contactEmail: formData.email || "",
+                isDefault: true
+              };
+              
+              const contactResponse = await customerApi.createCustomerContact(createdCustomerCode, contactData);
+              console.log('Bağlantılı kişi ekleme yanıtı:', contactResponse);
+              contactEklendiMi = contactResponse.success;
+            } catch (contactHata) {
+              console.error('Bağlantılı kişi eklenirken hata:', contactHata);
+            }
+          } else {
+            contactEklendiMi = true; // Bağlantılı kişi girilmediyse başarılı sayıyoruz
+          }
+          
           // Bildirim mesajını oluştur
           let bildirimMesaji = 'Müşteri başarıyla oluşturuldu';
           let bildirimTipi: 'success' | 'error' = 'success';
           
-          if (!adresEklendiMi && !iletisimEklendiMi) {
-            bildirimMesaji += ', ancak adres ve iletişim bilgileri eklenemedi';
-            bildirimTipi = 'error'; // warning yerine error kullan
-          } else if (!adresEklendiMi) {
-            bildirimMesaji += ', ancak adres bilgisi eklenemedi';
-            bildirimTipi = 'error'; // warning yerine error kullan
-          } else if (!iletisimEklendiMi) {
-            bildirimMesaji += ', ancak iletişim bilgisi eklenemedi';
+          // Hata durumlarını kontrol et
+          const hatalar = [];
+          if (!adresEklendiMi) hatalar.push('adres');
+          if (!iletisimEklendiMi) hatalar.push('iletişim');
+          if (!contactEklendiMi && formData.contactName) hatalar.push('bağlantılı kişi');
+          
+          if (hatalar.length > 0) {
+            bildirimMesaji += ', ancak ' + hatalar.join(' ve ') + ' bilgileri eklenemedi';
             bildirimTipi = 'error'; // warning yerine error kullan
           } else {
             bildirimMesaji += ' ve tüm bilgiler kaydedildi';

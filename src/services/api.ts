@@ -69,77 +69,72 @@ export const customerApi = {
     console.log('API: Customer detail response:', response.data);
     return response.data;
   },
-  createCustomer: async (customerData: any): Promise<ApiResponse<CustomerResponse>> => { // Tipini CustomerCreateRequest olarak güncelleyebilirsiniz
-    console.log('API: Creating customer:', customerData);
-    const response = await axiosInstance.post<ApiResponse<CustomerResponse>>('/api/v1/Customer/Create', customerData);
-    console.log('API: Create customer response:', response.data);
-    return response.data;
-  },
-  createCustomerBasic: async (customerData: CustomerData): Promise<ApiResponse<CustomerCreateResponseNew>> => {
-    try {
-      // Frontend'den gelen verileri backend'in beklediği formata dönüştür
-      const formattedData = {
-        CustomerCode: customerData.CustomerCode || '',
-        CustomerName: customerData.CustomerName || '',
-        CustomerSurname: customerData.CustomerSurname || '',
-        CustomerTypeCode: customerData.CustomerTypeCode || 3, // Müşteri tipi sayı olarak gönderilmeli
-        CompanyCode: customerData.CompanyCode || 1, // Şirket kodu sayı olarak gönderilmeli
-        CountryCode: customerData.CountryCode || 'TR',
-        StateCode: customerData.StateCode || '',
-        CityCode: customerData.CityCode || '',
-        DistrictCode: customerData.DistrictCode || '',
-        Address: customerData.Address || '',
-        ContactName: customerData.ContactName || '',
-        OfficeCode: customerData.OfficeCode || 'M', // Varsayılan ofis kodu
-        ExchangeTypeCode: customerData.ExchangeTypeCode || 'TL',
-        IsIndividualAcc: customerData.isIndividualAcc || false,
-        CreatedUserName: customerData.CreatedUserName || 'system',
-        LastUpdatedUserName: customerData.CreatedUserName || 'system',
-        TaxNumber: customerData.TaxNumber,
-        IdentityNumber: customerData.IdentityNumber,
-      };
+  // createCustomer fonksiyonu kaldırıldı, sadece createCustomerBasic fonksiyonu kullanılıyor
+  createCustomerBasic: async (customerData: any): Promise<ApiResponse<CustomerCreateResponseNew>> => {
+  try {
+    // Frontend'den gelen verileri backend'in beklediği formata dönüştür
+    const formattedData = {
+      CustomerCode: customerData.customerCode || '',
+      CustomerName: customerData.customerName || '',
+      CustomerSurname: customerData.customerSurname || '',
+      CustomerTypeCode: Number(customerData.customerTypeCode) || 3, // Müşteri tipi sayı olarak gönderilmeli
+      CompanyCode: customerData.companyCode || 1, // Şirket kodu sayı olarak gönderilmeli
+      CountryCode: customerData.countryCode || 'TR',
+      StateCode: customerData.stateCode || '',
+      CityCode: customerData.cityCode || '',
+      DistrictCode: customerData.districtCode || '',
+      Address: customerData.address || '',
+      ContactName: customerData.contactName || '',
+      OfficeCode: customerData.officeCode || 'M', // Varsayılan ofis kodu
+      ExchangeTypeCode: customerData.exchangeTypeCode || 'TL',
+      IsIndividualAcc: customerData.isIndividualAcc || false,
+      CreatedUserName: customerData.createdUserName || 'system',
+      LastUpdatedUserName: customerData.createdUserName || 'system',
+      TaxNumber: customerData.taxNumber || '',
+      IdentityNumber: customerData.identityNum || '',
+    };
 
-      return {
-        data: formattedData,
-        success: true,
-        message: "Customer created successfully"
-      };
-    } catch (error: unknown) {
-      console.error('API: Customer create error:', error);
-      
-      // Axios hata detaylarını logla
-      if (axios.isAxiosError(error)) {
-        if (error.response) {
-          // Sunucu yanıtı ile dönen hata (4xx, 5xx)
-          console.error('API error response details:', {
-            status: error.response.status,
-            statusText: error.response.statusText,
-            data: error.response.data
-          });
-          
-          // Hata mesajını detaylı göster
-          if (error.response.data) {
-            console.error('API error response data:', JSON.stringify(error.response.data, null, 2));
-          }
-          
-          // ModelState hatalarını göster
-          if (error.response.data && 'errors' in error.response.data) {
-            console.error('API validation errors:', (error.response.data as any).errors);
-          }
-          
-          // Hata mesajını döndür
-          if (error.response.data && 'message' in error.response.data) {
-            throw new Error(`API Error: ${(error.response.data as any).message}`);
-          }
-        } else if (error.request) {
-          // İstek yapıldı ancak yanıt alınamadı
-          console.error('No response received:', error.request);
+    // Backend API'sine gerçek bir istek gönder
+    const response = await axiosInstance.post<ApiResponse<CustomerCreateResponseNew>>('/api/v1/Customer/create-basic', formattedData);
+    
+    // API yanıtını döndür
+    return response.data;
+  } catch (error: unknown) {
+    console.error('API: Customer create error:', error);
+    
+    // Axios hata detaylarını logla
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        // Sunucu yanıtı ile dönen hata (4xx, 5xx)
+        console.error('API error response details:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        });
+        
+        // Hata mesajını detaylı göster
+        if (error.response.data) {
+          console.error('API error response data:', JSON.stringify(error.response.data, null, 2));
         }
+        
+        // ModelState hatalarını göster
+        if (error.response.data && 'errors' in error.response.data) {
+          console.error('API validation errors:', (error.response.data as any).errors);
+        }
+        
+        // Hata mesajını döndür
+        if (error.response.data && 'message' in error.response.data) {
+          throw new Error(`API Error: ${(error.response.data as any).message}`);
+        }
+      } else if (error.request) {
+        // İstek yapıldı ancak yanıt alınamadı
+        console.error('No response received:', error.request);
       }
-      
-      // Hata fırlat
-      throw error;
     }
+    
+    // Hata fırlat
+    throw error;
+  }
   },
   updateCustomer: async (customerData: CustomerUpdateRequest): Promise<ApiResponse<CustomerUpdateResponseNew>> => {
     console.log('API: Updating customer:', customerData.customerCode, customerData);
@@ -163,9 +158,59 @@ export const customerApi = {
     if (response.data.success) return response.data.data;
     throw new Error(response.data.message || 'Adres detayı alınamadı');
   },
-  createCustomerAddress: async (customerCode: string, address: any): Promise<ApiResponse<AddressResponse>> => {
-    const response = await axiosInstance.post<ApiResponse<AddressResponse>>(`/api/v1/CustomerAddress/${customerCode}/addresses`, address);
-    return response.data; 
+  createCustomerAddress: async (customerCode: string, addressData: any): Promise<ApiResponse<any>> => {
+    // Varsayılan olarak isDefault true olarak ayarla
+    const data = {
+      ...addressData,
+      isDefault: addressData.isDefault !== undefined ? addressData.isDefault : true
+    };
+    
+    try {
+      console.log('Gönderilen adres verisi:', data);
+      const response = await axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerAddress/${customerCode}/addresses`, data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Adres eklerken hata detayı:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        requestData: data
+      });
+      
+      // Hata mesajını daha detaylı göster
+      if (error.response?.data) {
+        console.error('Backend hata mesajı:', JSON.stringify(error.response.data, null, 2));
+      }
+      throw error;
+    }
+  },
+  createCustomerCommunication: async (customerCode: string, communicationData: any): Promise<ApiResponse<any>> => {
+    // Varsayılan olarak isDefault true olarak ayarla
+    const data = {
+      ...communicationData,
+      isDefault: communicationData.isDefault !== undefined ? communicationData.isDefault : true
+    };
+    
+    try {
+      console.log('Gönderilen iletişim verisi:', data);
+      const response = await axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerCommunication/${customerCode}/communications`, data);
+      return response.data;
+    } catch (error: any) {
+      console.error('İletişim bilgisi eklerken hata detayı:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        requestData: data
+      });
+      
+      // Hata mesajını daha detaylı göster
+      if (error.response?.data) {
+        console.error('Backend hata mesajı:', JSON.stringify(error.response.data, null, 2));
+      }
+      throw error;
+    }
   },
   getCustomerCommunications: async (customerCode: string): Promise<any[]> => {
     const response = await axiosInstance.get<ApiResponse<any[]>>(`/api/v1/CustomerCommunication/${customerCode}/communications`);
@@ -174,8 +219,34 @@ export const customerApi = {
   },
   getCustomerContacts: async (customerCode: string): Promise<any[]> => {
     const response = await axiosInstance.get<ApiResponse<any[]>>(`/api/v1/CustomerContact/${customerCode}/contacts`);
-    if (response.data.success) return response.data.data;
-    throw new Error(response.data.message || 'Kişi bilgileri alınamadı');
+    return response.data.data || [];
+  },
+  createCustomerContact: async (customerCode: string, contactData: any): Promise<ApiResponse<any>> => {
+    const data = {
+      ...contactData,
+      isDefault: contactData.isDefault !== undefined ? contactData.isDefault : true
+    };
+    
+    try {
+      console.log('Gönderilen bağlantılı kişi verisi:', data);
+      const response = await axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerContact/${customerCode}/contacts`, data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Bağlantılı kişi eklerken hata detayı:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+        requestData: data
+      });
+      
+      // Hata mesajını daha detaylı göster
+      if (error.response?.data) {
+        console.error('Backend hata mesajı:', JSON.stringify(error.response.data, null, 2));
+      }
+      
+      throw error;
+    }
   },
   getCountries: async (langCode: string = 'TR'): Promise<any[]> => {
     const response = await axiosInstance.get<ApiResponse<any[]>>('/api/v1/Location/countries', { params: { langCode } });
