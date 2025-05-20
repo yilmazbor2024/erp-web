@@ -75,33 +75,29 @@ export const customerApi = {
   createCustomerBasic: async (customerData: any): Promise<ApiResponse<CustomerCreateResponseNew>> => {
   try {
     // Frontend'den gelen verileri backend'in beklediği formata dönüştür
-    const formattedData = {
-      CustomerCode: customerData.customerCode || customerData.CustomerCode || '',
-      CustomerName: customerData.customerName || customerData.CustomerName || '',
-      CustomerSurname: customerData.customerSurname || customerData.CustomerSurname || '',
-      CustomerTypeCode: Number(customerData.customerTypeCode || customerData.CustomerTypeCode) || 3, // Müşteri tipi sayı olarak gönderilmeli
-      CompanyCode: customerData.companyCode || customerData.CompanyCode || 1, // Şirket kodu sayı olarak gönderilmeli
-      CountryCode: customerData.countryCode || customerData.CountryCode || 'TR',
-      StateCode: customerData.stateCode || customerData.StateCode || '',
-      CityCode: customerData.cityCode || customerData.CityCode || '',
-      DistrictCode: customerData.districtCode || customerData.DistrictCode || '',
-      Address: customerData.address || customerData.Address || '',
-      ContactName: customerData.contactName || customerData.ContactName || '',
-      OfficeCode: customerData.officeCode || customerData.OfficeCode || 'M', // Varsayılan ofis kodu
-      CurrencyCode: customerData.currencyCode || customerData.exchangeTypeCode || customerData.CurrencyCode || 'USD',
-      IsIndividualAcc: customerData.isRealPerson === true, // Gerçek kişi ise true, tüzel kişi ise false
+    const formattedData: CustomerCreateRequestNew = {
+      // Müşteri kodunu boş gönder, backend otomatik oluşturacak
+      CustomerCode: '',
+      CustomerName: customerData.customerName || '',
+      CustomerSurname: customerData.customerSurname || '',
+      CustomerTypeCode: Number(customerData.customerTypeCode) || 3,
+      CompanyCode: Number(customerData.companyCode) || 1,
+      OfficeCode: customerData.officeCode || 'M',
+      CurrencyCode: customerData.currencyCode || 'TRY',
+      IsIndividualAcc: customerData.isIndividualAcc || false,
       CreatedUserName: customerData.createdUserName || 'system',
       LastUpdatedUserName: customerData.lastUpdatedUserName || 'system',
-      TaxNumber: customerData.taxNumber || customerData.TaxNumber || '',
+      TaxNumber: customerData.taxNumber || '',
       IdentityNum: customerData.identityNum || customerData.identityNumber || customerData.IdentityNum || '',
       TaxOfficeCode: customerData.taxOffice || customerData.TaxOfficeCode || '',
       IsSubjectToEInvoice: customerData.isSubjectToEInvoice || false,
       IsSubjectToEDispatch: customerData.isSubjectToEShipment || customerData.isSubjectToEDispatch || false,
       EInvoiceStartDate: customerData.eInvoiceStartDate || customerData.EInvoiceStartDate,
       EShipmentStartDate: customerData.eShipmentStartDate || customerData.EShipmentStartDate,
+      CityCode: customerData.cityCode || '',
+      DistrictCode: customerData.districtCode || ''
     };
     
-
     console.log('Müşteri oluşturma için gönderilecek veriler:', formattedData);
     
     // URL-encoded form verisi hazırla
