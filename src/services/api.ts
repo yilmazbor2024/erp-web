@@ -75,13 +75,9 @@ export const customerApi = {
   createCustomerBasic: async (customerData: any): Promise<ApiResponse<CustomerCreateResponseNew>> => {
   try {
     // Frontend'den gelen verileri backend'in beklediği formata dönüştür
-    // Benzersiz bir müşteri kodu oluştur (timestamp kullanarak)
-  const uniqueCustomerCode = `TEMP-${Date.now()}`;
-  console.log('Benzersiz müşteri kodu oluşturuldu:', uniqueCustomerCode);
-  
+    // Müşteri kodunu boş gönder, backend otomatik oluşturacak
   const formattedData: CustomerCreateRequestNew = {
-      // Benzersiz müşteri kodu gönder
-      CustomerCode: uniqueCustomerCode,
+      CustomerCode: '',
       CustomerName: customerData.customerName || '',
       CustomerSurname: customerData.customerSurname || '',
       CustomerTypeCode: Number(customerData.customerTypeCode) || 3,
