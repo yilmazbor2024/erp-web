@@ -63,7 +63,7 @@ const CustomerCreate = () => {
     eInvoiceStartDate: null as Date | null,
     isSubjectToEShipment: false,
     eShipmentStartDate: null as Date | null,
-    exchangeTypeCode: 'TRY', // Para birimi varsayılan değeri
+    exchangeTypeCode: '' // Başlangıçta boş, veri yüklenince set edilecek
   });
 
   // Referans veri state'leri
@@ -374,7 +374,6 @@ const CustomerCreate = () => {
         contactName: formData.contactName,
         officeCode: "M", // Varsayılan ofis kodu (test ettiğimiz ve çalıştığını bildiğimiz kod)
         exchangeTypeCode: formData.exchangeTypeCode,
-        currencyCode: formData.exchangeTypeCode, // Para birimi değeri olarak exchangeTypeCode kullanıyoruz
         isIndividualAcc: formData.isIndividual,
         companyCode: 1, // Şirket kodu sayı olarak gönderilmeli
         createdUserName: localStorage.getItem('userName') || 'system' // Oluşturan kullanıcı adı
@@ -637,7 +636,31 @@ const CustomerCreate = () => {
             </RadioGroup>
           </FormControl>
           
+          {formData.formType === 'detailed' && (
+            <Box sx={{ mb: 3 }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.isIndividual}
+                    onChange={handleCheckboxChange}
+                    name="isIndividual"
+                  />
+                }
+                label="Gerçek Kişi/Şahıs"
+              />
+            </Box>
+          )}
+
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+            <TextField
+              fullWidth
+              required
+              label="Müşteri Adı"
+              name="customerName"
+              value={formData.customerName}
+              onChange={handleInputChange}
+              sx={{ flex: '1 1 100%' }}
+            />
             <TextField
               fullWidth
               label="Müşteri Kodu (Opsiyonel)"
@@ -645,16 +668,6 @@ const CustomerCreate = () => {
               value={formData.customerCode}
               onChange={handleInputChange}
               helperText="Boş bırakılırsa otomatik oluşturulur (121.XXXX)"
-              sx={{ flex: '1 1 100%' }}
-            />
-            <TextField
-              fullWidth
-              required
-              label="Müşteri Ünvanı"
-              name="customerName"
-              value={formData.customerName}
-              onChange={handleInputChange}
-              disabled={formData.isIndividual}
               sx={{ flex: '1 1 100%' }}
             />
           </Box>
@@ -665,19 +678,7 @@ const CustomerCreate = () => {
                 control={
                   <Switch
                     checked={formData.isIndividual}
-                    onChange={(e) => {
-                      const isChecked = e.target.checked;
-                      setFormData(prev => {
-                        // Gerçek kişi seçildiğinde, müşteri ünvanını ad soyad'dan oluştur
-                        if (isChecked) {
-                          return {
-                            ...prev,
-                            isIndividual: isChecked,
-                          };
-                        }
-                        return { ...prev, isIndividual: isChecked };
-                      });
-                    }}
+                    onChange={handleCheckboxChange}
                     name="isIndividual"
                   />
                 }
@@ -685,52 +686,9 @@ const CustomerCreate = () => {
               />
             </Box>
           )}
-          
 
           {formData.formType === 'detailed' && formData.isIndividual && (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-              <TextField
-                fullWidth
-                required
-                label="Ad"
-                name="firstName"
-                value={formData.firstName}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  setFormData(prev => {
-                    // Ad alanı değiştiğinde, müşteri ünvanını güncelle
-                    const updatedData = { ...prev, firstName: newValue };
-                    if (prev.lastName) {
-                      updatedData.customerName = `${newValue} ${prev.lastName}`;
-                    } else {
-                      updatedData.customerName = newValue;
-                    }
-                    return updatedData;
-                  });
-                }}
-                sx={{ flex: '1 1 45%', minWidth: '200px' }}
-              />
-              <TextField
-                fullWidth
-                required
-                label="Soyad"
-                name="lastName"
-                value={formData.lastName}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  setFormData(prev => {
-                    // Soyad alanı değiştiğinde, müşteri ünvanını güncelle
-                    const updatedData = { ...prev, lastName: newValue };
-                    if (prev.firstName) {
-                      updatedData.customerName = `${prev.firstName} ${newValue}`;
-                    } else {
-                      updatedData.customerName = newValue;
-                    }
-                    return updatedData;
-                  });
-                }}
-                sx={{ flex: '1 1 45%', minWidth: '200px' }}
-              />
               <TextField
                 fullWidth
                 required
@@ -740,7 +698,24 @@ const CustomerCreate = () => {
                 onChange={handleInputChange}
                 sx={{ flex: '1 1 100%', minWidth: '200px' }}
               />
-
+              <TextField
+                fullWidth
+                required
+                label="Adı"
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleInputChange}
+                sx={{ flex: '1 1 45%', minWidth: '200px' }}
+              />
+              <TextField
+                fullWidth
+                required
+                label="Soyadı"
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleInputChange}
+                sx={{ flex: '1 1 45%', minWidth: '200px' }}
+              />
             </Box>
           )}
 
@@ -969,6 +944,28 @@ const CustomerCreate = () => {
                 )}
               </Select>
             </FormControl>
+          </Box>
+
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="subtitle1" gutterBottom>Bağlantılı Kişi Bilgileri</Typography>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+            <TextField
+              fullWidth
+              label="Adı"
+              name="firstName"
+              value={formData.firstName}
+              onChange={handleInputChange}
+              sx={{ flex: '1 1 45%', minWidth: '200px' }}
+            />
+            <TextField
+              fullWidth
+              label="Soyadı"
+              name="lastName"
+              value={formData.lastName}
+              onChange={handleInputChange}
+              sx={{ flex: '1 1 45%', minWidth: '200px' }}
+            />
           </Box>
 
           <Divider sx={{ my: 2 }} />

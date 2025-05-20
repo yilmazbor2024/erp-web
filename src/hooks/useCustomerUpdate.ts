@@ -8,15 +8,13 @@ export interface CustomerUpdateRequest {
   customerSurname?: string;
   customerTitle?: string;
   taxNumber?: string;
-  customerIdentityNumber?: string;
+
   customerTypeCode: number;
   discountGroupCode?: string;
   paymentPlanGroupCode?: string;
   currencyCode: string;
   officeCode: string;
   salesmanCode?: string;
-  creditLimit: number;
-  riskLimit?: number;
   contacts?: {
     contactTypeCode: string;
     contact: string;
@@ -74,27 +72,13 @@ const useCustomerUpdate = (): UseCustomerUpdateResult => {
         IsIndividualAcc: false, // Kurumsal müşteri için false
         TaxNumber: customerData.taxNumber || '',
         TaxOfficeCode: customerData.taxOffice || '',
-        IdentityNum: '',
-        CustomerIdentityNumber: '',
-        MersisNum: null, // null olarak gönder, boş string değil
-        TitleCode: null, // null olarak gönder, boş string değil
-        Patronym: null, // null olarak gönder, boş string değil
-        DueDateFormulaCode: null, // Eksik alanı ekledik
         CityCode: customerData.cityCode || '',
         DistrictCode: customerData.districtCode || '',
         RegionCode: customerData.regionCode || '',
         IsBlocked: customerData.isBlocked || false,
         
         // Finansal bilgiler
-        CurrencyCode: 'TRY', // Varsayılan para birimi
-        DiscountGroupCode: '',
-        PaymentPlanGroupCode: '',
-        RiskLimit: 0,
-        CreditLimit: 0,
-        
-        // Sistem bilgileri
-        CreatedUserName: 'SYSTEM',
-        LastUpdatedUserName: 'SYSTEM',
+        CurrencyCode: customerData.currencyCode || 'TRY', // Formdan gelen para birimi
         
         // Boş listeler
         Addresses: [],

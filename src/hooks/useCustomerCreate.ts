@@ -17,14 +17,22 @@ export interface CustomerCreateRequest {
   customerTitle?: string;
   taxNumber?: string;
   customerIdentityNumber?: string;
+  identityNum?: string; // TC Kimlik numarası
   customerTypeCode: number;
+  isRealPerson?: boolean; // Gerçek kişi mi?
   discountGroupCode?: string;
   paymentPlanGroupCode?: string;
-  currencyCode: string;
+  currencyCode?: string;
+  exchangeTypeCode?: string; // Para birimi kodu (frontend'de bu isimle geliyor)
   officeCode: string;
   salesmanCode?: string;
   creditLimit: number;
   riskLimit?: number;
+  isSubjectToEInvoice?: boolean; // E-fatura tabi mi?
+  isSubjectToEDispatch?: boolean; // E-irsaliye tabi mi?
+  isSubjectToEShipment?: boolean; // E-irsaliye tabi mi? (frontend'de bu isimle geliyor)
+  eInvoiceStartDate?: Date | null; // E-fatura başlangıç tarihi
+  eShipmentStartDate?: Date | null; // E-irsaliye başlangıç tarihi
   contacts?: {
     contactTypeCode: string;
     contact: string;
@@ -51,6 +59,10 @@ export interface CustomerCreateRequest {
     communication: string;
     isDefault: boolean;
   }[];
+  // Ek alanlar
+  stateCode?: string;
+  address?: string;
+  contactName?: string;
 }
 
 export interface UseCustomerCreateResult {
@@ -68,61 +80,57 @@ const useCustomerCreate = (): UseCustomerCreateResult => {
 
   const mutation = useMutation<CustomerResponse, Error, CustomerCreateRequest>({
     mutationFn: async (customerData) => {
-      // API'nin beklediği formatta veri oluştur (CustomerCreateRequestNew sınıfına göre)
-      const formattedData = {
-        // Zorunlu alanlar (backend'de Required attribute ile işaretlenmiş)
-        CustomerCode: customerData.customerCode,
-        CustomerName: customerData.customerName,
-        CustomerTypeCode: Number(customerData.customerTypeCode), // byte tipinde
+      // Müşteri verilerini backend'in beklediği formata dönüştür
+      // TypeScript hatalarını önlemek için Record<string, any> tipini kullanıyoruz
+      const formattedData: Record<string, any> = {
+        // Zorunlu alanlar
+        CustomerCode: customerData.customerCode || '',
+        CustomerName: customerData.customerName || '',
+        CustomerTypeCode: Number(customerData.customerTypeCode) || 3, // byte tipinde
         CompanyCode: 1, // short tipinde
-        OfficeCode: 'M', // string tipinde, varsayılan 'M'
+        OfficeCode: customerData.officeCode || 'M', // string tipinde, varsayılan 'M'
         CountryCode: 'TR', // string tipinde, varsayılan 'TR'
-        StateCode: '',
-        CityCode: customerData.cityCode ?? '',
-        DistrictCode: customerData.districtCode ?? '',
-        Address: '',
-        ContactName: '',
+        StateCode: customerData.stateCode || '',
+        CityCode: customerData.cityCode || '',
+        DistrictCode: customerData.districtCode || '',
+        Address: customerData.address || '',
+        ContactName: customerData.contactName || '',
         
         // Diğer alanlar (opsiyonel)
-        CustomerSurname: customerData.customerSurname ?? '',
-        IsIndividualAcc: false, // Kurumsal müşteri için false
-        TaxNumber: customerData.taxNumber ?? '',
-        TaxOfficeCode: customerData.taxOffice ?? '',
-        IdentityNum: '', //string
-        CustomerIdentityNumber: '', //string
-        MersisNum: null, // null olarak gönder, boş string değil
-        TitleCode: null, // null olarak gönder, boş string değil
-        Patronym: null, // null olarak gönder, boş string değil
-        DueDateFormulaCode: null, // Eksik alanı ekledik
-        RegionCode: customerData.regionCode ?? '',
-        IsBlocked: customerData.isBlocked ?? false,
-        ExchangeTypeCode: 'TRY',
-        
-        // Finansal bilgiler
-        IsIndividualAcc: false,
-        CurrencyCode: 'TRY', // Varsayılan para birimi
-        DiscountGroupCode: customerData.discountGroupCode ?? '',
-        PaymentPlanGroupCode: customerData.paymentPlanGroupCode ?? '',
-        RiskLimit: customerData.riskLimit ?? 0,
-        CreditLimit: customerData.creditLimit ?? 0,
-        
-        // Sistem bilgileri
-        CreatedUserName: 'SYSTEM',
-        LastUpdatedUserName: 'SYSTEM',
-        
-        // Boş listeler
-        Addresses: [],
-        Communications: [],
-        Contacts: []
+        CustomerSurname: customerData.customerSurname || '',
+        TaxNumber: customerData.taxNumber || '',
+        TaxOfficeCode: customerData.taxOffice || '', // Vergi dairesi kodu - frontend'de taxOffice olarak geliyor
+        IdentityNum: customerData.identityNum || customerData.customerIdentityNumber || '',
+        // Para birimi
+        CurrencyCode: customerData.currencyCode || customerData.exchangeTypeCode || 'USD',
+        // Gerçek kişi/tüzel kişi ayrımı
+        IsIndividualAcc: customerData.isRealPerson === true, // Gerçek kişi ise true, tüzel kişi ise false
+        // E-Fatura ve E-İrsaliye bilgileri
+        IsSubjectToEInvoice: customerData.isSubjectToEInvoice || false,
+        IsSubjectToEDispatch: customerData.isSubjectToEShipment || customerData.isSubjectToEDispatch || false,
+        // Sistem alanları
+        CreatedUserName: 'system',
+        LastUpdatedUserName: 'system',
+        // Tarih alanları için boş alanlar
+        EInvoiceStartDate: null,
+        EShipmentStartDate: null
       };
-      
-      // Veri formatını konsola yazdır (debug için)
-      
-      console.log('Müşteri oluşturma verisi:', formattedData);
-      
-      // API yanıtını al ve CustomerResponse tipine dönüştür
+
+      // E-Fatura başlangıç tarihi
+      if (customerData.isSubjectToEInvoice && customerData.eInvoiceStartDate) {
+        formattedData.EInvoiceStartDate = customerData.eInvoiceStartDate;
+      }
+
+      // E-İrsaliye başlangıç tarihi
+      if (customerData.isSubjectToEShipment && customerData.eShipmentStartDate) {
+        formattedData.EShipmentStartDate = customerData.eShipmentStartDate;
+      }
+
+      console.log('Müşteri oluşturma için hazırlanan veriler:', formattedData);
+
+      // API'ye istek gönder
       const response = await customerApi.createCustomerBasic(formattedData);
-      
+
       // API yanıtını CustomerResponse tipine dönüştür
       const customerResponse: CustomerResponse = {
         customerCode: formattedData.CustomerCode,

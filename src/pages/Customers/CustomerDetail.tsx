@@ -117,13 +117,7 @@ interface CustomerAddress {
   address: string;
   cityCode?: string;
   districtCode?: string;
-  buildingNum?: string;
-  floorNum?: number;
-  doorNum?: number;
-  quarterCode?: number;
-  streetCode?: number;
   addressID: string;
-  drivingDirections?: string;
   isDefault?: boolean;
   isBlocked?: boolean;
   [key: string]: any;
@@ -144,9 +138,6 @@ interface CustomerContact {
   contactTypeCode: string;
   firstName: string;
   lastName: string;
-  titleCode?: string;
-  jobTitleCode?: string;
-  identityNum?: string;
   isAuthorized?: boolean;
   isDefault?: boolean;
   isBlocked?: boolean;
@@ -705,9 +696,6 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
       contactTypeCode: "1", // Varsayılan kişi tipi
       firstName: "",
       lastName: "",
-      titleCode: "",
-      jobTitleCode: "",
-      identityNum: "",
       isAuthorized: true,
       isDefault: true,
       isBlocked: false
@@ -1480,17 +1468,6 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
                     />
                   </TableCell>
                   <TableCell>
-                    <FormControl fullWidth>
-                      <Select
-                        value={contact.titleCode || ''}
-                        onChange={(e) => handleUpdateContact(index, 'titleCode', e.target.value)}
-                      >
-                        <MenuItem value="MR">Bay</MenuItem>
-                        <MenuItem value="MRS">Bayan</MenuItem>
-                        <MenuItem value="DR">Dr.</MenuItem>
-                        <MenuItem value="PROF">Prof.</MenuItem>
-                      </Select>
-                    </FormControl>
                   </TableCell>
                   <TableCell>
                     <Checkbox

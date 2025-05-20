@@ -1,7 +1,7 @@
 import axios from 'axios';
 import axiosInstance from '../config/axios';
 import { ApiResponse, PagedResponse } from '../api-helpers';
-import { Customer } from '../types/customer';
+// import { Customer } from '../types/customer'; // Kullanılmıyor
 import { AddressTypeResponse, AddressResponse } from '../types/address';
 import { CurrencyResponse } from '../hooks/useCurrencies'; 
 import { TaxOfficeResponse } from '../hooks/useTaxOffices';
@@ -39,10 +39,12 @@ interface CustomerData {
   IdentityNumber?: string;
   IdentityNum?: string;
   CustomerIdentityNumber?: string;
-  MersisNum?: any;
-  TitleCode?: any;
-  Patronym?: any;
   DueDateFormulaCode?: any;
+  IsSubjectToEInvoice?: boolean;
+  IsSubjectToEDispatch?: boolean;
+  EInvoiceStartDate?: string;
+  EShipmentStartDate?: string;
+  CurrencyCode?: string;
 }
 
 // API metodlarını içeren temel nesne
@@ -74,28 +76,65 @@ export const customerApi = {
   try {
     // Frontend'den gelen verileri backend'in beklediği formata dönüştür
     const formattedData = {
-      CustomerCode: customerData.customerCode || '',
-      CustomerName: customerData.customerName || '',
-      CustomerSurname: customerData.customerSurname || '',
-      CustomerTypeCode: Number(customerData.customerTypeCode) || 3, // Müşteri tipi sayı olarak gönderilmeli
-      CompanyCode: customerData.companyCode || 1, // Şirket kodu sayı olarak gönderilmeli
-      CountryCode: customerData.countryCode || 'TR',
-      StateCode: customerData.stateCode || '',
-      CityCode: customerData.cityCode || '',
-      DistrictCode: customerData.districtCode || '',
-      Address: customerData.address || '',
-      ContactName: customerData.contactName || '',
-      OfficeCode: customerData.officeCode || 'M', // Varsayılan ofis kodu
-      ExchangeTypeCode: customerData.exchangeTypeCode || 'TL',
-      IsIndividualAcc: customerData.isIndividualAcc || false,
+      CustomerCode: customerData.customerCode || customerData.CustomerCode || '',
+      CustomerName: customerData.customerName || customerData.CustomerName || '',
+      CustomerSurname: customerData.customerSurname || customerData.CustomerSurname || '',
+      CustomerTypeCode: Number(customerData.customerTypeCode || customerData.CustomerTypeCode) || 3, // Müşteri tipi sayı olarak gönderilmeli
+      CompanyCode: customerData.companyCode || customerData.CompanyCode || 1, // Şirket kodu sayı olarak gönderilmeli
+      CountryCode: customerData.countryCode || customerData.CountryCode || 'TR',
+      StateCode: customerData.stateCode || customerData.StateCode || '',
+      CityCode: customerData.cityCode || customerData.CityCode || '',
+      DistrictCode: customerData.districtCode || customerData.DistrictCode || '',
+      Address: customerData.address || customerData.Address || '',
+      ContactName: customerData.contactName || customerData.ContactName || '',
+      OfficeCode: customerData.officeCode || customerData.OfficeCode || 'M', // Varsayılan ofis kodu
+      CurrencyCode: customerData.currencyCode || customerData.exchangeTypeCode || customerData.CurrencyCode || 'USD',
+      IsIndividualAcc: customerData.isRealPerson === true, // Gerçek kişi ise true, tüzel kişi ise false
       CreatedUserName: customerData.createdUserName || 'system',
-      LastUpdatedUserName: customerData.createdUserName || 'system',
-      TaxNumber: customerData.taxNumber || '',
-      IdentityNumber: customerData.identityNum || '',
+      LastUpdatedUserName: customerData.lastUpdatedUserName || 'system',
+      TaxNumber: customerData.taxNumber || customerData.TaxNumber || '',
+      IdentityNum: customerData.identityNum || customerData.identityNumber || customerData.IdentityNum || '',
+      TaxOfficeCode: customerData.taxOffice || customerData.TaxOfficeCode || '',
+      IsSubjectToEInvoice: customerData.isSubjectToEInvoice || false,
+      IsSubjectToEDispatch: customerData.isSubjectToEShipment || customerData.isSubjectToEDispatch || false,
+      EInvoiceStartDate: customerData.eInvoiceStartDate || customerData.EInvoiceStartDate,
+      EShipmentStartDate: customerData.eShipmentStartDate || customerData.EShipmentStartDate,
     };
+    
 
-    // Backend API'sine gerçek bir istek gönder
-    const response = await axiosInstance.post<ApiResponse<CustomerCreateResponseNew>>('/api/v1/Customer/create-basic', formattedData);
+    console.log('Müşteri oluşturma için gönderilecek veriler:', formattedData);
+    
+    // URL-encoded form verisi hazırla
+    const formData = new URLSearchParams();
+    
+    // Form verilerine tüm alanları ekle
+    Object.entries(formattedData).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, String(value));
+      }
+    });
+    
+    // E-Fatura ve E-İrsaliye başlangıç tarihlerini ayarla
+    if (formattedData.IsSubjectToEInvoice) {
+      formData.append('EInvoiceStartDate', new Date().toISOString());
+    }
+    
+    if (formattedData.IsSubjectToEDispatch) {
+      formData.append('EShipmentStartDate', new Date().toISOString());
+    }
+    
+    console.log('Form data:', formData.toString());
+    
+    // Backend API'sine istek gönder
+    const response = await axiosInstance.post<ApiResponse<CustomerCreateResponseNew>>(
+      '/api/v1/Customer/create-basic', 
+      formData,
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
     
     // API yanıtını döndür
     return response.data;
@@ -222,56 +261,70 @@ export const customerApi = {
     return response.data.data || [];
   },
   createCustomerContact: async (customerCode: string, contactData: any): Promise<ApiResponse<any>> => {
-    // Backend'in beklediği formata uygun veri yapısı oluştur
+    // FirstName ve LastName yoksa contact kaydı yapmaya gerek yok
+    if (!contactData.FirstName || !contactData.LastName) {
+      return { success: false, message: "Ad ve soyad bilgileri gereklidir", data: null };
+    }
+    
+    // Backend'in beklediği formata uygun veri yapısı oluştur - sadece gerekli alanlar
+    // TitleCode, ContactTypeCode, CreatedUserName, LastUpdatedUserName backend tarafında otomatik doldurulacak
     const data: any = {
       CustomerCode: customerCode,
       FirstName: contactData.FirstName,
-      LastName: contactData.LastName,
-      ContactTypeCode: contactData.ContactTypeCode || "1", // Varsayılan kişi tipi kodu
-      TitleCode: contactData.TitleCode || "1", // Varsayılan unvan kodu
-      JobTitleCode: contactData.JobTitleCode || "1", // Varsayılan iş unvanı kodu
-      IdentityNum: contactData.IdentityNum || "11111111111", // Varsayılan kimlik numarası
-      
-      IsDefault: contactData.IsDefault !== undefined ? contactData.IsDefault : true,
-      IsBlocked: contactData.IsBlocked !== undefined ? contactData.IsBlocked : false,
-      IsAuthorized: contactData.IsAuthorized !== undefined ? contactData.IsAuthorized : false,
-      CreatedUserName: contactData.CreatedUserName || "SYSTEM",
-      LastUpdatedUserName: contactData.LastUpdatedUserName || "SYSTEM"
+      LastName: contactData.LastName
     };
+    
+    // Opsiyonel alanları sadece değer varsa ekle
+    if (contactData.IdentityNum && contactData.IdentityNum.trim() !== "") {
+      data.IdentityNum = contactData.IdentityNum;
+    }
+    
+    // IsAuthorized alanı varsa ekle
+    if (contactData.IsAuthorized !== undefined) {
+      data.IsAuthorized = contactData.IsAuthorized;
+    }
     
     try {
       console.log('Gönderilen bağlantılı kişi verisi:', data);
       const response = await axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerContact/${customerCode}/contacts`, data);
       
-      // Bağlantılı kişi başarıyla eklendiyse ve iletişim bilgileri varsa, bunları da ekle
+      // Bağlantılı kişi başarıyla eklendiyse ve iletişim bilgileri varsa, iletişim bilgilerini ekle
       if (response.data.success) {
-        // Telefon numarası varsa ekle
-        if (contactData.Phone) {
-          try {
-            const phoneData = {
-              CommunicationTypeCode: "1", // 1: Telefon
-              Communication: contactData.Phone,
-              IsDefault: true
-            };
-            await axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerCommunication/${customerCode}/communications`, phoneData);
-            console.log('Bağlantılı kişi telefon bilgisi eklendi');
-          } catch (phoneError) {
-            console.error('Bağlantılı kişi telefon bilgisi eklenirken hata:', phoneError);
-          }
+        // Telefon ve/veya e-posta bilgisi varsa ekle
+        const communicationPromises = [];
+        
+        if (contactData.Phone && contactData.Phone.trim() !== "") {
+          const phoneData = {
+            CustomerCode: customerCode,
+            CommunicationTypeCode: "1", // 1: Telefon
+            Communication: contactData.Phone,
+            IsDefault: !contactData.Email // Eğer e-posta yoksa telefonu varsayılan yap
+          };
+          communicationPromises.push(
+            axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerCommunication/${customerCode}/communications`, phoneData)
+              .catch(err => console.error('Telefon bilgisi eklenirken hata:', err))
+          );
         }
         
-        // E-posta adresi varsa ekle
-        if (contactData.Email) {
+        if (contactData.Email && contactData.Email.trim() !== "") {
+          const emailData = {
+            CustomerCode: customerCode,
+            CommunicationTypeCode: "3", // 3: E-posta
+            Communication: contactData.Email,
+            IsDefault: !contactData.Phone // Eğer telefon yoksa e-postayı varsayılan yap
+          };
+          communicationPromises.push(
+            axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerCommunication/${customerCode}/communications`, emailData)
+              .catch(err => console.error('E-posta bilgisi eklenirken hata:', err))
+          );
+        }
+        
+        if (communicationPromises.length > 0) {
           try {
-            const emailData = {
-              CommunicationTypeCode: "3", // 3: E-posta
-              Communication: contactData.Email,
-              IsDefault: !contactData.Phone // Telefon yoksa e-posta varsayılan olsun
-            };
-            await axiosInstance.post<ApiResponse<any>>(`/api/v1/CustomerCommunication/${customerCode}/communications`, emailData);
-            console.log('Bağlantılı kişi e-posta bilgisi eklendi');
-          } catch (emailError) {
-            console.error('Bağlantılı kişi e-posta bilgisi eklenirken hata:', emailError);
+            await Promise.all(communicationPromises);
+            console.log('Bağlantılı kişi iletişim bilgileri eklendi');
+          } catch (commError) {
+            console.error('Bazı iletişim bilgileri eklenirken hata oluştu:', commError);
           }
         }
       }
@@ -291,7 +344,17 @@ export const customerApi = {
         console.error('Backend hata mesajı:', JSON.stringify(error.response.data, null, 2));
       }
       
-      throw error;
+      // Kullanıcı dostu hata mesajı oluştur
+      const errorMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          error.message || 
+                          "Bağlantılı kişi eklenirken bir hata oluştu";
+      
+      return {
+        success: false,
+        message: errorMessage,
+        data: null
+      };
     }
   },
   getCountries: async (langCode: string = 'TR'): Promise<any[]> => {
