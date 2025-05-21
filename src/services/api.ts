@@ -5,6 +5,7 @@ import { ApiResponse, PagedResponse } from '../api-helpers';
 import { AddressTypeResponse, AddressResponse } from '../types/address';
 import { CurrencyResponse } from '../hooks/useCurrencies'; 
 import { TaxOfficeResponse } from '../hooks/useTaxOffices';
+import vendorApi from './vendorApi';
 
 // Geçici olarak any kullanıyoruz, bu tiplerin types/customer.ts içinde doğru şekilde tanımlanması gerekir.
 export type CustomerDetailResponse = any;
@@ -63,6 +64,12 @@ export const customerApi = {
     console.log('API: Fetching customers with filter:', filter);
     const response = await axiosInstance.get('/api/v1/CustomerBasic/customers', { params: filter });
     console.log('API: Customers response:', response.data);
+    return response.data;
+  },
+  getVendors: async (filter: CustomerFilterRequest): Promise<ApiResponse<PagedResponse<CustomerListResponse>>> => {
+    console.log('API: Fetching vendors with filter:', filter);
+    const response = await axiosInstance.get('/api/v1/CustomerBasic/vendors', { params: filter });
+    console.log('API: Vendors response:', response.data);
     return response.data;
   },
   getCustomerByCode: async (customerCode: string): Promise<ApiResponse<CustomerDetailResponse>> => {
@@ -642,5 +649,6 @@ export * from './userApi';
 export default {
   ...api,
   customerApi,
-  customerDebtApi
+  customerDebtApi,
+  vendorApi
 };

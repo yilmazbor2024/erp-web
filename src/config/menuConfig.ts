@@ -43,9 +43,9 @@ export const mainMenuItems: MenuItem[] = [
     icon: 'UserGroupIcon'
   },
   {
-    id: 'suppliers',
+    id: 'vendors',
     title: 'Tedarikçi',
-    path: '/suppliers',
+    path: '/vendors',
     icon: 'TruckIcon'
   },
   {
@@ -204,9 +204,9 @@ export const mobileCardMenu: MenuItem[] = [
     color: '#389e0d' 
   },
   {
-    id: 'suppliers',
+    id: 'vendors',
     title: 'Tedarikçi',
-    path: '/suppliers',
+    path: '/vendors',
     icon: 'TruckIcon',
     color: '#531dab' 
   },

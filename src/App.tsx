@@ -63,6 +63,9 @@ import ProductList from './pages/Products/ProductList';
 import ProductDetail from './pages/Products/ProductDetail';
 import ProductForm from './pages/Products/ProductForm';
 
+// Material pages
+import MaterialList from './pages/Materials/MaterialList';
+
 // Create a theme with Turkish locale
 const theme = createTheme({
   palette: {
@@ -185,7 +188,8 @@ function App() {
                 
                 {/* Materials Routes */}
                 <Route path="materials">
-                  <Route path="management" element={<Navigate to="/dashboard" replace />} />
+                  <Route index element={<Navigate to="/materials/management" replace />} />
+                  <Route path="management" element={<AuthGuard><MaterialList /></AuthGuard>} />
                   <Route path="barcodes" element={<Navigate to="/dashboard" replace />} />
                 </Route>
                 

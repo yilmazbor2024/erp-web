@@ -19,6 +19,7 @@ interface UseCustomerListParams {
   searchTerm?: string;
   sortField?: string;
   sortDirection?: 'asc' | 'desc';
+  customerTypeCode?: number;
 }
 
 export const useCustomerList = ({ 
@@ -26,10 +27,11 @@ export const useCustomerList = ({
   pageSize = 10,
   searchTerm, 
   sortField, 
-  sortDirection 
+  sortDirection,
+  customerTypeCode
 }: UseCustomerListParams) => {
   return useQuery<CustomerListResult, Error>({
-    queryKey: ['customers', page, pageSize, searchTerm, sortField, sortDirection],
+    queryKey: ['customers', page, pageSize, searchTerm, sortField, sortDirection, customerTypeCode],
     queryFn: async () => {
       const filter: CustomerFilterRequest = {
         pageNumber: page,
@@ -39,6 +41,11 @@ export const useCustomerList = ({
       // Müşteri adı veya kodu ile arama için
       if (searchTerm) {
         filter.customerName = searchTerm;
+      }
+      
+      // Müşteri tipi filtresi için
+      if (customerTypeCode) {
+        filter.customerTypeCode = customerTypeCode;
       }
 
       // Sıralama için
