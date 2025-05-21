@@ -31,6 +31,12 @@ import CustomerEdit from './pages/Customers/CustomerEdit';
 import CustomerView from './pages/Customers/CustomerView';
 import CustomerDetail from './pages/Customers/CustomerDetail';
 
+// Vendor pages
+import VendorList from './pages/Vendors/VendorList';
+import VendorCreate from './pages/Vendors/VendorCreate';
+import VendorDetail from './pages/Vendors/VendorDetail';
+import VendorEdit from './pages/Vendors/VendorEdit';
+
 // Invoice pages
 import InvoiceList from './pages/Invoices/InvoiceList';
 import InvoiceForm from './pages/Invoices/InvoiceForm';
@@ -158,9 +164,17 @@ function App() {
                   <Route index element={<AuthGuard><UserGroups /></AuthGuard>} />
                 </Route>
                 
-                {/* Supplier Routes */}
+                {/* Vendor Routes */}
+                <Route path="vendors">
+                  <Route index element={<AuthGuard><VendorList /></AuthGuard>} />
+                  <Route path="create" element={<AuthGuard><VendorCreate /></AuthGuard>} />
+                  <Route path=":vendorCode" element={<AuthGuard><VendorDetail /></AuthGuard>} />
+                  <Route path="edit/:vendorCode" element={<AuthGuard><VendorEdit /></AuthGuard>} />
+                </Route>
+                
+                {/* Supplier Routes - Redirect to Vendors */}
                 <Route path="suppliers">
-                  <Route index element={<Navigate to="/dashboard" replace />} />
+                  <Route index element={<Navigate to="/vendors" replace />} />
                 </Route>
                 
                 {/* Cashier Routes */}
