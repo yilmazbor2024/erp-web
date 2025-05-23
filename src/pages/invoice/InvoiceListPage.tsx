@@ -103,6 +103,7 @@ const InvoiceListPage: React.FC = () => {
       const response = await invoiceApi.getAllInvoices(requestParams);
 
       if (response.success) {
+        console.log('API response data:', response.data.items);
         setInvoices(response.data.items || []);
         setPagination({
           current: page,
