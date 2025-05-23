@@ -216,7 +216,13 @@ const InvoiceListPage: React.FC = () => {
       )
     },
     {
-      title: 'Fatura Tipi Açıklaması',
+      title: 'Belge Tipi',
+      dataIndex: 'invoiceTypeCode',
+      key: 'invoiceTypeCode',
+      render: (text: string) => text || '-'
+    },
+    {
+      title: 'Belge Tipi Açıklaması',
       dataIndex: 'invoiceTypeDescription',
       key: 'invoiceTypeDescription',
       render: (text: string) => text || '-'
