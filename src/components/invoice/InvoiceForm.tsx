@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useRef } from 'react';
+import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin, Modal, List } from 'antd';
+import { PlusOutlined, DeleteOutlined, BarcodeOutlined, ScanOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import invoiceApi from '../../services/invoiceApi';
 import { customerApi, warehouseApi, officeApi, vendorApi, currencyApi } from '../../services/entityApi';
-import productApi from '../../services/productApi';
+import productApi, { ProductVariant } from '../../services/productApi';
 import { InvoiceType } from '../../types/invoice';
 
 const { Option } = Select;
@@ -34,14 +34,13 @@ interface InvoiceDetail {
   vatRate: number;
   description?: string;
   discountRate?: number;
-  size?: string;
-  color?: string;
   productDescription?: string; // Ürün açıklaması
   totalAmount?: number; // Toplam tutar (miktar * birim fiyat)
   discountAmount?: number; // İskonto tutarı
   subtotalAmount?: number; // Alt toplam (iskonto sonrası)
   vatAmount?: number; // KDV tutarı
   netAmount?: number; // Net tutar (KDV dahil)
+  // ItemDim1Code, ItemDim2Code, ItemDim3Code ve color alanları kaldırıldı
 }
 
 // API için gerekli istek tipleri
@@ -99,10 +98,72 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   );
   // KDV dahil/hariç seçeneği için state
   const [isPriceIncludeVat, setIsPriceIncludeVat] = useState<boolean>(false);
+  const [barcodeInput, setBarcodeInput] = useState<string>('');
+  const [barcodeModalVisible, setBarcodeModalVisible] = useState<boolean>(false);
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
+  const [loadingVariants, setLoadingVariants] = useState<boolean>(false);
+  const barcodeInputRef = useRef<any>(null);
 
   // Fatura tipinin adını döndüren yardımcı fonksiyon
   const getInvoiceTypeName = (invoiceType: InvoiceType) => {
     return invoiceTypeDescriptions[invoiceType] || 'Bilinmeyen Fatura Tipi';
+  };
+
+  // Barkod ile ürün varyantlarını ara
+  const searchProductVariantsByBarcode = async () => {
+    if (!barcodeInput.trim()) {
+      message.error('Lütfen bir barkod girin');
+      return;
+    }
+
+    try {
+      setLoadingVariants(true);
+      const variants = await productApi.getProductVariantsByBarcode(barcodeInput.trim());
+      setProductVariants(variants);
+      
+      if (variants.length === 0) {
+        message.warning('Bu barkoda ait ürün bulunamadı');
+      } else if (variants.length === 1) {
+        // Eğer sadece bir varyant bulunduysa, doğrudan ekle
+        addProductVariantToInvoice(variants[0]);
+        setBarcodeModalVisible(false);
+        setBarcodeInput('');
+      } else {
+        // Birden fazla varyant bulunduysa, modal göster
+        setBarcodeModalVisible(true);
+      }
+    } catch (error) {
+      console.error('Barkod araması sırasında hata:', error);
+      message.error('Barkod araması sırasında bir hata oluştu');
+    } finally {
+      setLoadingVariants(false);
+    }
+  };
+
+  // Ürün varyantını faturaya ekle
+  const addProductVariantToInvoice = (variant: ProductVariant) => {
+    const newDetail: InvoiceDetail = {
+      id: generateUniqueId(),
+      itemCode: variant.productCode,
+      quantity: 1,
+      unitOfMeasureCode: variant.unitOfMeasureCode1,
+      unitPrice: variant.salesPrice1,
+      vatRate: variant.vatRate || 18, // Varsayılan KDV oranı
+      description: variant.productDescription,
+      productDescription: variant.productDescription,
+      discountRate: 0
+    };
+
+    setInvoiceDetails([...invoiceDetails, newDetail]);
+    calculateInvoiceTotals([...invoiceDetails, newDetail]);
+    message.success(`${variant.productDescription} faturaya eklendi`);
+  };
+
+  // Barkod modalını kapat
+  const closeBarcodeModal = () => {
+    setBarcodeModalVisible(false);
+    setBarcodeInput('');
+    setProductVariants([]);
   };
 
   // İlk yükleme için veri yükleme fonksiyonu
@@ -460,7 +521,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         discountRate: 0,
         productDescription: '',
         color: '',
-        size: '',
         totalAmount: 0,
         discountAmount: 0,
         subtotalAmount: 0,
@@ -492,14 +552,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       if (selectedProduct) {
         console.log('Seçilen ürün:', selectedProduct);
         
-        // Ürün bilgilerini otomatik doldur
+        // Ürün bilgilerini otomatik doldur - ItemDim1Code, ItemDim2Code, ItemDim3Code ve color alanı kaldırıldı
         updatedDetails[index] = { 
           ...updatedDetails[index], 
           itemCode: value,
           productDescription: selectedProduct.productDescription || '',
           unitOfMeasureCode: selectedProduct.unitOfMeasureCode1 || 'ADET',
-          color: selectedProduct.color || '',
-          size: selectedProduct.size || '',
           unitPrice: selectedProduct.salesPrice1 || 0,
           vatRate: selectedProduct.vatRate || 18
         };
@@ -547,19 +605,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     detail.netAmount = netAmount;
     
     setInvoiceDetails(updatedDetails);
-    // useEffect hook'u ile toplamlar otomatik güncellenecek
+    calculateInvoiceTotals(updatedDetails);
   };
 
   // Fatura toplamlarını hesapla
-  const calculateInvoiceTotals = () => {
-    let total = 0;
-    let discount = 0;
-    let subtotal = 0;
-    let vat = 0;
-    let net = 0;
-    
-    // Her bir fatura detayı için hesaplamaları yap
-    invoiceDetails.forEach(detail => {
+  const calculateInvoiceTotals = (details: InvoiceDetail[] = invoiceDetails) => {
+    // Toplam tutarları hesapla
+    let totalAmount = 0;
+    let discountAmount = 0;
+    let subtotalAmount = 0;
+    let vatAmount = 0;
+    let netAmount = 0;
+
+    details.forEach(detail => {
       const itemTotal = detail.totalAmount || 0;
       const itemDiscount = detail.discountAmount || 0;
       const itemSubtotal = detail.subtotalAmount || 0;
@@ -567,23 +625,21 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       const itemNet = detail.netAmount || 0;
       
       // Toplam değerlere ekle
-      total += itemTotal;
-      discount += itemDiscount;
-      subtotal += itemSubtotal;
-      vat += itemVat;
-      net += itemNet;
+      totalAmount += itemTotal;
+      discountAmount += itemDiscount;
+      subtotalAmount += itemSubtotal;
+      vatAmount += itemVat;
+      netAmount += itemNet;
     });
     
     // Form alanını güncelle
     form.setFieldsValue({
-      totalAmount: total.toFixed(2),
-      discountAmount: discount.toFixed(2),
-      subtotalAmount: subtotal.toFixed(2),
-      vatAmount: vat.toFixed(2),
-      netAmount: net.toFixed(2)
+      totalAmount: totalAmount.toFixed(2),
+      discountAmount: discountAmount.toFixed(2),
+      subtotalAmount: subtotalAmount.toFixed(2),
+      vatAmount: vatAmount.toFixed(2),
+      netAmount: netAmount.toFixed(2)
     });
-    
-    return { total, discount, subtotal, vat, net };
   };
 
   // Fatura oluştur
@@ -623,19 +679,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         vatAmount: parseFloat(values.vatAmount || '0'),
         netAmount: parseFloat(values.netAmount || '0'),
         details: invoiceDetails.map(detail => ({
-          itemCode: detail.itemCode,
-          quantity: detail.quantity,
-          unitOfMeasureCode: detail.unitOfMeasureCode,
+          productCode: detail.itemCode,
+          qty: detail.quantity,
+          unitCode: detail.unitOfMeasureCode,
           unitPrice: detail.unitPrice,
           vatRate: detail.vatRate,
-          description: detail.description || '',
           discountRate: detail.discountRate || 0,
-          // Satır toplamlarını ekle
-          totalAmount: detail.totalAmount,
-          discountAmount: detail.discountAmount,
-          subtotalAmount: detail.subtotalAmount,
-          vatAmount: detail.vatAmount,
-          netAmount: detail.netAmount
+          lineDescription: detail.description || detail.productDescription || '',
+          currencyCode: values.docCurrencyCode || 'TRY',
+          priceCurrencyCode: values.docCurrencyCode || 'TRY',
+          exchangeRate: 1
         }))
       };
       
@@ -688,7 +741,22 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   };
   
   return (
-    <Card title={getInvoiceTypeName(selectedInvoiceType)} variant="outlined">
+    <Card title={getInvoiceTypeName(selectedInvoiceType)} loading={loading}>
+      {/* Barkod Tarama Modalı */}
+      <BarcodeModal
+        visible={barcodeModalVisible}
+        onClose={closeBarcodeModal}
+        barcodeInput={barcodeInput}
+        setBarcodeInput={setBarcodeInput}
+        onSearch={searchProductVariantsByBarcode}
+        loading={loadingVariants}
+        productVariants={productVariants}
+        onSelectVariant={(variant) => {
+          addProductVariantToInvoice(variant);
+          closeBarcodeModal();
+        }}
+        inputRef={barcodeInputRef}
+      />
       <Form
         form={form}
         layout="vertical"
@@ -953,19 +1021,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               />
             )}
           />
-          <Table.Column 
-            title="Renk" 
-            dataIndex="color" 
-            key="color"
-            width={120}
-            render={(value, record, index) => (
-              <Input 
-                value={value} 
-                disabled={true}
-                style={{ width: '100%' }}
-              />
-            )}
-          />
+          {/* Renk sütunu kaldırıldı - backend'de sabit bir değer kullanılıyor */}
           <Table.Column 
             title="Birim" 
             dataIndex="unitOfMeasureCode" 
@@ -1210,8 +1266,23 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
         <Row justify="space-between" style={{ marginBottom: '16px' }}>
           <Col>
-            <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail} style={{ marginRight: '8px' }}>
               Detay Ekle
+            </Button>
+            <Button 
+              type="primary" 
+              icon={<BarcodeOutlined />} 
+              onClick={() => {
+                setBarcodeModalVisible(true);
+                // Modal açıldığında input'a odaklan
+                setTimeout(() => {
+                  if (barcodeInputRef.current) {
+                    barcodeInputRef.current.focus();
+                  }
+                }, 100);
+              }}
+            >
+              Barkod ile Ekle
             </Button>
           </Col>
           <Col>
@@ -1239,6 +1310,84 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         </Row>
       </Form>
     </Card>
+  );
+};
+
+// Barkod Tarama Modalı
+const BarcodeModal = ({ 
+  visible, 
+  onClose, 
+  barcodeInput, 
+  setBarcodeInput, 
+  onSearch, 
+  loading, 
+  productVariants, 
+  onSelectVariant,
+  inputRef
+}: {
+  visible: boolean;
+  onClose: () => void;
+  barcodeInput: string;
+  setBarcodeInput: (value: string) => void;
+  onSearch: () => void;
+  loading: boolean;
+  productVariants: ProductVariant[];
+  onSelectVariant: (variant: ProductVariant) => void;
+  inputRef: React.RefObject<any>;
+}) => {
+  return (
+    <Modal
+      title="Barkod ile Ürün Ara"
+      open={visible}
+      onCancel={onClose}
+      footer={null}
+      width={600}
+    >
+      <Row gutter={8} style={{ marginBottom: 16 }}>
+        <Col flex="auto">
+          <Input
+            placeholder="Barkod girin"
+            value={barcodeInput}
+            onChange={(e) => setBarcodeInput(e.target.value)}
+            onPressEnter={onSearch}
+            ref={inputRef}
+            suffix={loading ? <Spin size="small" /> : <ScanOutlined />}
+          />
+        </Col>
+        <Col>
+          <Button type="primary" onClick={onSearch} loading={loading}>
+            Ara
+          </Button>
+        </Col>
+      </Row>
+
+      <List
+        loading={loading}
+        dataSource={productVariants}
+        renderItem={(item) => (
+          <List.Item
+            key={item.barcode}
+            actions={[
+              <Button type="link" onClick={() => onSelectVariant(item)}>
+                Ekle
+              </Button>
+            ]}
+          >
+            <List.Item.Meta
+              title={item.productDescription}
+              description={
+                <>
+                  <div><strong>Ürün Kodu:</strong> {item.productCode}</div>
+                  <div><strong>Barkod:</strong> {item.barcode}</div>
+                  <div><strong>Fiyat:</strong> {item.salesPrice1.toFixed(2)} TL</div>
+                </>
+              }
+            />
+          </List.Item>
+        )}
+        locale={{ emptyText: 'Ürün bulunamadı' }}
+      />
+    </Modal>
   );
 };
 

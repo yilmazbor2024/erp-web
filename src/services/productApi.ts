@@ -2,6 +2,28 @@ import axiosInstance from '../config/axios';
 import { ApiResponse } from '../api-helpers';
 
 // Ürün tipi tanımlamaları
+export interface ProductVariant {
+  productCode: string;
+  productDescription: string;
+  colorCode: string;
+  colorDescription: string;
+  manufacturerColorCode: string;
+  itemDim1Code: string;
+  itemDim2Code: string;
+  itemDim3Code: string;
+  barcodeTypeCode: string;
+  barcode: string;
+  notHaveBarcodes: boolean;
+  qty: number | null;
+  productTypeCode: string;
+  productTypeDescription: string;
+  unitOfMeasureCode1: string;
+  unitOfMeasureCode2: string;
+  salesPrice1: number;
+  vatRate: number | null;
+  isBlocked: boolean;
+}
+
 export interface Product {
   productCode: string;
   productDescription: string;
@@ -405,6 +427,53 @@ const productApi = {
       { unitOfMeasureCode: 'PKT', unitOfMeasureDescription: 'Paket' },
       { unitOfMeasureCode: 'KTN', unitOfMeasureDescription: 'Karton' }
     ];
+  },
+  
+  // Barkod ile ürün varyantlarını ara
+  async getProductVariantsByBarcode(barcode: string): Promise<ProductVariant[]> {
+    try {
+      if (!barcode) {
+        throw new Error('Barkod boş olamaz');
+      }
+      
+      console.log(`Barkod ile ürün varyantları aranıyor: ${barcode}`);
+      const response = await axiosInstance.get(`/api/Product/variants/by-barcode/${barcode}`);
+      
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        console.log('Barkod ile ürün varyantları bulundu:', response.data.data);
+        
+        // API'den gelen verileri ProductVariant formatına dönüştür
+        const variants: ProductVariant[] = response.data.data.map((item: any) => ({
+          productCode: item.productCode || '',
+          productDescription: item.productDescription || '',
+          colorCode: item.colorCode || '',
+          colorDescription: item.colorDescription || '',
+          manufacturerColorCode: item.manufacturerColorCode || '',
+          itemDim1Code: item.itemDim1Code || '',
+          itemDim2Code: item.itemDim2Code || '',
+          itemDim3Code: item.itemDim3Code || '',
+          barcodeTypeCode: item.barcodeTypeCode || '',
+          barcode: item.barcode || '',
+          notHaveBarcodes: Boolean(item.notHaveBarcodes),
+          qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
+          productTypeCode: item.productTypeCode || '',
+          productTypeDescription: item.productTypeDescription || '',
+          unitOfMeasureCode1: item.unitOfMeasureCode1 || '',
+          unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
+          salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
+          vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
+          isBlocked: Boolean(item.isBlocked)
+        }));
+        
+        return variants;
+      }
+      
+      console.warn('Barkod ile ürün varyantı bulunamadı:', response.data);
+      return [];
+    } catch (error) {
+      console.error('Barkod ile ürün varyantları aranırken hata oluştu:', error);
+      throw error;
+    }
   }
 };
 
