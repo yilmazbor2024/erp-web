@@ -256,6 +256,22 @@ const InvoiceListPage: React.FC = () => {
       }
     },
     {
+      title: 'Iade',
+      dataIndex: 'isReturn',
+      key: 'isReturn',
+      render: (isReturn: boolean) => (
+        isReturn ? <Tag color="orange">Evet</Tag> : <Tag color="default">Hayır</Tag>
+      )
+    },
+    {
+      title: 'e-Fatura',
+      dataIndex: 'isEInvoice',
+      key: 'isEInvoice',
+      render: (isEInvoice: boolean) => (
+        isEInvoice ? <Tag color="purple">Evet</Tag> : <Tag color="default">Hayır</Tag>
+      )
+    },
+    {
       title: 'Durum',
       dataIndex: 'status',
       key: 'status',
@@ -266,9 +282,6 @@ const InvoiceListPage: React.FC = () => {
           )}
           {record.isSuspended && (
             <Tag color="red">Askıda</Tag>
-          )}
-          {record.isEInvoice && (
-            <Tag color="purple">e-Fatura</Tag>
           )}
           {!record.isCompleted && !record.isSuspended && (
             <Tag color="blue">Bekliyor</Tag>
