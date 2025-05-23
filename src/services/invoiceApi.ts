@@ -385,7 +385,7 @@ const invoiceApi = {
       console.log('Sending invoice data:', invoiceData);
       
       // Doğru endpoint'i kullan
-      const response = await api.post('/api/v1/Invoice/wholesale', invoiceData);
+      const response = await api.post('/api/v1/Invoice', invoiceData);
       console.log('API response:', response.data);
       return response.data;
     } catch (error: any) {
