@@ -46,6 +46,11 @@ import SalesInvoices from './pages/Invoices/SalesInvoices';
 import WholesaleInvoices from './pages/Invoices/WholesaleInvoices';
 import WholesalePurchaseInvoices from './pages/Invoices/WholesalePurchaseInvoices';
 
+// New Invoice pages
+import InvoiceListPage from './pages/invoice/InvoiceListPage';
+import InvoiceDetailPage from './pages/invoice/InvoiceDetailPage';
+import InvoiceCreatePage from './pages/invoice/InvoiceCreatePage';
+
 // Mobile Menu
 import Menu from './pages/Menu';
 
@@ -130,20 +135,22 @@ function App() {
                   <Route path=":customerCode/emails" element={<AuthGuard><CustomerDetail tab="emails" /></AuthGuard>} />
                 </Route>
                 
-                {/* Invoice Routes */}
+                {/* Invoice Routes - New Structure */}
+                <Route path="invoice">
+                  <Route path="list" element={<AuthGuard><InvoiceListPage /></AuthGuard>} />
+                  <Route path="create" element={<AuthGuard><InvoiceCreatePage /></AuthGuard>} />
+                  <Route path=":invoiceId" element={<AuthGuard><InvoiceDetailPage /></AuthGuard>} />
+                </Route>
+                
+                {/* Invoice Routes - Old Structure (Redirects to new structure) */}
                 <Route path="invoices">
-                  <Route index element={<Navigate to="/invoices/sales" replace />} />
-                  <Route path="new" element={<AuthGuard><InvoiceForm /></AuthGuard>} />
-                  <Route path="detail/:id" element={<AuthGuard><InvoiceDetail /></AuthGuard>} />
-                  <Route path=":id/edit" element={<AuthGuard><InvoiceForm /></AuthGuard>} />
-                  <Route path="purchase" element={<AuthGuard><PurchaseInvoices /></AuthGuard>} />
-                  <Route path="sales" element={<AuthGuard><SalesInvoices /></AuthGuard>} />
-                  <Route path="wholesale" element={<AuthGuard><WholesaleInvoices /></AuthGuard>} />
-                  <Route path="wholesale-purchase" element={<AuthGuard><WholesalePurchaseInvoices /></AuthGuard>} />
-                  <Route path="purchase/new" element={<AuthGuard><InvoiceForm type="purchase" /></AuthGuard>} />
-                  <Route path="sales/new" element={<AuthGuard><InvoiceForm type="sales" /></AuthGuard>} />
-                  <Route path="wholesale/new" element={<AuthGuard><InvoiceForm type="wholesale" /></AuthGuard>} />
-                  <Route path="wholesale-purchase/new" element={<AuthGuard><InvoiceForm type="wholesale-purchase" /></AuthGuard>} />
+                  <Route index element={<Navigate to="/invoice/list" replace />} />
+                  <Route path="new" element={<Navigate to="/invoice/create" replace />} />
+                  <Route path=":invoiceId" element={<Navigate to="/invoice/:invoiceId" replace />} />
+                  <Route path="purchase" element={<Navigate to="/invoice/list?type=purchase" replace />} />
+                  <Route path="sales" element={<Navigate to="/invoice/list?type=sales" replace />} />
+                  <Route path="wholesale" element={<Navigate to="/invoice/list?type=wholesale" replace />} />
+                  <Route path="wholesale-purchase" element={<Navigate to="/invoice/list?type=wholesale-purchase" replace />} />
                 </Route>
                 
                 {/* Product Routes */}

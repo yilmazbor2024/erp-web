@@ -25,13 +25,19 @@ export const mainMenuItems: MenuItem[] = [
       {
         id: 'wholesale-invoices',
         title: 'Toptan Satış Faturaları',
-        path: '/invoices/wholesale',
+        path: '/invoice/list?type=wholesale',
         icon: 'FileTextOutlined'
       },
       {
         id: 'wholesale-purchase-invoices',
         title: 'Toptan Alış Faturaları',
-        path: '/invoices/wholesale-purchase',
+        path: '/invoice/list?type=wholesale-purchase',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'expense-invoices',
+        title: 'Masraf Faturaları',
+        path: '/invoice/list?type=expense',
         icon: 'FileTextOutlined'
       }
     ]
@@ -185,13 +191,19 @@ export const mobileCardMenu: MenuItem[] = [
       {
         id: 'wholesale-invoices',
         title: 'Toptan Satış Faturaları',
-        path: '/invoices/wholesale',
+        path: '/invoice/list?type=wholesale',
         icon: 'FileTextOutlined'
       },
       {
         id: 'wholesale-purchase-invoices',
         title: 'Toptan Alış Faturaları',
-        path: '/invoices/wholesale-purchase',
+        path: '/invoice/list?type=wholesale-purchase',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'expense-invoices',
+        title: 'Masraf Faturaları',
+        path: '/invoice/list?type=expense',
         icon: 'FileTextOutlined'
       }
     ]

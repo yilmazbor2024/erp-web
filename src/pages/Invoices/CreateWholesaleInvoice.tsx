@@ -143,39 +143,19 @@ const CreateWholesaleInvoice: React.FC = () => {
       // API'nin beklediği formatta fatura verilerini oluştur
       const invoiceData: CreateWholesaleInvoiceRequest = {
         invoiceNumber: values.invoiceNumber,
-        isReturn: false,
-        isEInvoice: false,
-        invoiceTypeCode: "TS", // Toptan Satış fatura tipi
+        invoiceTypeCode: "WS", // Toptan Satış fatura tipi
         invoiceDate: dayjs(values.invoiceDate).format('YYYY-MM-DD'),
         invoiceTime: dayjs(values.invoiceTime || dayjs()).format('HH:mm:ss'),
         currAccTypeCode: 3, // Müşteri tipi
         customerCode: values.customerCode,
-        vendorCode: values.vendorCode || "V001",
+        currAccCode: values.customerCode, // Cari hesap kodu müşteri koduyla aynı
         docCurrencyCode: values.docCurrencyCode || "TRY",
         companyCode: values.companyCode || "001",
         warehouseCode: values.warehouseCode || "001",
-        storeCode: values.storeCode || "001",
         officeCode: values.officeCode || "001",
-        series: values.series || "TS",
-        seriesNumber: values.seriesNumber || "001",
-        eInvoiceNumber: values.eInvoiceNumber || "E001",
-        processCode: values.processCode || "001",
-        transTypeCode: values.transTypeCode || "001",
-        taxTypeCode: values.taxTypeCode || "001",
-        employeeCode: values.employeeCode || "001",
-        posTerminalID: values.posTerminalID || "001",
-        exportTypeCode: values.exportTypeCode || "001",
-        subCurrAccCode: values.subCurrAccCode || "001",
-        applicationCode: values.applicationCode || "001",
-        expenseTypeCode: values.expenseTypeCode || "001",
-        documentTypeCode: values.documentTypeCode || "001",
-        exportFileNumber: values.exportFileNumber || "001",
-        importFileNumber: values.importFileNumber || "001",
-        storeCurrAccCode: values.storeCurrAccCode || "001",
-        retailCustomerCode: values.retailCustomerCode || "001",
-        formType: values.formType || "001",
-        isCompleted: true,
-        isSuspended: false,
+        processCode: "WS", // Toptan Satış işlem kodu
+        isReturn: false,
+        isEInvoice: false,
         notes: values.notes || "Toptan satış faturası",
         details: invoiceDetails
       };

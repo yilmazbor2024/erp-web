@@ -1,0 +1,1021 @@
+import api from './api';
+
+// Fatura tipi tanımlamaları ve kodları
+const INVOICE_TYPES = {
+  WHOLESALE_SALES: 'WS', // Toptan Satış Faturası
+  WHOLESALE_PURCHASE: 'WP', // Toptan Alış Faturası
+  EXPENSE_SALES: 'MAF', // Masraf Satış Faturası
+  EXPENSE_PURCHASE: 'MAI' // Masraf Alış Faturası
+};
+
+// Son kullanılan fatura numaraları (localStorage'da saklanacak)
+const LAST_INVOICE_NUMBERS = {
+  WS: 10000, // Toptan Satış başlangıç numarası
+  WP: 10000, // Toptan Alış başlangıç numarası
+  MAF: 10000, // Masraf Satış başlangıç numarası
+  MAI: 10000  // Masraf Alış başlangıç numarası
+};
+
+// Cari hesap tipleri
+const CURR_ACC_TYPES = {
+  VENDOR: 1, // Tedarikçi
+  CUSTOMER: 3 // Müşteri
+};
+
+// İşlem kodları
+const PROCESS_CODES = {
+  WHOLESALE_SALES: 'WS', // Toptan Satış
+  WHOLESALE_PURCHASE: 'BP', // Toptan Alış (Bulk Purchase)
+  EXPENSE: 'EP' // Masraf Alış (Expense Purchase)
+};
+
+// İşlem akış kodları
+const PROCESS_FLOW_CODES = {
+  WHOLESALE_SALES: 7, // Toptan Satış
+  WHOLESALE_PURCHASE: 8, // Toptan Alış
+  EXPENSE: 9 // Masraf
+};
+
+// Fatura tipi tanımlamaları
+export interface InvoiceLine {
+  invoiceLineID: string;
+  invoiceHeaderID: string;
+  sortOrder: number;
+  itemTypeCode: string;
+  itemCode: string;
+  itemName?: string;
+  colorCode?: string;
+  qty1: number;
+  qty2?: number;
+  batchCode?: string;
+  lineDescription?: string;
+  vatCode?: string;
+  vatRate: number;
+  price: number;
+  amount: number;
+  discountAmount?: number;
+  vatAmount: number;
+  netAmount: number;
+}
+
+export interface CurrencyDetail {
+  currencyCode: string;
+  exchangeRate?: number;
+  totalAmount: number;
+  totalDiscount: number;
+  totalVat: number;
+  netAmount: number;
+}
+
+export interface InvoiceHeader {
+  invoiceHeaderID: string;
+  transTypeCode: string;
+  processCode: string;
+  invoiceNumber: string;
+  isReturn: boolean;
+  invoiceDate: string;
+  invoiceTime?: string;
+  operationDate?: string;
+  series?: string;
+  seriesNumber?: string;
+  invoiceTypeCode: string;
+  isEInvoice: boolean;
+  eInvoiceNumber?: string;
+  eInvoiceStatusCode?: string;
+  paymentTerm?: number;
+  description?: string;
+  currAccCode: string;
+  currAccName?: string;
+  taxTypeCode?: string;
+  companyCode?: string;
+  officeCode?: string;
+  warehouseCode?: string;
+  exchangeRate?: number;
+  totalDiscount?: number;
+  totalVat?: number;
+  totalAmount?: number;
+  netAmount?: number;
+}
+
+export interface InvoiceDetail {
+  invoiceHeader: InvoiceHeader;
+  invoiceLines: InvoiceLine[];
+  currencyDetails?: {
+    documentCurrency: CurrencyDetail;
+    localCurrency: CurrencyDetail;
+  };
+}
+
+export interface InvoiceListParams {
+  pageNumber?: number;
+  pageSize?: number;
+  page?: number; // Pagination için page alanı
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+  searchTerm?: string;
+  startDate?: string;
+  endDate?: string;
+  currAccCode?: string;
+  invoiceNumber?: string;
+  invoiceTypeCode?: string;
+  isReturn?: boolean;
+  isEInvoice?: boolean;
+}
+
+export interface InvoiceListResponse {
+  items: InvoiceHeader[];
+  totalCount: number;
+  pageCount: number;
+  currentPage: number;
+  pageSize: number;
+}
+
+// Toptan Satış Faturası oluşturma isteği
+export interface CreateWholesaleInvoiceRequest {
+  // Zorunlu alanlar
+  invoiceNumber: string; // Fatura numarası
+  invoiceTypeCode: string; // Fatura tipi kodu (WS)
+  invoiceDate: string; // Fatura tarihi (YYYY-MM-DD)
+  currAccTypeCode: number; // Cari hesap tipi kodu (3: Müşteri)
+  docCurrencyCode: string; // Belge para birimi kodu (TRY)
+  companyCode: string; // Şirket kodu (1)
+  warehouseCode: string; // Depo kodu
+  customerCode: string; // Müşteri kodu
+  vendorCode?: string; // Tedarikçi kodu (currAccTypeCode = 1 ise)
+  
+  // Opsiyonel alanlar
+  isReturn?: boolean; // İade mi? (default: false)
+  isEInvoice?: boolean; // E-Fatura mı? (default: false)
+  invoiceTime?: string; // Fatura saati (HH:MM:SS)
+  officeCode?: string; // Ofis kodu
+  processCode?: string; // İşlem kodu (WS)
+  transTypeCode?: string; // İşlem tipi kodu
+  notes?: string; // Notlar
+  details: CreateInvoiceDetailRequest[]; // Fatura detayları
+}
+
+// Genel fatura oluşturma isteği
+export interface CreateInvoiceRequest {
+  // Zorunlu alanlar
+  invoiceNumber: string; // Fatura numarası
+  invoiceTypeCode: string; // Fatura tipi kodu (WS, WP, MAF, MAI)
+  invoiceDate: string; // Fatura tarihi (YYYY-MM-DD)
+  currAccTypeCode: number; // Cari hesap tipi kodu (1: Tedarikçi, 3: Müşteri)
+  docCurrencyCode: string; // Belge para birimi kodu (TRY)
+  companyCode: string; // Şirket kodu (1)
+  warehouseCode: string; // Depo kodu
+  
+  // Müşteri veya tedarikçi bilgileri
+  customerCode?: string; // Müşteri kodu (currAccTypeCode = 3 ise)
+  vendorCode?: string; // Tedarikçi kodu (currAccTypeCode = 1 ise)
+  
+  // Opsiyonel alanlar
+  isReturn?: boolean; // İade mi? (default: false)
+  isEInvoice?: boolean; // E-Fatura mı? (default: false)
+  invoiceTime?: string; // Fatura saati (HH:MM:SS)
+  officeCode?: string; // Ofis kodu
+  processCode?: string; // İşlem kodu (WS: Toptan Satış, BP: Toptan Alış, EP: Masraf Alış)
+  transTypeCode?: string; // İşlem tipi kodu
+  series?: string; // Seri
+  seriesNumber?: string; // Seri numarası
+  eInvoiceNumber?: string; // E-Fatura numarası
+  storeCode?: string; // Mağaza kodu
+  importFileNumber?: string; // İthalat dosya numarası
+  exportFileNumber?: string; // İhracat dosya numarası
+  exportTypeCode?: string; // İhracat tipi kodu
+  posTerminalID?: string; // POS terminal ID
+  taxTypeCode?: string; // Vergi tipi kodu
+  isCompleted?: boolean; // Tamamlandı mı?
+  isSuspended?: boolean; // Askıya alındı mı?
+  applicationCode?: string; // Uygulama kodu
+  applicationID?: number; // Uygulama ID
+  // expenseTypeCode kaldırıldı, yerine processCode kullanılıyor
+  formType?: string; // Form tipi
+  documentTypeCode?: string; // Belge tipi kodu
+  notes?: string; // Notlar
+  exchangeRate?: number; // Döviz kuru
+  
+  // Fatura detay bilgileri
+  details: CreateInvoiceDetailRequest[];
+}
+
+export interface CreateInvoiceDetailRequest {
+  itemCode: string; // Ürün kodu
+  unitOfMeasureCode: string; // Ölçü birimi kodu
+  quantity: number; // Miktar
+  unitPrice: number; // Birim fiyat
+  vatRate?: number; // KDV oranı (varsayılan: 18)
+  lineDescription?: string; // Satır açıklaması
+  colorCode?: string; // Renk kodu
+  batchCode?: string; // Parti kodu
+  discountRate?: number; // İndirim oranı
+  discountAmount?: number; // İndirim tutarı
+  description?: string; // Ürün açıklaması
+}
+
+// Toptan Satış Faturası tipi
+export interface WholesaleInvoice {
+  invoiceNumber: string;
+  isReturn: boolean;
+  isEInvoice: boolean;
+  invoiceTypeCode: string;
+  invoiceTypeDescription: string;
+  invoiceDate: string;
+  invoiceTime: string;
+  currAccTypeCode: number;
+  vendorCode: string;
+  vendorDescription: string;
+  customerCode: string;
+  customerDescription: string;
+  retailCustomerCode: string;
+  storeCurrAccCode: string;
+  storeDescription: string;
+  employeeCode: string;
+  firstLastName: string;
+  subCurrAccCode: string;
+  subCurrAccCompanyName: string;
+  isCreditSale: boolean;
+  processCode: string;
+  transTypeCode: string;
+  docCurrencyCode: string;
+  series: string;
+  seriesNumber: string;
+  eInvoiceNumber: string;
+  companyCode: string;
+  officeCode: string;
+  storeCode: string;
+  warehouseCode: string;
+  importFileNumber: string;
+  exportFileNumber: string;
+  exportTypeCode: string;
+  posTerminalID: string;
+  taxTypeCode: string;
+  isCompleted: boolean;
+  isSuspended: boolean;
+  isPostingJournal: boolean;
+  journalNumber: string;
+  isPrinted: boolean;
+  applicationCode: string;
+  applicationDescription: string;
+  applicationID: string;
+  invoiceHeaderID: string;
+  // expenseTypeCode kaldırıldı, yerine processCode kullanılıyor
+  formType: number;
+  documentTypeCode: string;
+}
+
+export interface WholesaleInvoiceListResponse {
+  items: WholesaleInvoice[];
+  totalCount: number;
+  pageCount: number;
+  currentPage: number;
+  pageSize: number;
+  success: boolean;
+  message: string;
+}
+
+export interface WholesaleInvoiceListParams {
+  pageNumber?: number;
+  pageSize?: number;
+  page?: number; // Pagination için page alanı
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+  searchTerm?: string;
+  startDate?: string;
+  endDate?: string;
+  currAccCode?: string;
+  customerCode?: string;
+  invoiceNumber?: string;
+  invoiceTypeCode?: string;
+  isReturn?: boolean;
+  isEInvoice?: boolean;
+  isCompleted?: boolean;
+}
+
+// Toptan Alış Faturası tipi
+export interface WholesalePurchaseInvoice {
+  invoiceNumber: string;
+  isReturn: boolean;
+  isEInvoice: boolean;
+  invoiceTypeCode: string;
+  invoiceTypeDescription: string;
+  invoiceDate: string;
+  invoiceTime: string;
+  currAccTypeCode: number;
+  vendorCode: string;
+  vendorDescription: string;
+  customerCode: string;
+  customerDescription: string;
+  retailCustomerCode: string;
+  storeCurrAccCode: string;
+  storeDescription: string;
+  employeeCode: string;
+  firstLastName: string;
+  subCurrAccCode: string;
+  subCurrAccCompanyName: string;
+  isCreditSale: boolean;
+  processCode: string;
+  transTypeCode: string;
+  docCurrencyCode: string;
+  series: string;
+  seriesNumber: string;
+  eInvoiceNumber: string;
+  companyCode: string;
+  officeCode: string;
+  storeCode: string;
+  warehouseCode: string;
+  importFileNumber: string;
+  exportFileNumber: string;
+  exportTypeCode: string;
+  posTerminalID: string;
+  taxTypeCode: string;
+  isCompleted: boolean;
+  isSuspended: boolean;
+  isPostingJournal: boolean;
+  journalNumber: string;
+  isPrinted: boolean;
+  applicationCode: string;
+  applicationDescription: string;
+  applicationID: string;
+  invoiceHeaderID: string;
+  // expenseTypeCode kaldırıldı, yerine processCode kullanılıyor
+  formType: string;
+  documentTypeCode: string;
+}
+
+// Toptan Alış Faturası liste yanıtı
+export interface WholesalePurchaseInvoiceListResponse {
+  items: WholesalePurchaseInvoice[];
+  totalCount: number;
+  pageCount: number;
+  currentPage: number;
+  pageSize: number;
+  success: boolean;
+  message: string;
+}
+
+// Toptan Alış Faturası liste parametreleri
+export interface WholesalePurchaseInvoiceListParams {
+  pageNumber?: number;
+  pageSize?: number;
+  page?: number; // Pagination için page alanı
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+  searchTerm?: string;
+  startDate?: string;
+  endDate?: string;
+  currAccCode?: string;
+  vendorCode?: string;
+  invoiceNumber?: string;
+  invoiceTypeCode?: string;
+  isReturn?: boolean;
+  isEInvoice?: boolean;
+  isCompleted?: boolean;
+}
+
+// Masraf Faturası tipi
+export interface ExpenseInvoice {
+  invoiceNumber: string;
+  isReturn: boolean;
+  isEInvoice: boolean;
+  invoiceTypeCode: string;
+  invoiceTypeDescription: string;
+  invoiceDate: string;
+  invoiceTime: string;
+  currAccTypeCode: number;
+  vendorCode: string;
+  vendorDescription: string;
+  // expenseTypeCode kaldırıldı, yerine processCode kullanılıyor
+  // expenseTypeDescription kaldırıldı
+  processCode: string;
+  transTypeCode: string;
+  docCurrencyCode: string;
+  companyCode: string;
+  officeCode: string;
+  warehouseCode: string;
+  isCompleted: boolean;
+  isSuspended: boolean;
+  isPostingJournal: boolean;
+  journalNumber: string;
+  isPrinted: boolean;
+  applicationCode: string;
+  applicationDescription: string;
+  applicationID: string;
+  invoiceHeaderID: string;
+  formType: string;
+  documentTypeCode: string;
+}
+
+// Masraf Faturası liste yanıtı
+export interface ExpenseInvoiceListResponse {
+  items: ExpenseInvoice[];
+  totalCount: number;
+  pageCount: number;
+  currentPage: number;
+  pageSize: number;
+  success: boolean;
+  message: string;
+}
+
+// Masraf Faturası liste parametreleri
+export interface ExpenseInvoiceListParams {
+  pageNumber?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
+  searchTerm?: string;
+  startDate?: string;
+  endDate?: string;
+  currAccCode?: string;
+  vendorCode?: string;
+  // expenseTypeCode kaldırıldı, yerine processCode kullanılıyor
+  invoiceTypeCode?: string;
+  isReturn?: boolean;
+  isEInvoice?: boolean;
+  isCompleted?: boolean;
+}
+
+// Otomatik fatura numarası oluşturma fonksiyonu
+const generateInvoiceNumber = (invoiceType: string): string => {
+  // localStorage'dan son kullanılan fatura numarasını al
+  const lastNumberKey = `lastInvoiceNumber_${invoiceType}`;
+  let lastNumber = parseInt(localStorage.getItem(lastNumberKey) || '0', 10);
+  
+  // Eğer localStorage'da kayıtlı bir numara yoksa, varsayılan değeri kullan
+  if (lastNumber === 0) {
+    lastNumber = LAST_INVOICE_NUMBERS[invoiceType as keyof typeof LAST_INVOICE_NUMBERS] || 10000;
+  }
+  
+  // Yeni numara oluştur (son numaraya 1 ekle)
+  const newNumber = lastNumber + 1;
+  
+  // Yeni numarayı localStorage'a kaydet
+  localStorage.setItem(lastNumberKey, newNumber.toString());
+  
+  // Fatura numarasını formatla (WS-10001 gibi)
+  return `${invoiceType}-${newNumber}`;
+};
+
+// API fonksiyonları
+const invoiceApi = {
+  // Otomatik fatura numarası oluştur
+  generateInvoiceNumber,
+  // Tüm faturaları getir
+  getAllInvoices: async (params?: any): Promise<any> => {
+    try {
+      // Fatura tipine göre doğru API fonksiyonunu çağır
+      if (params?.invoiceTypeCode) {
+        switch(params.invoiceTypeCode) {
+          case 'WS': // Toptan Satış
+            return await invoiceApi._getWholesaleInvoices(params);
+          case 'WP': // Toptan Alış
+            return await invoiceApi._getWholesalePurchaseInvoices(params);
+          case 'MAF': // Masraf Satış
+          case 'MAI': // Masraf Alış
+            return await invoiceApi._getExpenseInvoices(params);
+        }
+      }
+      
+      // Fatura tipi belirtilmediyse tüm faturaları getir
+      const response = await api.get('/api/v1/Invoice/all', { params });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getAllInvoices:', error);
+      return {
+        success: false,
+        message: `Faturalar yüklenirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: { items: [], totalCount: 0 }
+      };
+    }
+  },
+  
+  // Toptan Satış faturalarını getir (iç kullanım için)
+  _getWholesaleInvoices: async (params?: any): Promise<any> => {
+    try {
+      // API'nin beklediği formatta parametreleri gönder
+      const apiParams: any = {
+        PageNumber: params?.pageNumber || 1,
+        PageSize: params?.pageSize || 10
+      };
+      
+      // Boş olmayan parametreleri ekle
+      if (params?.invoiceNumber) apiParams.InvoiceNumber = params.invoiceNumber;
+      if (params?.currAccCode) apiParams.CustomerCode = params.currAccCode;
+      if (params?.startDate) apiParams.StartDate = params.startDate;
+      if (params?.endDate) apiParams.EndDate = params.endDate;
+      
+      console.log('Toptan Satış Faturası API çağrısı:', '/api/v1/Invoice/wholesale', apiParams);
+      const response = await api.get('/api/v1/Invoice/wholesale', { params: apiParams });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getWholesaleInvoices:', error);
+      return {
+        success: false,
+        message: `Toptan satış faturaları yüklenirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: { items: [], totalCount: 0 }
+      };
+    }
+  },
+  
+  // Toptan Alış faturalarını getir (iç kullanım için)
+  _getWholesalePurchaseInvoices: async (params?: any): Promise<any> => {
+    try {
+      // API'nin beklediği formatta parametreleri gönder
+      const apiParams: any = {
+        PageNumber: params?.pageNumber || 1,
+        PageSize: params?.pageSize || 10,
+        ProcessCode: 'BP' // ProcessCode değerini 'BP' (Bulk Purchase) olarak ayarla
+      };
+      
+      // Boş olmayan parametreleri ekle
+      if (params?.invoiceNumber) apiParams.InvoiceNumber = params.invoiceNumber;
+      if (params?.currAccCode) apiParams.VendorCode = params.currAccCode;
+      if (params?.startDate) apiParams.StartDate = params.startDate;
+      if (params?.endDate) apiParams.EndDate = params.endDate;
+      
+      console.log('Toptan Alış Faturası API çağrısı:', '/api/v1/Invoice/wholesale-purchase', apiParams);
+      const response = await api.get('/api/v1/Invoice/wholesale-purchase', { params: apiParams });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getWholesalePurchaseInvoices:', error);
+      return {
+        success: false,
+        message: `Toptan alış faturaları yüklenirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: { items: [], totalCount: 0 }
+      };
+    }
+  },
+  
+  // Masraf faturalarını getir (iç kullanım için)
+  _getExpenseInvoices: async (params?: any): Promise<any> => {
+    try {
+      // API'nin beklediği formatta parametreleri gönder
+      const apiParams: any = {
+        PageNumber: params?.pageNumber || 1,
+        PageSize: params?.pageSize || 10,
+        ProcessCode: 'EP' // ProcessCode değerini 'EP' (Expense Purchase) olarak ayarla
+      };
+      
+      // Boş olmayan parametreleri ekle
+      if (params?.invoiceNumber) apiParams.InvoiceNumber = params.invoiceNumber;
+      if (params?.currAccCode) apiParams.VendorCode = params.currAccCode;
+      if (params?.startDate) apiParams.StartDate = params.startDate;
+      if (params?.endDate) apiParams.EndDate = params.endDate;
+      
+      console.log('Masraf Faturası API çağrısı:', '/api/v1/Invoice/expense', apiParams);
+      const response = await api.get('/api/v1/Invoice/expense', { params: apiParams });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getExpenseInvoices:', error);
+      return {
+        success: false,
+        message: `Masraf faturaları yüklenirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: { items: [], totalCount: 0 }
+      };
+    }
+  },
+  
+  // Satış faturalarını getir
+  getSalesInvoices: async (params?: InvoiceListParams): Promise<InvoiceListResponse> => {
+    try {
+      // page parametresini pageNumber'a dönüştür
+      const apiParams = { ...params };
+      if (apiParams.page !== undefined) {
+        apiParams.pageNumber = apiParams.page;
+        delete apiParams.page;
+      }
+      
+      const response = await api.get('/api/v1/Invoice/wholesale', { params: apiParams });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getSalesInvoices:', error);
+      return {
+        items: [],
+        totalCount: 0,
+        pageCount: 0,
+        currentPage: 1,
+        pageSize: 10
+      };
+    }
+  },
+  
+  // Alış faturalarını getir
+  getPurchaseInvoices: async (params?: InvoiceListParams): Promise<InvoiceListResponse> => {
+    try {
+      // page parametresini pageNumber'a dönüştür
+      const apiParams = { ...params };
+      if (apiParams.page !== undefined) {
+        apiParams.pageNumber = apiParams.page;
+        delete apiParams.page;
+      }
+      
+      const response = await api.get('/api/v1/Invoice/wholesale-purchase', { params: apiParams });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getPurchaseInvoices:', error);
+      return {
+        items: [],
+        totalCount: 0,
+        pageCount: 0,
+        currentPage: 1,
+        pageSize: 10
+      };
+    }
+  },
+  
+  // Fatura listesini getir
+  getInvoices: async (params?: InvoiceListParams): Promise<InvoiceListResponse> => {
+    try {
+      const response = await api.get('/api/v1/Invoice', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error in getInvoices:', error);
+      throw error;
+    }
+  },
+
+  // Toptan satış faturalarını getir
+  getWholesaleInvoices: async (params?: WholesaleInvoiceListParams): Promise<WholesaleInvoiceListResponse> => {
+    try {
+      const response = await api.get('/api/v1/Invoice/wholesale', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error in getWholesaleInvoices:', error);
+      throw error;
+    }
+  },
+  
+  // Toptan satış faturası detayını getir
+  getWholesaleInvoiceById: async (id: string): Promise<any> => {
+    try {
+      const response = await api.get(`/api/v1/Invoice/wholesale/${id}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getWholesaleInvoiceById:', error);
+      return {
+        success: false,
+        message: `Fatura detayı yüklenirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+
+  // Toptan alış faturalarını getir
+  getWholesalePurchaseInvoices: async (params?: WholesalePurchaseInvoiceListParams): Promise<WholesalePurchaseInvoiceListResponse> => {
+    try {
+      const response = await api.get('/api/v1/Invoice/wholesale-purchase', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error in getWholesalePurchaseInvoices:', error);
+      throw error;
+    }
+  },
+  
+  // Toptan alış faturası detayını getir
+  getWholesalePurchaseInvoiceById: async (id: string): Promise<any> => {
+    try {
+      const response = await api.get(`/api/v1/Invoice/purchase/${id}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getWholesalePurchaseInvoiceById:', error);
+      return {
+        success: false,
+        message: `Fatura detayı yüklenirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+
+  // Masraf faturalarını getir
+  getExpenseInvoices: async (params?: ExpenseInvoiceListParams): Promise<ExpenseInvoiceListResponse> => {
+    try {
+      const response = await api.get('/api/v1/Invoice/expense', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error in getExpenseInvoices:', error);
+      throw error;
+    }
+  },
+  
+  // Masraf faturası detayını getir
+  getExpenseInvoiceById: async (id: string): Promise<any> => {
+    try {
+      const response = await api.get(`/api/v1/Invoice/expense/${id}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getExpenseInvoiceById:', error);
+      return {
+        success: false,
+        message: `Fatura detayı yüklenirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+  
+  // Fatura detayını getir
+  getInvoiceDetail: async (invoiceHeaderID: string): Promise<InvoiceDetail> => {
+    try {
+      const response = await api.get(`/api/v1/Invoice/${invoiceHeaderID}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error in getInvoiceDetail:', error);
+      throw error;
+    }
+  },
+  
+  // Fatura detaylarını getir
+  getInvoiceDetails: async (invoiceHeaderId: string): Promise<any> => {
+    try {
+      const response = await api.get(`/api/v1/Invoice/${invoiceHeaderId}/details`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getInvoiceDetails:', error);
+      return {
+        success: false,
+        message: `Fatura detayları yüklenirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: []
+      };
+    }
+  },
+
+  // Fatura ödeme detaylarını getir
+  getInvoicePaymentDetails: async (invoiceHeaderID: string): Promise<any> => {
+    try {
+      const response = await api.get(`/api/v1/Invoice/${invoiceHeaderID}/payment-details`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getInvoicePaymentDetails:', error);
+      return {
+        success: false,
+        message: `Fatura ödeme detayları getirilirken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+  
+  // Toptan Satış Faturası güncelle
+  updateWholesaleInvoice: async (invoice: any): Promise<any> => {
+    try {
+      console.log('Updating wholesale invoice:', invoice);
+      const response = await api.put(`/api/v1/Invoice/wholesale/${invoice.invoiceHeaderID}`, invoice);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in updateWholesaleInvoice:', error);
+      return {
+        success: false,
+        message: `Toptan satış faturası güncellenirken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+  
+  // Toptan Alış Faturası güncelle
+  updateWholesalePurchaseInvoice: async (invoice: any): Promise<any> => {
+    try {
+      console.log('Updating wholesale purchase invoice:', invoice);
+      const response = await api.put(`/api/v1/Invoice/wholesale-purchase/${invoice.invoiceHeaderID}`, invoice);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in updateWholesalePurchaseInvoice:', error);
+      return {
+        success: false,
+        message: `Toptan alış faturası güncellenirken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+  
+  // Masraf Faturası güncelle
+  updateExpenseInvoice: async (invoice: any): Promise<any> => {
+    try {
+      console.log('Updating expense invoice:', invoice);
+      const response = await api.put(`/api/v1/Invoice/expense/${invoice.invoiceHeaderID}`, invoice);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in updateExpenseInvoice:', error);
+      return {
+        success: false,
+        message: `Masraf faturası güncellenirken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+
+  // Toptan Satış Faturası oluştur
+  createWholesaleInvoice: async (invoice: CreateInvoiceRequest): Promise<any> => {
+    try {
+      console.log('Creating wholesale invoice:', invoice);
+      
+      // Zorunlu alanları kontrol et ve varsayılan değerleri ata
+      const invoiceData = {
+        ...invoice,
+        invoiceTypeCode: INVOICE_TYPES.WHOLESALE_SALES, // WS (Toptan Satış) fatura tipi kodu
+        currAccTypeCode: CURR_ACC_TYPES.CUSTOMER, // 3 (Müşteri) cari hesap tipi kodu
+        processCode: invoice.processCode || PROCESS_CODES.WHOLESALE_SALES, // WS (Toptan Satış) işlem kodu
+        docCurrencyCode: invoice.docCurrencyCode || 'TRY', // Varsayılan para birimi TRY
+        companyCode: invoice.companyCode || '1', // Varsayılan şirket kodu 1
+        isReturn: invoice.isReturn || false, // Varsayılan iade değil
+        isEInvoice: invoice.isEInvoice || false, // Varsayılan e-fatura değil
+        // Veritabanı eşleşmesi için gerekli dönüşümler
+        details: invoice.details.map(detail => ({
+          ...detail,
+          qty: detail.quantity, // quantity -> qty
+          unitCode: detail.unitOfMeasureCode, // unitOfMeasureCode -> unitCode
+          productCode: detail.itemCode // itemCode -> productCode
+        }))
+      };
+      
+      console.log('Sending invoice data:', invoiceData);
+      
+      // Doğru endpoint'i kullan
+      const response = await api.post('/api/v1/Invoice', invoiceData);
+      console.log('API response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in createWholesaleInvoice:', error);
+      return {
+        success: false,
+        message: `Toptan satış faturası oluşturulurken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+  
+  // Toptan Alış Faturası oluştur
+  createWholesalePurchaseInvoice: async (invoice: CreateInvoiceRequest): Promise<any> => {
+    try {
+      console.log('Creating wholesale purchase invoice:', invoice);
+      
+      // Zorunlu alanları kontrol et ve varsayılan değerleri ata
+      const invoiceData = {
+        ...invoice,
+        invoiceTypeCode: INVOICE_TYPES.WHOLESALE_PURCHASE, // BP (Toptan Alış) fatura tipi kodu
+        currAccTypeCode: CURR_ACC_TYPES.VENDOR, // 1 (Tedarikçi) cari hesap tipi kodu
+        processCode: invoice.processCode || PROCESS_CODES.WHOLESALE_PURCHASE, // BP (Toptan Alış) işlem kodu
+        docCurrencyCode: invoice.docCurrencyCode || 'TRY', // Varsayılan para birimi TRY
+        companyCode: invoice.companyCode || '1', // Varsayılan şirket kodu 1
+        isReturn: invoice.isReturn || false, // Varsayılan iade değil
+        isEInvoice: invoice.isEInvoice || false, // Varsayılan e-fatura değil
+        // Veritabanı eşleşmesi için gerekli dönüşümler
+        details: invoice.details.map(detail => ({
+          ...detail,
+          qty: detail.quantity, // quantity -> qty
+          unitCode: detail.unitOfMeasureCode, // unitOfMeasureCode -> unitCode
+          productCode: detail.itemCode // itemCode -> productCode
+        }))
+      };
+      
+      console.log('Sending invoice data:', invoiceData);
+      
+      // Doğru endpoint'i kullan
+      const response = await api.post('/api/v1/Invoice/purchase', invoiceData);
+      console.log('API response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in createWholesalePurchaseInvoice:', error);
+      return {
+        success: false,
+        message: `Toptan alış faturası oluşturulurken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+  
+  // Masraf Faturası oluştur
+  createExpenseInvoice: async (invoice: CreateInvoiceRequest): Promise<any> => {
+    try {
+      console.log('Creating expense invoice:', invoice);
+      
+      // İşlem kodu kontrolü
+      if (!invoice.processCode) {
+        throw new Error('İşlem kodu (processCode) zorunludur');
+      }
+      
+      // Zorunlu alanları kontrol et ve varsayılan değerleri ata
+      const invoiceData = {
+        ...invoice,
+        invoiceTypeCode: invoice.invoiceTypeCode || INVOICE_TYPES.EXPENSE_PURCHASE, // MAI (Masraf Alış) fatura tipi kodu
+        currAccTypeCode: CURR_ACC_TYPES.VENDOR, // 1 (Tedarikçi) cari hesap tipi kodu
+        processCode: invoice.processCode || PROCESS_CODES.EXPENSE, // EP (Masraf Alış) işlem kodu
+        docCurrencyCode: invoice.docCurrencyCode || 'TRY', // Varsayılan para birimi TRY
+        companyCode: invoice.companyCode || '1', // Varsayılan şirket kodu 1
+        isReturn: invoice.isReturn || false, // Varsayılan iade değil
+        isEInvoice: invoice.isEInvoice || false, // Varsayılan e-fatura değil
+        // Veritabanı eşleşmesi için gerekli dönüşümler
+        details: invoice.details.map(detail => ({
+          ...detail,
+          qty: detail.quantity, // quantity -> qty
+          unitCode: detail.unitOfMeasureCode, // unitOfMeasureCode -> unitCode
+          productCode: detail.itemCode // itemCode -> productCode
+        }))
+      };
+      
+      console.log('Sending invoice data:', invoiceData);
+      
+      // Doğru endpoint'i kullan
+      const response = await api.post('/api/v1/Invoice/expense', invoiceData);
+      console.log('API response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in createExpenseInvoice:', error);
+      return {
+        success: false,
+        message: `Masraf faturası oluşturulurken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
+        data: null
+      };
+    }
+  },
+  
+  // Fatura PDF'ini getir
+  getInvoicePdf: async (invoiceHeaderID: string): Promise<Blob> => {
+    try {
+      const response = await api.get(`/api/v1/Invoice/${invoiceHeaderID}/pdf`, {
+        responseType: 'blob'
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in getInvoicePdf:', error);
+      throw new Error(`PDF indirme hatası: ${error.message || 'Bilinmeyen hata'}`);
+    }
+  },
+  
+  // E-Fatura gönder
+  sendEInvoice: async (invoiceHeaderID: string): Promise<any> => {
+    try {
+      const response = await api.post(`/api/v1/Invoice/${invoiceHeaderID}/send-einvoice`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Error in sendEInvoice:', error);
+      throw new Error(`E-Fatura gönderme hatası: ${error.message || 'Bilinmeyen hata'}`);
+    }
+  },
+  
+  // Fatura PDF'ini indir
+  downloadInvoicePdf: async (invoiceHeaderID: string): Promise<any> => {
+    try {
+      const response = await api.get(`/api/v1/Invoice/${invoiceHeaderID}/download-pdf`, {
+        responseType: 'blob'
+      });
+      
+      // PDF dosyasını indir
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Fatura_${invoiceHeaderID}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error in downloadInvoicePdf:', error);
+      throw new Error(`PDF indirme hatası: ${error.message || 'Bilinmeyen hata'}`);
+    }
+  },
+  
+  // Otomatik fatura numarası oluşturma fonksiyonu
+  generateInvoiceNumber: (invoiceType: string): string => {
+    // localStorage'dan son kullanılan fatura numarasını al
+    const lastNumberKey = `lastInvoiceNumber_${invoiceType}`;
+    let lastNumber = parseInt(localStorage.getItem(lastNumberKey) || '0', 10);
+    
+    // Eğer localStorage'da kayıtlı bir numara yoksa, varsayılan değeri kullan
+    if (lastNumber === 0) {
+      lastNumber = LAST_INVOICE_NUMBERS[invoiceType as keyof typeof LAST_INVOICE_NUMBERS] || 10000;
+    }
+    
+    // Yeni numara oluştur (son numaraya 1 ekle)
+    const newNumber = lastNumber + 1;
+    
+    // Yeni numarayı localStorage'a kaydet
+    localStorage.setItem(lastNumberKey, newNumber.toString());
+    
+    // Fatura numarasını formatla (WS-10001 gibi)
+    return `${invoiceType}-${newNumber}`;
+  },
+};
+
+export default invoiceApi;
+    // localStorage'dan son kullanılan fatura numarasını al
+    const lastNumberKey = `lastInvoiceNumber_${invoiceType}`;
+    let lastNumber = parseInt(localStorage.getItem(lastNumberKey) || '0', 10);
+    
+    // Eğer localStorage'da kayıtlı bir numara yoksa, varsayılan değeri kullan
+    if (lastNumber === 0) {
+      lastNumber = LAST_INVOICE_NUMBERS[invoiceType as keyof typeof LAST_INVOICE_NUMBERS] || 10000;
+    }
+    
+    // Yeni numara oluştur (son numaraya 1 ekle)
+    const newNumber = lastNumber + 1;
+    
+    // Yeni numarayı localStorage'a kaydet
+    localStorage.setItem(lastNumberKey, newNumber.toString());
+    
+    // Fatura numarasını formatla (WS-10001 gibi)
+    return `${invoiceType}-${newNumber}`;
+  },
+};
+
+export default invoiceApi;

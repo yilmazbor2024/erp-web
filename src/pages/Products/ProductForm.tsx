@@ -248,7 +248,7 @@ const ProductForm: React.FC = () => {
                 loading={isLoadingUnitOfMeasures}
               >
                 {unitOfMeasures?.map((unit) => (
-                  <Option key={unit.code} value={unit.code}>{unit.description}</Option>
+                  <Option key={unit.unitOfMeasureCode} value={unit.unitOfMeasureCode}>{unit.unitOfMeasureDescription}</Option>
                 ))}
               </Select>
             </Form.Item>
@@ -263,7 +263,7 @@ const ProductForm: React.FC = () => {
                 loading={isLoadingUnitOfMeasures}
               >
                 {unitOfMeasures?.map((unit) => (
-                  <Option key={unit.code} value={unit.code}>{unit.description}</Option>
+                  <Option key={unit.unitOfMeasureCode} value={unit.unitOfMeasureCode}>{unit.unitOfMeasureDescription}</Option>
                 ))}
               </Select>
             </Form.Item>

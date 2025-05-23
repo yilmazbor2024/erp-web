@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Table, Card, Input, Button, Space, Tag, DatePicker, Row, Col, Typography, Spin, Empty, message } from 'antd';
+import { Table, Card, Input, Button, Space, Tag, DatePicker, Row, Col, Typography, Spin, Empty, message, Tooltip } from 'antd';
 import { SearchOutlined, FileTextOutlined, DownloadOutlined, CheckCircleOutlined, ClockCircleOutlined, StopOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -41,8 +41,9 @@ const WholesalePurchaseInvoices: React.FC = () => {
       return <Tag icon={<CheckCircleOutlined />} color="success">Tamamlandı</Tag>;
     } else if (invoice.isSuspended) {
       return <Tag icon={<StopOutlined />} color="error">Askıya Alındı</Tag>;
-    } else if (invoice.isLocked) {
-      return <Tag icon={<StopOutlined />} color="warning">Kilitli</Tag>;
+    // isLocked alanı WholesalePurchaseInvoice arayüzünde tanımlı olmadığı için bu kontrolü kaldırıyoruz
+    // } else if (invoice.isLocked) {
+    //   return <Tag icon={<StopOutlined />} color="warning">Kilitli</Tag>;
     } else {
       return <Tag icon={<ClockCircleOutlined />} color="processing">İşlemde</Tag>;
     }
@@ -76,11 +77,15 @@ const WholesalePurchaseInvoices: React.FC = () => {
       title: 'Tedarikçi',
       dataIndex: 'vendorDescription',
       key: 'vendorDescription',
-    },
-    {
-      title: 'Tedarikçi Kodu',
-      dataIndex: 'vendorCode',
-      key: 'vendorCode',
+      render: (text: string, record: WholesalePurchaseInvoice) => {
+        // Tedarikçi bilgisi yoksa boş göster
+        if (!text || text === '') return '-';
+        return (
+          <Tooltip title={record.vendorCode}>
+            {text}
+          </Tooltip>
+        );
+      },
     },
     {
       title: 'Fatura Tarihi',
@@ -92,9 +97,37 @@ const WholesalePurchaseInvoices: React.FC = () => {
       title: 'Tutar',
       dataIndex: 'totalAmount',
       key: 'totalAmount',
-      render: (text: string, record: WholesalePurchaseInvoice) => (
-        <span>{record.docCurrencyCode} {text || '-'}</span>
-      ),
+      render: (text: number, record: WholesalePurchaseInvoice) => {
+        // Tutar 0 ise veya yoksa "-" göster
+        if (!text || text === 0) return '-';
+        return (
+          <span>{record.docCurrencyCode} {text.toFixed(2)}</span>
+        );
+      },
+    },
+    {
+      title: 'KDV',
+      dataIndex: 'totalTax',
+      key: 'totalTax',
+      render: (text: number, record: WholesalePurchaseInvoice) => {
+        // KDV 0 ise veya yoksa "-" göster
+        if (!text || text === 0) return '-';
+        return (
+          <span>{record.docCurrencyCode} {text.toFixed(2)}</span>
+        );
+      },
+    },
+    {
+      title: 'Toplam',
+      dataIndex: 'netAmount',
+      key: 'netAmount',
+      render: (text: number, record: WholesalePurchaseInvoice) => {
+        // Toplam 0 ise veya yoksa "-" göster
+        if (!text || text === 0) return '-';
+        return (
+          <span>{record.docCurrencyCode} {text.toFixed(2)}</span>
+        );
+      },
     },
     {
       title: 'Durum',

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Table, Button, Input, DatePicker, Space, Tag, Tooltip, message, Spin, Empty } from 'antd';
 import { SearchOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, PrinterOutlined, LockOutlined, UnlockOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
-import invoiceApi, { InvoiceSearchParams, InvoiceHeaderModel, WholesaleInvoiceListResponse } from '../../services/invoiceApi';
+import invoiceApi, { WholesaleInvoiceListParams, WholesaleInvoice } from '../../services/invoiceApi';
 import { useAuth } from '../../contexts/AuthContext';
 import moment from 'moment';
 import dayjs from 'dayjs';
@@ -13,7 +13,7 @@ const { RangePicker } = DatePicker;
 const WholesaleInvoices: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useState<InvoiceSearchParams>({
+  const [searchParams, setSearchParams] = useState<WholesaleInvoiceListParams>({
     page: 1,
     pageSize: 10,
     sortBy: 'invoiceDate',
@@ -22,13 +22,14 @@ const WholesaleInvoices: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
 
-  // Fatura verilerini çek
+  // Fatura verilerini çek - sayfalanmış olarak direk yükle
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['wholesaleInvoices', searchParams],
     queryFn: () => invoiceApi.getWholesaleInvoices(searchParams),
     enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000, // 5 dakika
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    retry: 3 // Başarısız olursa 3 kez daha dene
   });
 
   // Hata durumunda mesaj göster
@@ -40,19 +41,24 @@ const WholesaleInvoices: React.FC = () => {
 
   // Arama işlemi
   const handleSearch = () => {
-    const params: InvoiceSearchParams = {
+    const params: WholesaleInvoiceListParams = {
       ...searchParams,
       page: 1, // Arama yapıldığında ilk sayfaya dön
     };
     
     // Arama metni varsa, fatura numarası olarak ekle
     if (searchText) {
-      params.invoiceNumber = searchText;
+      params.searchTerm = searchText;
     }
 
+    // Tarih aralığı seçilmişse ekle, seçilmemişse tarih filtresi kullanma
     if (dateRange && dateRange[0] && dateRange[1]) {
       params.startDate = dateRange[0].format('YYYY-MM-DD');
       params.endDate = dateRange[1].format('YYYY-MM-DD');
+    } else {
+      // Tarih aralığı seçilmemişse, tarih filtrelerini temizle
+      params.startDate = undefined;
+      params.endDate = undefined;
     }
 
     setSearchParams(params);
@@ -60,7 +66,7 @@ const WholesaleInvoices: React.FC = () => {
 
   // Tablo değişikliklerini işle (sayfalama, sıralama)
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
-    const params: InvoiceSearchParams = {
+    const params: WholesaleInvoiceListParams = {
       ...searchParams,
       page: pagination.current,
       pageSize: pagination.pageSize
@@ -76,8 +82,8 @@ const WholesaleInvoices: React.FC = () => {
   };
 
   // Fatura verilerini ve toplam sayıyı al
-  const invoices = data?.data?.items || [];
-  const totalCount = data?.data?.totalCount || 0;
+  const invoices = data?.items || [];
+  const totalCount = data?.totalCount || 0;
   const isEmpty = !isLoading && invoices.length === 0;
 
   // Tablo sütunları
@@ -87,7 +93,7 @@ const WholesaleInvoices: React.FC = () => {
       dataIndex: 'invoiceNumber',
       key: 'invoiceNumber',
       sorter: true,
-      render: (text: string, record: InvoiceHeaderModel) => (
+      render: (text: string, record: WholesaleInvoice) => (
         <Link to={`/invoices/wholesale/${record.invoiceHeaderID}`}>{text}</Link>
       )
     },
@@ -103,27 +109,59 @@ const WholesaleInvoices: React.FC = () => {
       dataIndex: 'customerDescription',
       key: 'customerDescription',
       sorter: true,
-      render: (text: string, record: InvoiceHeaderModel) => (
-        <Tooltip title={record.customerCode}>
-          {text || record.customerCode}
-        </Tooltip>
-      )
+      render: (text: string, record: WholesaleInvoice) => {
+        // Müşteri bilgisi yoksa boş göster
+        if (!text || text === '') return '-';
+        return (
+          <Tooltip title={record.customerCode}>
+            {text}
+          </Tooltip>
+        );
+      }
     },
     {
-      title: 'Fatura Tipi',
-      dataIndex: 'invoiceTypeDescription',
-      key: 'invoiceTypeDescription',
+      title: 'Tutar',
+      dataIndex: 'totalAmount',
+      key: 'totalAmount',
       sorter: true,
-      render: (text: string, record: InvoiceHeaderModel) => (
-        <Tag color={record.isReturn ? 'orange' : 'blue'}>
-          {text}
-        </Tag>
-      )
+      render: (text: number, record: WholesaleInvoice) => {
+        // Tutar 0 ise veya yoksa "-" göster
+        if (!text || text === 0) return '-';
+        return (
+          <span>{record.docCurrencyCode} {text.toFixed(2)}</span>
+        );
+      },
+    },
+    {
+      title: 'KDV',
+      dataIndex: 'totalTax',
+      key: 'totalTax',
+      sorter: true,
+      render: (text: number, record: WholesaleInvoice) => {
+        // KDV 0 ise veya yoksa "-" göster
+        if (!text || text === 0) return '-';
+        return (
+          <span>{record.docCurrencyCode} {text.toFixed(2)}</span>
+        );
+      },
+    },
+    {
+      title: 'Toplam',
+      dataIndex: 'netAmount',
+      key: 'netAmount',
+      sorter: true,
+      render: (text: number, record: WholesaleInvoice) => {
+        // Toplam 0 ise veya yoksa "-" göster
+        if (!text || text === 0) return '-';
+        return (
+          <span>{record.docCurrencyCode} {text.toFixed(2)}</span>
+        );
+      },
     },
     {
       title: 'Durum',
       key: 'status',
-      render: (_: any, record: InvoiceHeaderModel) => (
+      render: (_: any, record: WholesaleInvoice) => (
         <Space>
           {record.isCompleted && (
             <Tag color="green">Tamamlandı</Tag>
@@ -140,7 +178,7 @@ const WholesaleInvoices: React.FC = () => {
     {
       title: 'İşlemler',
       key: 'actions',
-      render: (_: any, record: InvoiceHeaderModel) => (
+      render: (_: any, record: WholesaleInvoice) => (
         <Space>
           <Tooltip title="Görüntüle">
             <Button 

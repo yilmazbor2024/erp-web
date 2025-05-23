@@ -19,6 +19,9 @@ import RolesPage from './pages/Roles/index';
 import SettingsPage from './pages/SettingsPage';
 import WholesaleInvoices from './pages/Invoices/WholesaleInvoices';
 import CreateWholesaleInvoice from './pages/Invoices/CreateWholesaleInvoice';
+import InvoiceListPage from './pages/invoice/InvoiceListPage';
+import InvoiceDetailPage from './pages/invoice/InvoiceDetailPage';
+import InvoiceEditPage from './pages/invoice/InvoiceEditPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Rota değişikliklerini izlemek için bileşen
@@ -76,6 +79,12 @@ const AppRoutes: React.FC = () => {
           {/* Fatura Sayfaları */}
           <Route path="invoices/wholesale" element={<WholesaleInvoices />} />
           <Route path="invoices/wholesale/new" element={<CreateWholesaleInvoice />} />
+          
+          {/* Yeni Fatura Sayfaları */}
+          <Route path="invoices" element={<InvoiceListPage />} />
+          <Route path="invoice/list" element={<InvoiceListPage />} />
+          <Route path="invoice/:id" element={<InvoiceDetailPage />} />
+          <Route path="invoice/edit/:id" element={<InvoiceEditPage />} />
         </Route>
         
         <Route path="*" element={<Navigate to="/" />} />
