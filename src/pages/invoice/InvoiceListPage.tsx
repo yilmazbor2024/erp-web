@@ -207,13 +207,19 @@ const InvoiceListPage: React.FC = () => {
     },
     {
       title: 'Fatura Tipi',
-      dataIndex: 'invoiceTypeCode',
-      key: 'invoiceTypeCode',
+      dataIndex: 'processCode',
+      key: 'processCode',
       render: (text: string) => (
         <Tag color={invoiceTypeColors[text as InvoiceType] || 'default'}>
           {invoiceTypeDescriptions[text as InvoiceType] || text}
         </Tag>
       )
+    },
+    {
+      title: 'Fatura Tipi Açıklaması',
+      dataIndex: 'invoiceTypeDescription',
+      key: 'invoiceTypeDescription',
+      render: (text: string) => text || '-'
     },
     {
       title: 'Tarih',
@@ -241,42 +247,6 @@ const InvoiceListPage: React.FC = () => {
         } else {
           return record.currAccCode || '-';
         }
-      }
-    },
-    {
-      title: 'Tutar',
-      dataIndex: 'totalAmount',
-      key: 'totalAmount',
-      render: (text: number, record: any) => {
-        // Tutar 0 ise veya yoksa "-" göster
-        if (!text || text === 0) return '-';
-        return (
-          <span>{record.docCurrencyCode} {text.toFixed(2)}</span>
-        );
-      }
-    },
-    {
-      title: 'KDV',
-      dataIndex: 'totalTax',
-      key: 'totalTax',
-      render: (text: number, record: any) => {
-        // KDV 0 ise veya yoksa "-" göster
-        if (!text || text === 0) return '-';
-        return (
-          <span>{record.docCurrencyCode} {text.toFixed(2)}</span>
-        );
-      }
-    },
-    {
-      title: 'Toplam',
-      dataIndex: 'netAmount',
-      key: 'netAmount',
-      render: (text: number, record: any) => {
-        // Toplam 0 ise veya yoksa "-" göster
-        if (!text || text === 0) return '-';
-        return (
-          <span>{record.docCurrencyCode} {text.toFixed(2)}</span>
-        );
       }
     },
     {
