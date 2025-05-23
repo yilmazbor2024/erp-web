@@ -37,6 +37,11 @@ interface InvoiceDetail {
   size?: string;
   color?: string;
   productDescription?: string; // Ürün açıklaması
+  totalAmount?: number; // Toplam tutar (miktar * birim fiyat)
+  discountAmount?: number; // İskonto tutarı
+  subtotalAmount?: number; // Alt toplam (iskonto sonrası)
+  vatAmount?: number; // KDV tutarı
+  netAmount?: number; // Net tutar (KDV dahil)
 }
 
 // API için gerekli istek tipleri
@@ -57,6 +62,11 @@ interface CreateInvoiceRequest {
   isEInvoice?: boolean;
   notes?: string;
   processCode?: string;
+  totalAmount?: number; // Toplam tutar
+  discountAmount?: number; // İskonto tutarı
+  subtotalAmount?: number; // Alt toplam
+  vatAmount?: number; // KDV tutarı
+  netAmount?: number; // Net tutar
   details: any[];
 }
 
@@ -87,6 +97,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       ? CurrAccType.VENDOR 
       : CurrAccType.CUSTOMER
   );
+  // KDV dahil/hariç seçeneği için state
+  const [isPriceIncludeVat, setIsPriceIncludeVat] = useState<boolean>(false);
 
   // Fatura tipinin adını döndüren yardımcı fonksiyon
   const getInvoiceTypeName = (invoiceType: InvoiceType) => {
@@ -117,6 +129,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Fatura detayları değiştiğinde toplamları güncelle
+  useEffect(() => {
+    if (invoiceDetails.length > 0) {
+      calculateInvoiceTotals();
+    }
+  }, [invoiceDetails]);
 
   // Veri yükleme fonksiyonu
   const loadData = async () => {
@@ -429,7 +448,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
   // Yeni fatura detayı ekle
   const addInvoiceDetail = () => {
-    setInvoiceDetails([
+    const newDetails = [
       ...invoiceDetails,
       {
         id: generateUniqueId(),
@@ -441,9 +460,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         discountRate: 0,
         productDescription: '',
         color: '',
-        size: ''
+        size: '',
+        totalAmount: 0,
+        discountAmount: 0,
+        subtotalAmount: 0,
+        vatAmount: 0,
+        netAmount: 0
       }
-    ]);
+    ];
+    
+    setInvoiceDetails(newDetails);
+    // useEffect hook'u ile toplamlar otomatik güncellenecek
   };
 
   // Fatura detayını sil
@@ -451,6 +478,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     const updatedDetails = [...invoiceDetails];
     updatedDetails.splice(index, 1);
     setInvoiceDetails(updatedDetails);
+    // useEffect hook'u ile toplamlar otomatik güncellenecek
   };
 
   // Fatura detayını güncelle
@@ -471,7 +499,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           productDescription: selectedProduct.productDescription || '',
           unitOfMeasureCode: selectedProduct.unitOfMeasureCode1 || 'ADET',
           color: selectedProduct.color || '',
-          size: selectedProduct.size || ''
+          size: selectedProduct.size || '',
+          unitPrice: selectedProduct.salesPrice1 || 0,
+          vatRate: selectedProduct.vatRate || 18
         };
       } else {
         // Sadece ürün kodunu güncelle
@@ -482,7 +512,78 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       updatedDetails[index] = { ...updatedDetails[index], [field]: value };
     }
     
+    // Hesaplamaları yap
+    const detail = updatedDetails[index];
+    const quantity = detail.quantity || 0;
+    let unitPrice = detail.unitPrice || 0;
+    const discountRate = detail.discountRate || 0;
+    const vatRate = detail.vatRate || 0;
+    
+    // KDV dahil fiyat girilmişse, KDV hariç fiyatı hesapla
+    if (isPriceIncludeVat && field === 'unitPrice') {
+      // KDV dahil fiyattan KDV hariç fiyatı hesapla
+      unitPrice = unitPrice / (1 + (vatRate / 100));
+      detail.unitPrice = unitPrice;
+    }
+    
+    // Toplam tutarı hesapla (miktar * birim fiyat)
+    const totalAmount = quantity * unitPrice;
+    detail.totalAmount = totalAmount;
+    
+    // İskonto tutarını hesapla
+    const discountAmount = totalAmount * (discountRate / 100);
+    detail.discountAmount = discountAmount;
+    
+    // Alt toplamı hesapla (toplam - iskonto)
+    const subtotalAmount = totalAmount - discountAmount;
+    detail.subtotalAmount = subtotalAmount;
+    
+    // KDV tutarını hesapla
+    const vatAmount = subtotalAmount * (vatRate / 100);
+    detail.vatAmount = vatAmount;
+    
+    // Net tutarı hesapla (alt toplam + KDV)
+    const netAmount = subtotalAmount + vatAmount;
+    detail.netAmount = netAmount;
+    
     setInvoiceDetails(updatedDetails);
+    // useEffect hook'u ile toplamlar otomatik güncellenecek
+  };
+
+  // Fatura toplamlarını hesapla
+  const calculateInvoiceTotals = () => {
+    let total = 0;
+    let discount = 0;
+    let subtotal = 0;
+    let vat = 0;
+    let net = 0;
+    
+    // Her bir fatura detayı için hesaplamaları yap
+    invoiceDetails.forEach(detail => {
+      const itemTotal = detail.totalAmount || 0;
+      const itemDiscount = detail.discountAmount || 0;
+      const itemSubtotal = detail.subtotalAmount || 0;
+      const itemVat = detail.vatAmount || 0;
+      const itemNet = detail.netAmount || 0;
+      
+      // Toplam değerlere ekle
+      total += itemTotal;
+      discount += itemDiscount;
+      subtotal += itemSubtotal;
+      vat += itemVat;
+      net += itemNet;
+    });
+    
+    // Form alanını güncelle
+    form.setFieldsValue({
+      totalAmount: total.toFixed(2),
+      discountAmount: discount.toFixed(2),
+      subtotalAmount: subtotal.toFixed(2),
+      vatAmount: vat.toFixed(2),
+      netAmount: net.toFixed(2)
+    });
+    
+    return { total, discount, subtotal, vat, net };
   };
 
   // Fatura oluştur
@@ -495,6 +596,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         setLoading(false);
         return;
       }
+      
+      // Fatura toplamlarını hesapla
+      const totals = calculateInvoiceTotals();
       
       // Fatura isteği oluştur
       const invoiceRequest: CreateInvoiceRequest = {
@@ -512,6 +616,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         isReturn: values.isReturn || false,
         isEInvoice: values.isEInvoice || false,
         notes: values.notes || '',
+        // Fatura toplamlarını ekle
+        totalAmount: parseFloat(values.totalAmount || '0'),
+        discountAmount: parseFloat(values.discountAmount || '0'),
+        subtotalAmount: parseFloat(values.subtotalAmount || '0'),
+        vatAmount: parseFloat(values.vatAmount || '0'),
+        netAmount: parseFloat(values.netAmount || '0'),
         details: invoiceDetails.map(detail => ({
           itemCode: detail.itemCode,
           quantity: detail.quantity,
@@ -519,7 +629,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           unitPrice: detail.unitPrice,
           vatRate: detail.vatRate,
           description: detail.description || '',
-          discountRate: detail.discountRate || 0
+          discountRate: detail.discountRate || 0,
+          // Satır toplamlarını ekle
+          totalAmount: detail.totalAmount,
+          discountAmount: detail.discountAmount,
+          subtotalAmount: detail.subtotalAmount,
+          vatAmount: detail.vatAmount,
+          netAmount: detail.netAmount
         }))
       };
       
@@ -572,7 +688,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   };
   
   return (
-    <Card title={getInvoiceTypeName(selectedInvoiceType)}>
+    <Card title={getInvoiceTypeName(selectedInvoiceType)} variant="outlined">
       <Form
         form={form}
         layout="vertical"
@@ -613,6 +729,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 showSearch
                 placeholder="Para birimi seçiniz"
                 optionFilterProp="children"
+                suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
                 filterOption={(input, option) => {
                   if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
                   
@@ -730,7 +847,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               label="Ofis"
               rules={[{ required: true, message: 'Lütfen ofis seçiniz' }]}
             >
-              <Select placeholder="Ofis seçiniz">
+              <Select placeholder="Ofis seçiniz" suffixIcon={undefined}>
                 {Array.isArray(offices) && offices.length > 0 ? offices.map(office => (
                   <Option key={office.officeCode || office.code || `office-${Math.random()}`} value={office.officeCode || office.code || ''}>
                     {office.officeName || office.officeDescription || office.name || office.description || office.officeCode || office.code || 'Bilinmeyen'}
@@ -745,7 +862,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               label="Depo"
               rules={[{ required: true, message: 'Lütfen depo seçiniz' }]}
             >
-              <Select placeholder="Depo seçiniz">
+              <Select placeholder="Depo seçiniz" suffixIcon={undefined}>
                 {Array.isArray(warehouses) && warehouses.length > 0 ? warehouses.map(warehouse => (
                   <Option key={warehouse.warehouseCode || warehouse.code || `warehouse-${Math.random()}`} value={warehouse.warehouseCode || warehouse.code || ''}>
                     {warehouse.warehouseName || warehouse.warehouseDescription || warehouse.name || warehouse.description || warehouse.warehouseCode || warehouse.code || 'Bilinmeyen'}
@@ -855,11 +972,31 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             key="unitOfMeasureCode"
             width={120}
             render={(value, record, index) => (
-              <Input 
-                value={value} 
-                disabled={true}
+              <Select
+                value={value}
                 style={{ width: '100%' }}
-              />
+                suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
+                onChange={(value) => {
+                  // Birim değiştiğinde, miktarı da kontrol et ve gerekirse düzelt
+                  const updatedDetails = [...invoiceDetails];
+                  const detail = updatedDetails[index];
+                  
+                  // Birim değerini güncelle
+                  detail.unitOfMeasureCode = value as string;
+                  
+                  // Eğer yeni birim ADET veya AD ise ve miktar küsurat içeriyorsa, tam sayıya yuvarla
+                  if ((value === 'ADET' || value === 'AD') && detail.quantity && !Number.isInteger(detail.quantity)) {
+                    detail.quantity = Math.round(detail.quantity);
+                  }
+                  
+                  // Detayları güncelle
+                  setInvoiceDetails(updatedDetails);
+                }}
+              >
+                {units.map(unit => (
+                  <Option key={unit.unitCode} value={unit.unitCode}>{unit.unitCode}</Option>
+                ))}
+              </Select>
             )}
           />
           <Table.Column 
@@ -867,21 +1004,32 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="quantity" 
             key="quantity"
             width={120}
-            render={(value, record, index) => (
-              <InputNumber 
-                value={value} 
-                min={0.01} 
-                step={0.01}
-                style={{ width: '100%' }}
-                onChange={(value) => updateInvoiceDetail(index, 'quantity', value)}
-              />
-            )}
+            render={(value, record, index) => {
+              // Birim türüne göre step ve precision değerlerini belirle
+              const isUnitAdet = record.unitOfMeasureCode === 'ADET' || record.unitOfMeasureCode === 'AD';
+              return (
+                <InputNumber 
+                  value={value} 
+                  min={isUnitAdet ? 1 : 0.01} 
+                  step={isUnitAdet ? 1 : 0.01}
+                  precision={isUnitAdet ? 0 : 2}
+                  style={{ width: '100%' }}
+                  onChange={(value) => {
+                    // Eğer birim ADET ise ve küsurat girilmişse, tam sayıya yuvarla
+                    if (isUnitAdet && value && !Number.isInteger(value)) {
+                      value = Math.round(value);
+                    }
+                    updateInvoiceDetail(index, 'quantity', value);
+                  }}
+                />
+              );
+            }}
           />
           <Table.Column 
-            title="Birim Fiyat" 
+            title={`Birim Fiyat ${isPriceIncludeVat ? '(KDV Dahil)' : '(KDV Hariç)'}`} 
             dataIndex="unitPrice" 
             key="unitPrice"
-            width={120}
+            width={150}
             render={(value, record, index) => (
               <InputNumber 
                 value={value} 
@@ -903,6 +1051,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               <Select
                 value={value}
                 style={{ width: '100%' }}
+                suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
                 onChange={(value) => updateInvoiceDetail(index, 'vatRate', value)}
               >
                 <Option value={0}>%0</Option>
@@ -930,20 +1079,59 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             )}
           />
           <Table.Column 
-            title="Tutar" 
-            key="amount"
+            title="Toplam Tutar" 
+            dataIndex="totalAmount"
+            key="totalAmount"
             width={120}
-            render={(text, record) => {
-              const quantity = record.quantity || 0;
-              const unitPrice = record.unitPrice || 0;
-              const discountRate = record.discountRate || 0;
-              const amount = quantity * unitPrice * (1 - discountRate / 100);
-              return (
-                <span>
-                  {amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                </span>
-              );
-            }}
+            render={(value, record) => (
+              <span>
+                {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              </span>
+            )}
+          />
+          <Table.Column 
+            title="İskonto Tutarı" 
+            dataIndex="discountAmount"
+            key="discountAmount"
+            width={120}
+            render={(value, record) => (
+              <span>
+                {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              </span>
+            )}
+          />
+          <Table.Column 
+            title="Alt Toplam" 
+            dataIndex="subtotalAmount"
+            key="subtotalAmount"
+            width={120}
+            render={(value, record) => (
+              <span>
+                {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              </span>
+            )}
+          />
+          <Table.Column 
+            title="KDV Tutarı" 
+            dataIndex="vatAmount"
+            key="vatAmount"
+            width={120}
+            render={(value, record) => (
+              <span>
+                {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              </span>
+            )}
+          />
+          <Table.Column 
+            title="Net Tutar" 
+            dataIndex="netAmount"
+            key="netAmount"
+            width={120}
+            render={(value, record) => (
+              <span>
+                {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              </span>
+            )}
           />
           <Table.Column 
             title="İşlemler" 
@@ -962,13 +1150,82 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
         <Divider />
 
+        {/* Fatura Dip Toplam Alanı */}
         <Row gutter={16}>
-          <Col span={24}>
+          <Col span={12}>
             <Form.Item
               name="notes"
               label="Notlar"
             >
               <Input.TextArea rows={4} placeholder="Fatura ile ilgili notlar" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Card title="Fatura Toplamları" variant="borderless">
+              <Row gutter={[16, 8]}>
+                <Col span={12}><strong>Toplam:</strong></Col>
+                <Col span={12}>
+                  <Form.Item name="totalAmount" noStyle>
+                    <Input readOnly addonAfter="TRY" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={[16, 8]}>
+                <Col span={12}><strong>İskonto:</strong></Col>
+                <Col span={12}>
+                  <Form.Item name="discountAmount" noStyle>
+                    <Input readOnly addonAfter="TRY" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={[16, 8]}>
+                <Col span={12}><strong>Alt Toplam:</strong></Col>
+                <Col span={12}>
+                  <Form.Item name="subtotalAmount" noStyle>
+                    <Input readOnly addonAfter="TRY" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={[16, 8]}>
+                <Col span={12}><strong>KDV:</strong></Col>
+                <Col span={12}>
+                  <Form.Item name="vatAmount" noStyle>
+                    <Input readOnly addonAfter="TRY" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={[16, 8]}>
+                <Col span={12}><strong>Net Tutar:</strong></Col>
+                <Col span={12}>
+                  <Form.Item name="netAmount" noStyle>
+                    <Input readOnly addonAfter="TRY" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Card>
+          </Col>
+        </Row>
+
+        <Divider />
+
+        <Row justify="space-between" style={{ marginBottom: '16px' }}>
+          <Col>
+            <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail}>
+              Detay Ekle
+            </Button>
+          </Col>
+          <Col>
+            <Form.Item
+              label="Birim Fiyat"
+              tooltip="Birim fiyatları KDV dahil olarak girmek için açın"
+              style={{ marginBottom: 0 }}
+            >
+              <Switch
+                checked={isPriceIncludeVat}
+                onChange={(checked) => setIsPriceIncludeVat(checked)}
+                checkedChildren="KDV Dahil"
+                unCheckedChildren="KDV Hariç"
+              />
             </Form.Item>
           </Col>
         </Row>
