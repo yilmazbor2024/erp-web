@@ -1,0 +1,988 @@
+import React, { useState, useEffect } from 'react';
+import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin } from 'antd';
+import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import invoiceApi from '../../services/invoiceApi';
+import { customerApi, warehouseApi, officeApi, vendorApi, currencyApi } from '../../services/entityApi';
+import productApi from '../../services/productApi';
+import { InvoiceType } from '../../types/invoice';
+
+const { Option } = Select;
+const { Title } = Typography;
+
+// Fatura tipi açıklamaları
+const invoiceTypeDescriptions = {
+  [InvoiceType.WHOLESALE_SALES]: 'Toptan Satış Faturası',
+  [InvoiceType.WHOLESALE_PURCHASE]: 'Toptan Alış Faturası',
+  [InvoiceType.EXPENSE_SALES]: 'Masraf Satış Faturası',
+  [InvoiceType.EXPENSE_PURCHASE]: 'Masraf Alış Faturası'
+};
+
+// Cari hesap tipi enum
+enum CurrAccType {
+  VENDOR = 1,
+  CUSTOMER = 3
+}
+
+// Invoice detail interface with ID for React key prop
+interface InvoiceDetail {
+  id: string;
+  itemCode: string;
+  quantity: number;
+  unitOfMeasureCode: string;
+  unitPrice: number;
+  vatRate: number;
+  description?: string;
+  discountRate?: number;
+  size?: string;
+  color?: string;
+  productDescription?: string; // Ürün açıklaması
+}
+
+// API için gerekli istek tipleri
+interface CreateInvoiceRequest {
+  invoiceNumber: string;
+  invoiceTypeCode: string;
+  invoiceDate: string;
+  invoiceTime?: string;
+  currAccCode: string;
+  currAccTypeCode: number;
+  docCurrencyCode: string;
+  companyCode: string;
+  officeCode: string;
+  warehouseCode: string;
+  customerCode?: string;
+  vendorCode?: string;
+  isReturn?: boolean;
+  isEInvoice?: boolean;
+  notes?: string;
+  processCode?: string;
+  details: any[];
+}
+
+interface InvoiceFormProps {
+  type?: InvoiceType;
+  onSuccess?: (data: any) => void;
+}
+
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ 
+  type = InvoiceType.WHOLESALE_SALES, 
+  onSuccess 
+}) => {
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [offices, setOffices] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [units, setUnits] = useState<any[]>([]);
+  const [currencies, setCurrencies] = useState<any[]>([]);
+  const [loadingCurrencies, setLoadingCurrencies] = useState(false);
+  const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetail[]>([]);
+  const [selectedInvoiceType, setSelectedInvoiceType] = useState<InvoiceType>(type);
+  const [currAccType, setCurrAccType] = useState<CurrAccType>(
+    type === InvoiceType.WHOLESALE_PURCHASE 
+      ? CurrAccType.VENDOR 
+      : CurrAccType.CUSTOMER
+  );
+
+  // Fatura tipinin adını döndüren yardımcı fonksiyon
+  const getInvoiceTypeName = (invoiceType: InvoiceType) => {
+    return invoiceTypeDescriptions[invoiceType] || 'Bilinmeyen Fatura Tipi';
+  };
+
+  // İlk yükleme için veri yükleme fonksiyonu
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      console.log('Form Bileşeni Yüklendi:', invoiceTypeDescriptions[type]);
+      
+      // Veri yükleme işlemi
+      await loadData();
+      
+      // Not: Fatura numarası artık backend tarafında fatura oluşturma sırasında otomatik oluşturulacak
+      // Form alanını geçici bir değerle doldur
+      form.setFieldsValue({ invoiceNumber: 'Otomatik oluşturulacak' });
+    } catch (error) {
+      console.error('Veri yükleme hatası:', error);
+      message.error('Veriler yüklenirken bir hata oluştu.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Form yüklenince verileri yükle
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  // Veri yükleme fonksiyonu
+  const loadData = async () => {
+    try {
+      console.log('Veri yükleme başlıyor...');
+      console.log('Cari hesap tipi:', currAccType === CurrAccType.CUSTOMER ? 'Müşteri' : 'Tedarikçi');
+      
+      // Paralel veri yükleme için Promise.all kullan
+      const loadPromises = [];
+      
+      // Müşterileri yükle
+      const loadCustomers = async () => {
+        try {
+          console.log('Müşteri listesi yükleniyor...');
+          // CurrAccTypeCode=3 olan müşterileri getir
+          const customerResponse = await customerApi.getCustomers({ currAccTypeCode: 3 });
+          
+          if (customerResponse && customerResponse.success) {
+            // API yanıt yapısını kontrol et
+            const customerData = customerResponse.data || [];
+            console.log(`${customerData ? customerData.length : 0} müşteri yüklendi.`);
+            
+            if (customerData && customerData.length > 0) {
+              // Müşteri verilerini standartlaştır
+              const formattedCustomers = customerData.map((customer: any) => {
+                // Müşteri kodu için öncelik sırası
+                const code = customer.customerCode || customer.currAccCode || customer.code || '';
+                // Müşteri adı için öncelik sırası
+                const name = customer.customerName || customer.currAccDescription || customer.name || customer.description || `Müşteri ${code}`;
+                
+                return {
+                  ...customer,
+                  code,
+                  name,
+                  currAccTypeCode: customer.currAccTypeCode || customer.customerTypeCode || 3
+                };
+              });
+              
+              setCustomers(formattedCustomers);
+              console.log('Formatı standartlaştırılmış müşteriler:', formattedCustomers);
+            } else {
+              setCustomers([]);
+              console.warn('Müşteri verisi boş geldi');
+            }
+          } else {
+            setCustomers([]);
+            console.warn('Müşteri API yanıtı başarısız:', customerResponse);
+          }
+        } catch (error) {
+          console.error('Müşteri yükleme hatası:', error);
+          setCustomers([]);
+        }
+      };
+      
+      // Tedarikçileri yükle
+      const loadVendors = async () => {
+        try {
+          console.log('Tedarikçi listesi yükleniyor...');
+          const vendorResponse = await vendorApi.getVendors();
+          
+          if (vendorResponse && vendorResponse.success) {
+            // API yanıt yapısını kontrol et
+            const vendorData = vendorResponse.data || [];
+            console.log(`${vendorData ? vendorData.length : 0} tedarikçi yüklendi.`);
+            
+            if (vendorData && vendorData.length > 0) {
+              setVendors([...vendorData]);
+            } else {
+              setVendors([]);
+            }
+          } else {
+            setVendors([]);
+          }
+        } catch (error) {
+          console.error('Tedarikçi yükleme hatası:', error);
+          setVendors([]);
+        }
+      };
+      
+      // Ofisleri yükle
+      const loadOffices = async () => {
+        try {
+          console.log('Ofis listesi yükleniyor...');
+          const officeResponse = await officeApi.getOffices();
+          
+          if (officeResponse && officeResponse.success) {
+            // API yanıt yapısını kontrol et
+            const officeData = officeResponse.data || [];
+            console.log(`${officeData.length} ofis yüklendi.`);
+            
+            if (officeData && officeData.length > 0) {
+              setOffices([...officeData]);
+              // Varsayılan ofis kodu form'a ekle
+              if (officeData.length > 0 && !form.getFieldValue('officeCode')) {
+                form.setFieldsValue({ officeCode: officeData[0].code });
+              }
+            } else {
+              setOffices([]);
+            }
+          } else {
+            setOffices([]);
+          }
+        } catch (error) {
+          console.error('Ofis yükleme hatası:', error);
+          setOffices([]);
+        }
+      };
+      
+      // Depoları yükle
+      const loadWarehouses = async () => {
+        try {
+          console.log('Depo listesi yükleniyor...');
+          const warehouseResponse = await warehouseApi.getWarehouses();
+          
+          if (warehouseResponse && warehouseResponse.success) {
+            // API yanıt yapısını kontrol et
+            const warehouseData = warehouseResponse.data || [];
+            console.log(`${warehouseData.length} depo yüklendi.`);
+            
+            if (warehouseData && warehouseData.length > 0) {
+              setWarehouses([...warehouseData]);
+              // Varsayılan depo kodu form'a ekle
+              if (warehouseData.length > 0 && !form.getFieldValue('warehouseCode')) {
+                form.setFieldsValue({ warehouseCode: warehouseData[0].code });
+              }
+            } else {
+              setWarehouses([]);
+            }
+          } else {
+            setWarehouses([]);
+          }
+        } catch (error) {
+          console.error('Depo yükleme hatası:', error);
+          setWarehouses([]);
+        }
+      };
+      
+      // Ürünleri yükle
+      const loadProducts = async () => {
+        try {
+          console.log('Ürün listesi yükleniyor...');
+          setLoadingProducts(true);
+          
+          // Ürün listesi parametreleri
+          const productResponse = await productApi.getProducts();
+          
+          if (productResponse && Array.isArray(productResponse.items)) {
+            const productData = productResponse.items || [];
+            console.log(`${productData.length} ürün yüklendi.`);
+            
+            // Ürün verilerini düzenle
+            const formattedProducts = productData.map(product => ({
+              ...product,
+              label: `${product.productCode} - ${product.productDescription || 'İsimsiz Ürün'}`,
+              value: product.productCode
+            }));
+            
+            setProducts(formattedProducts);
+          } else {
+            setProducts([]);
+          }
+        } catch (error) {
+          console.error('Ürün yükleme hatası:', error);
+          setProducts([]);
+        } finally {
+          setLoadingProducts(false);
+        }
+      };
+      
+      // Ölçü birimlerini yükle
+      const loadUnits = async () => {
+        try {
+          const unitsResponse = await productApi.getDefaultUnitOfMeasures();
+          if (unitsResponse && Array.isArray(unitsResponse)) {
+            setUnits(unitsResponse);
+          } else {
+            // Varsayılan ölçü birimleri
+            setUnits([
+              { unitOfMeasureCode: 'ADET', unitOfMeasureDescription: 'Adet' },
+              { unitOfMeasureCode: 'KG', unitOfMeasureDescription: 'Kilogram' },
+              { unitOfMeasureCode: 'LT', unitOfMeasureDescription: 'Litre' },
+              { unitOfMeasureCode: 'MT', unitOfMeasureDescription: 'Metre' },
+              { unitOfMeasureCode: 'M2', unitOfMeasureDescription: 'Metrekare' },
+              { unitOfMeasureCode: 'PKT', unitOfMeasureDescription: 'Paket' }
+            ]);
+          }
+        } catch (error) {
+          console.error('Ölçü birimleri yükleme hatası:', error);
+          // Varsayılan ölçü birimleri
+          setUnits([
+            { unitOfMeasureCode: 'ADET', unitOfMeasureDescription: 'Adet' },
+            { unitOfMeasureCode: 'KG', unitOfMeasureDescription: 'Kilogram' },
+            { unitOfMeasureCode: 'LT', unitOfMeasureDescription: 'Litre' },
+            { unitOfMeasureCode: 'MT', unitOfMeasureDescription: 'Metre' },
+            { unitOfMeasureCode: 'M2', unitOfMeasureDescription: 'Metrekare' },
+            { unitOfMeasureCode: 'PKT', unitOfMeasureDescription: 'Paket' }
+          ]);
+        }
+      };
+      
+      // Para birimlerini yükle - Sadece bir kez yüklemek için referans tutuyoruz
+      const loadCurrencies = async () => {
+        // Eğer zaten para birimleri yüklendiyse tekrar yükleme
+        if (currencies.length > 0) {
+          console.log('Para birimleri zaten yüklenmiş, tekrar yüklenmiyor');
+          return;
+        }
+        
+        try {
+          setLoadingCurrencies(true);
+          console.log('Para birimleri yükleniyor...');
+          const currencyResponse = await currencyApi.getCurrencies();
+          
+          if (currencyResponse && currencyResponse.success) {
+            const currencyData = currencyResponse.data || [];
+            console.log(`${currencyData.length} para birimi yüklendi`);
+            
+            if (currencyData && currencyData.length > 0) {
+              // Para birimi verilerini standartlaştır
+              const formattedCurrencies = currencyData.map((currency: any) => ({
+                ...currency,
+                currencyCode: currency.currencyCode || currency.code,
+                currencyDescription: currency.currencyDescription || currency.description || currency.name,
+                code: currency.currencyCode || currency.code,
+                name: currency.currencyDescription || currency.description || currency.name,
+                description: currency.currencyDescription || currency.description || currency.name
+              }));
+              
+              setCurrencies(formattedCurrencies);
+            } else {
+              // Varsayılan para birimleri
+              const defaultCurrencies = [
+                { currencyCode: 'TRY', currencyDescription: 'Türk Lirası', code: 'TRY', name: 'Türk Lirası', description: 'Türk Lirası' },
+                { currencyCode: 'USD', currencyDescription: 'Amerikan Doları', code: 'USD', name: 'Amerikan Doları', description: 'Amerikan Doları' },
+                { currencyCode: 'EUR', currencyDescription: 'Euro', code: 'EUR', name: 'Euro', description: 'Euro' },
+                { currencyCode: 'GBP', currencyDescription: 'İngiliz Sterlini', code: 'GBP', name: 'İngiliz Sterlini', description: 'İngiliz Sterlini' }
+              ];
+              setCurrencies(defaultCurrencies);
+              console.log('Varsayılan para birimleri kullanılıyor');
+            }
+          } else {
+            // Varsayılan para birimleri
+            const defaultCurrencies = [
+              { currencyCode: 'TRY', currencyDescription: 'Türk Lirası', code: 'TRY', name: 'Türk Lirası', description: 'Türk Lirası' },
+              { currencyCode: 'USD', currencyDescription: 'Amerikan Doları', code: 'USD', name: 'Amerikan Doları', description: 'Amerikan Doları' },
+              { currencyCode: 'EUR', currencyDescription: 'Euro', code: 'EUR', name: 'Euro', description: 'Euro' },
+              { currencyCode: 'GBP', currencyDescription: 'İngiliz Sterlini', code: 'GBP', name: 'İngiliz Sterlini', description: 'İngiliz Sterlini' }
+            ];
+            setCurrencies(defaultCurrencies);
+            console.log('API yanıtı başarısız, varsayılan para birimleri kullanılıyor');
+          }
+        } catch (error) {
+          console.error('Para birimi yükleme hatası:', error);
+          // Varsayılan para birimleri
+          const defaultCurrencies = [
+            { currencyCode: 'TRY', currencyDescription: 'Türk Lirası', code: 'TRY', name: 'Türk Lirası', description: 'Türk Lirası' },
+            { currencyCode: 'USD', currencyDescription: 'Amerikan Doları', code: 'USD', name: 'Amerikan Doları', description: 'Amerikan Doları' },
+            { currencyCode: 'EUR', currencyDescription: 'Euro', code: 'EUR', name: 'Euro', description: 'Euro' },
+            { currencyCode: 'GBP', currencyDescription: 'İngiliz Sterlini', code: 'GBP', name: 'İngiliz Sterlini', description: 'İngiliz Sterlini' }
+          ];
+          setCurrencies(defaultCurrencies);
+          console.log('Hata nedeniyle varsayılan para birimleri kullanılıyor');
+        } finally {
+          setLoadingCurrencies(false);
+        }
+      };
+      
+      // Tüm veri yükleme işlemlerini paralel olarak başlat
+      await Promise.all([
+        loadCustomers(),
+        loadVendors(),
+        loadOffices(),
+        loadWarehouses(),
+        loadProducts(),
+        loadUnits(),
+        loadCurrencies()
+      ]);
+      
+      console.log('Tüm veriler başarıyla yüklendi.');
+    } catch (error) {
+      console.error('Veri yükleme sırasında hata oluştu:', error);
+    }
+  };
+
+  // Not: Fatura numarası artık backend tarafında fatura oluşturma sırasında otomatik oluşturulacak
+  // Bu nedenle frontend'de fatura numarası oluşturma fonksiyonu kaldırıldı
+
+  // Fatura tipi değiştiğinde çalışacak fonksiyon
+  const handleInvoiceTypeChange = (type: InvoiceType) => {
+    setSelectedInvoiceType(type);
+    
+    // Fatura tipine göre müşteri/tedarikçi seçimini ayarla
+    if (type === InvoiceType.WHOLESALE_PURCHASE || type === InvoiceType.EXPENSE_PURCHASE) {
+      setCurrAccType(CurrAccType.VENDOR);
+    } else {
+      setCurrAccType(CurrAccType.CUSTOMER);
+    }
+    
+    // Detayları sıfırla
+    setInvoiceDetails([]);
+    
+    // Not: Fatura numarası artık backend tarafında oluşturulacak
+    form.setFieldsValue({ invoiceNumber: 'Otomatik oluşturulacak' });
+  };
+
+  // Benzersiz ID oluştur
+  const generateUniqueId = () => {
+    return `detail-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  };
+
+  // Yeni fatura detayı ekle
+  const addInvoiceDetail = () => {
+    setInvoiceDetails([
+      ...invoiceDetails,
+      {
+        id: generateUniqueId(),
+        itemCode: '',
+        quantity: 1,
+        unitOfMeasureCode: 'ADET',
+        unitPrice: 0,
+        vatRate: 18,
+        discountRate: 0,
+        productDescription: '',
+        color: '',
+        size: ''
+      }
+    ]);
+  };
+
+  // Fatura detayını sil
+  const removeInvoiceDetail = (index: number) => {
+    const updatedDetails = [...invoiceDetails];
+    updatedDetails.splice(index, 1);
+    setInvoiceDetails(updatedDetails);
+  };
+
+  // Fatura detayını güncelle
+  const updateInvoiceDetail = (index: number, field: keyof InvoiceDetail, value: any) => {
+    const updatedDetails = [...invoiceDetails];
+    
+    // Eğer ürün kodu değiştiyse, ilgili ürünün diğer bilgilerini de otomatik olarak doldur
+    if (field === 'itemCode' && value) {
+      const selectedProduct = products.find(p => p.productCode === value);
+      
+      if (selectedProduct) {
+        console.log('Seçilen ürün:', selectedProduct);
+        
+        // Ürün bilgilerini otomatik doldur
+        updatedDetails[index] = { 
+          ...updatedDetails[index], 
+          itemCode: value,
+          productDescription: selectedProduct.productDescription || '',
+          unitOfMeasureCode: selectedProduct.unitOfMeasureCode1 || 'ADET',
+          color: selectedProduct.color || '',
+          size: selectedProduct.size || ''
+        };
+      } else {
+        // Sadece ürün kodunu güncelle
+        updatedDetails[index] = { ...updatedDetails[index], [field]: value };
+      }
+    } else {
+      // Diğer alanlar için normal güncelleme yap
+      updatedDetails[index] = { ...updatedDetails[index], [field]: value };
+    }
+    
+    setInvoiceDetails(updatedDetails);
+  };
+
+  // Fatura oluştur
+  const handleSubmit = async (values: any) => {
+    setLoading(true);
+    try {
+      // Fatura detaylarını kontrol et
+      if (invoiceDetails.length === 0) {
+        message.error('En az bir fatura detayı eklemelisiniz.');
+        setLoading(false);
+        return;
+      }
+      
+      // Fatura isteği oluştur
+      const invoiceRequest: CreateInvoiceRequest = {
+        // Fatura numarası backend tarafında otomatik oluşturulacak
+        invoiceNumber: '',
+        invoiceTypeCode: selectedInvoiceType,
+        invoiceDate: values.invoiceDate.format('YYYY-MM-DD'),
+        invoiceTime: values.invoiceDate.format('HH:mm:ss'),
+        currAccTypeCode: currAccType,
+        currAccCode: values.currAccCode,
+        docCurrencyCode: values.docCurrencyCode || 'TRY',
+        companyCode: 'COMPANY', // Şirket kodu
+        officeCode: values.officeCode,
+        warehouseCode: values.warehouseCode,
+        isReturn: values.isReturn || false,
+        isEInvoice: values.isEInvoice || false,
+        notes: values.notes || '',
+        details: invoiceDetails.map(detail => ({
+          itemCode: detail.itemCode,
+          quantity: detail.quantity,
+          unitOfMeasureCode: detail.unitOfMeasureCode,
+          unitPrice: detail.unitPrice,
+          vatRate: detail.vatRate,
+          description: detail.description || '',
+          discountRate: detail.discountRate || 0
+        }))
+      };
+      
+      // Cari hesap tipine göre müşteri veya tedarikçi kodunu ata
+      if (currAccType === CurrAccType.CUSTOMER) {
+        invoiceRequest.customerCode = values.currAccCode;
+      } else {
+        invoiceRequest.vendorCode = values.currAccCode;
+      }
+      
+      // Masraf faturası ise işlem kodunu (processCode) ayarla
+      if (selectedInvoiceType === InvoiceType.EXPENSE_SALES || selectedInvoiceType === InvoiceType.EXPENSE_PURCHASE) {
+        // Masraf faturası işlem kodunu kullan
+        invoiceRequest.processCode = 'EXP';
+      }
+      
+      console.log('Fatura isteği:', invoiceRequest);
+      
+      // Fatura oluşturma işlemi
+      let response;
+      try {
+        if (selectedInvoiceType === InvoiceType.WHOLESALE_SALES) {
+          response = await invoiceApi.createWholesaleInvoice(invoiceRequest);
+        } else if (selectedInvoiceType === InvoiceType.WHOLESALE_PURCHASE) {
+          response = await invoiceApi.createWholesalePurchaseInvoice(invoiceRequest);
+        } else if (selectedInvoiceType === InvoiceType.EXPENSE_SALES || selectedInvoiceType === InvoiceType.EXPENSE_PURCHASE) {
+          response = await invoiceApi.createExpenseInvoice(invoiceRequest);
+        }
+        
+        if (response && response.success) {
+          message.success('Fatura başarıyla oluşturuldu.');
+          form.resetFields();
+          setInvoiceDetails([]);
+          if (onSuccess) {
+            onSuccess(response.data);
+          }
+        } else {
+          message.error('Fatura oluşturulurken bir hata oluştu: ' + (response?.message || 'Bilinmeyen hata'));
+        }
+      } catch (apiError) {
+        console.error('API hatası:', apiError);
+        message.error('Fatura oluşturulurken bir hata oluştu: ' + (apiError instanceof Error ? apiError.message : 'Bilinmeyen hata'));
+      }
+    } catch (error) {
+      console.error('Fatura oluşturma hatası:', error);
+      message.error('Fatura oluşturulurken bir hata oluştu: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'));
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <Card title={getInvoiceTypeName(selectedInvoiceType)}>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={handleSubmit}
+        initialValues={{
+          invoiceDate: dayjs(),
+          isReturn: false,
+          isEInvoice: false,
+          docCurrencyCode: 'TRY'
+        }}
+      >
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.Item
+              name="invoiceNumber"
+              label="Fatura Numarası"
+              tooltip="Fatura numarası backend tarafında otomatik oluşturulacak"
+            >
+              <Input placeholder="Otomatik oluşturulacak" disabled style={{ backgroundColor: '#f5f5f5' }} />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item
+              name="invoiceDate"
+              label="Fatura Tarihi"
+              rules={[{ required: true, message: 'Lütfen fatura tarihini seçiniz' }]}
+            >
+              <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item
+              name="docCurrencyCode"
+              label="Para Birimi"
+              rules={[{ required: true, message: 'Lütfen para birimi seçiniz' }]}
+            >
+              <Select 
+                showSearch
+                placeholder="Para birimi seçiniz"
+                optionFilterProp="children"
+                filterOption={(input, option) => {
+                  if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
+                  
+                  // Option içeriğini string'e çevir
+                  let childText = '';
+                  if (typeof option.children === 'string') {
+                    childText = option.children;
+                  } else if (React.isValidElement(option.children)) {
+                    try {
+                      childText = JSON.stringify(option.children);
+                    } catch (e) {
+                      childText = '';
+                    }
+                  } else {
+                    try {
+                      childText = option.children.toString();
+                    } catch (e) {
+                      childText = '';
+                    }
+                  }
+                  
+                  // Arama metni için hem kod hem de açıklama kontrol edilir
+                  const searchText = String(option.label || childText);
+                  return searchText.toLowerCase().includes(input.toLowerCase());
+                }}
+                showArrow={true}
+                style={{ width: '100%' }}
+              >
+                {Array.isArray(currencies) && currencies.length > 0 ? currencies.map(currency => {
+                  // Her para birimi için arama yapılabilecek bir metin oluştur
+                  const code = currency.currencyCode || currency.code || '';
+                  const description = currency.currencyDescription || currency.description || currency.name || 'Bilinmeyen';
+                  
+                  return (
+                    <Option 
+                      key={code || `currency-${Math.random()}`} 
+                      value={code}
+                      label={`${code} ${description}`} // Arama için ek bir etiket
+                    >
+                      <span>
+                        <b>{code}</b> - {description}
+                      </span>
+                    </Option>
+                  );
+                }) : <Option key="no-currency" value="">Para birimi bulunamadı</Option>}
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
+          <Col span={8}>
+            <Form.Item
+              name="currAccCode"
+              label={currAccType === CurrAccType.CUSTOMER ? 'Müşteri' : 'Tedarikçi'}
+              rules={[{ required: true, message: `Lütfen ${currAccType === CurrAccType.CUSTOMER ? 'müşteri' : 'tedarikçi'} seçiniz` }]}
+            >
+              <Select 
+                showSearch
+                placeholder={`${currAccType === CurrAccType.CUSTOMER ? 'Müşteri' : 'Tedarikçi'} seçiniz`}
+                optionFilterProp="children"
+                filterOption={(input, option) => {
+                  if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
+                  
+                  // Option içeriğini string'e çevir
+                  let childText = '';
+                  if (typeof option.children === 'string') {
+                    childText = option.children;
+                  } else if (React.isValidElement(option.children)) {
+                    try {
+                      childText = JSON.stringify(option.children);
+                    } catch (e) {
+                      childText = '';
+                    }
+                  } else {
+                    try {
+                      childText = option.children.toString();
+                    } catch (e) {
+                      childText = '';
+                    }
+                  }
+                  
+                  // Arama metni için hem kod hem de açıklama kontrol edilir
+                  const searchText = String(option.label || childText);
+                  return searchText.toLowerCase().includes(input.toLowerCase());
+                }}
+                showArrow={true}
+                style={{ width: '100%' }}
+              >
+                {Array.isArray(currAccType === CurrAccType.CUSTOMER ? customers : vendors) && 
+                  (currAccType === CurrAccType.CUSTOMER ? customers : vendors).length > 0 ? 
+                  (currAccType === CurrAccType.CUSTOMER ? customers : vendors).map(item => {
+                    const code = item.customerCode || item.currAccCode || item.code || '';
+                    const name = item.customerName || item.currAccDescription || item.name || item.description || `Müşteri ${code}`;
+                    const displayText = `${code} - ${name}`;
+                    
+                    return (
+                      <Option 
+                        key={code || `acc-${Math.random()}`} 
+                        value={code}
+                        label={displayText} // Arama için ek bir etiket
+                      >
+                        <span>
+                          <b>{code}</b> - {name}
+                        </span>
+                      </Option>
+                    );
+                  }) : <Option key="no-data" value="">Veri bulunamadı</Option>}
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item
+              name="officeCode"
+              label="Ofis"
+              rules={[{ required: true, message: 'Lütfen ofis seçiniz' }]}
+            >
+              <Select placeholder="Ofis seçiniz">
+                {Array.isArray(offices) && offices.length > 0 ? offices.map(office => (
+                  <Option key={office.officeCode || office.code || `office-${Math.random()}`} value={office.officeCode || office.code || ''}>
+                    {office.officeName || office.officeDescription || office.name || office.description || office.officeCode || office.code || 'Bilinmeyen'}
+                  </Option>
+                )) : <Option key="no-office" value="">Ofis bulunamadı</Option>}
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item
+              name="warehouseCode"
+              label="Depo"
+              rules={[{ required: true, message: 'Lütfen depo seçiniz' }]}
+            >
+              <Select placeholder="Depo seçiniz">
+                {Array.isArray(warehouses) && warehouses.length > 0 ? warehouses.map(warehouse => (
+                  <Option key={warehouse.warehouseCode || warehouse.code || `warehouse-${Math.random()}`} value={warehouse.warehouseCode || warehouse.code || ''}>
+                    {warehouse.warehouseName || warehouse.warehouseDescription || warehouse.name || warehouse.description || warehouse.warehouseCode || warehouse.code || 'Bilinmeyen'}
+                  </Option>
+                )) : <Option key="no-warehouse" value="">Depo bulunamadı</Option>}
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Divider orientation="left">Fatura Detayları</Divider>
+        
+        <div style={{ marginBottom: 16 }}>
+          <Button type="dashed" onClick={addInvoiceDetail} block icon={<PlusOutlined />}>
+            Yeni Detay Ekle
+          </Button>
+        </div>
+        
+        <Table
+          dataSource={invoiceDetails}
+          rowKey="id"
+          pagination={false}
+          size="small"
+          bordered
+        >
+          <Table.Column 
+            title="Ürün Kodu" 
+            dataIndex="itemCode" 
+            key="itemCode"
+            width={200}
+            render={(value, record, index) => (
+              <Select
+                showSearch
+                value={value}
+                style={{ width: '100%' }}
+                placeholder="Ürün seçin"
+                loading={loadingProducts}
+                optionFilterProp="children"
+                filterOption={(input, option) => {
+                  if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
+                  
+                  // Option içeriğini string'e çevir
+                  let childText = '';
+                  if (typeof option.children === 'string') {
+                    childText = option.children;
+                  } else if (React.isValidElement(option.children)) {
+                    try {
+                      childText = JSON.stringify(option.children);
+                    } catch (e) {
+                      childText = '';
+                    }
+                  } else {
+                    try {
+                      childText = option.children.toString();
+                    } catch (e) {
+                      childText = '';
+                    }
+                  }
+                  
+                  return childText.toLowerCase().includes(input.toLowerCase());
+                }}
+                onChange={(value) => updateInvoiceDetail(index, 'itemCode', value)}
+              >
+                {Array.isArray(products) && products.length > 0 ? (
+                  products.map(product => (
+                    <Option key={product.productCode} value={product.productCode}>
+                      {product.productCode}
+                    </Option>
+                  ))
+                ) : (
+                  <Option value="" disabled>
+                    Ürün bulunamadı
+                  </Option>
+                )}
+              </Select>
+            )}
+          />
+          <Table.Column 
+            title="Ürün Açıklaması" 
+            dataIndex="productDescription" 
+            key="productDescription"
+            width={250}
+            render={(value, record, index) => (
+              <Input 
+                value={value} 
+                disabled={true}
+                style={{ width: '100%' }}
+              />
+            )}
+          />
+          <Table.Column 
+            title="Renk" 
+            dataIndex="color" 
+            key="color"
+            width={120}
+            render={(value, record, index) => (
+              <Input 
+                value={value} 
+                disabled={true}
+                style={{ width: '100%' }}
+              />
+            )}
+          />
+          <Table.Column 
+            title="Birim" 
+            dataIndex="unitOfMeasureCode" 
+            key="unitOfMeasureCode"
+            width={120}
+            render={(value, record, index) => (
+              <Input 
+                value={value} 
+                disabled={true}
+                style={{ width: '100%' }}
+              />
+            )}
+          />
+          <Table.Column 
+            title="Miktar" 
+            dataIndex="quantity" 
+            key="quantity"
+            width={120}
+            render={(value, record, index) => (
+              <InputNumber 
+                value={value} 
+                min={0.01} 
+                step={0.01}
+                style={{ width: '100%' }}
+                onChange={(value) => updateInvoiceDetail(index, 'quantity', value)}
+              />
+            )}
+          />
+          <Table.Column 
+            title="Birim Fiyat" 
+            dataIndex="unitPrice" 
+            key="unitPrice"
+            width={120}
+            render={(value, record, index) => (
+              <InputNumber 
+                value={value} 
+                min={0} 
+                step={0.01}
+                style={{ width: '100%' }}
+                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
+                onChange={(value) => updateInvoiceDetail(index, 'unitPrice', value)}
+              />
+            )}
+          />
+          <Table.Column 
+            title="KDV (%)" 
+            dataIndex="vatRate" 
+            key="vatRate"
+            width={100}
+            render={(value, record, index) => (
+              <Select
+                value={value}
+                style={{ width: '100%' }}
+                onChange={(value) => updateInvoiceDetail(index, 'vatRate', value)}
+              >
+                <Option value={0}>%0</Option>
+                <Option value={1}>%1</Option>
+                <Option value={8}>%8</Option>
+                <Option value={10}>%10</Option>
+                <Option value={18}>%18</Option>
+                <Option value={20}>%20</Option>
+              </Select>
+            )}
+          />
+          <Table.Column 
+            title="İskonto (%)" 
+            dataIndex="discountRate" 
+            key="discountRate"
+            width={100}
+            render={(value, record, index) => (
+              <InputNumber 
+                value={value} 
+                min={0} 
+                max={100}
+                style={{ width: '100%' }}
+                onChange={(value) => updateInvoiceDetail(index, 'discountRate', value)}
+              />
+            )}
+          />
+          <Table.Column 
+            title="Tutar" 
+            key="amount"
+            width={120}
+            render={(text, record) => {
+              const quantity = record.quantity || 0;
+              const unitPrice = record.unitPrice || 0;
+              const discountRate = record.discountRate || 0;
+              const amount = quantity * unitPrice * (1 - discountRate / 100);
+              return (
+                <span>
+                  {amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                </span>
+              );
+            }}
+          />
+          <Table.Column 
+            title="İşlemler" 
+            key="actions"
+            width={80}
+            render={(text, record, index) => (
+              <Button 
+                type="text" 
+                danger 
+                icon={<DeleteOutlined />} 
+                onClick={() => removeInvoiceDetail(index)}
+              />
+            )}
+          />
+        </Table>
+
+        <Divider />
+
+        <Row gutter={16}>
+          <Col span={24}>
+            <Form.Item
+              name="notes"
+              label="Notlar"
+            >
+              <Input.TextArea rows={4} placeholder="Fatura ile ilgili notlar" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row justify="end">
+          <Col>
+            <Button type="primary" htmlType="submit" loading={loading}>
+              Fatura Oluştur
+            </Button>
+          </Col>
+        </Row>
+      </Form>
+    </Card>
+  );
+};
+
+export default InvoiceForm;
