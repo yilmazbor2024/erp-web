@@ -215,21 +215,51 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     }
 
     // Her bir taranan ürünü faturaya ekle
-    const newDetails: InvoiceDetail[] = scannedItems.map(item => ({
-      id: generateUniqueId(),
-      itemCode: item.variant.productCode,
-      quantity: item.quantity,
-      unitOfMeasureCode: item.variant.unitOfMeasureCode1,
-      unitPrice: item.variant.salesPrice1,
-      vatRate: item.variant.vatRate || 18, // Varsayılan KDV oranı
-      description: item.variant.productDescription,
-      productDescription: item.variant.productDescription,
-      discountRate: 0,
-      // Renk ve beden bilgilerini ekle
-      colorCode: item.variant.colorCode,
-      colorDescription: item.variant.colorDescription,
-      itemDim1Code: item.variant.itemDim1Code
-    }));
+    const newDetails: InvoiceDetail[] = scannedItems.map(item => {
+      // Birim fiyat ve KDV oranı al
+      const unitPrice = item.variant.salesPrice1;
+      const vatRate = item.variant.vatRate || 18;
+      
+      // Yeni detay oluştur
+      const detail: InvoiceDetail = {
+        id: generateUniqueId(),
+        itemCode: item.variant.productCode,
+        quantity: item.quantity,
+        unitOfMeasureCode: item.variant.unitOfMeasureCode1,
+        unitPrice: unitPrice,
+        vatRate: vatRate,
+        description: item.variant.productDescription,
+        productDescription: item.variant.productDescription,
+        discountRate: 0,
+        // Renk ve beden bilgilerini ekle
+        colorCode: item.variant.colorCode,
+        colorDescription: item.variant.colorDescription,
+        itemDim1Code: item.variant.itemDim1Code
+      };
+      
+      // Satır toplamlarını hesapla
+      const totalAmount = detail.quantity * detail.unitPrice;
+      detail.totalAmount = totalAmount;
+      
+      // İskonto tutarını hesapla
+      const discountRate = detail.discountRate || 0;
+      const discountAmount = totalAmount * (discountRate / 100);
+      detail.discountAmount = discountAmount;
+      
+      // Alt toplamı hesapla (toplam - iskonto)
+      const subtotalAmount = totalAmount - discountAmount;
+      detail.subtotalAmount = subtotalAmount;
+      
+      // KDV tutarını hesapla
+      const vatAmount = subtotalAmount * (detail.vatRate / 100);
+      detail.vatAmount = vatAmount;
+      
+      // Net tutarı hesapla (alt toplam + KDV)
+      const netAmount = subtotalAmount + vatAmount;
+      detail.netAmount = netAmount;
+      
+      return detail;
+    });
 
     // Fatura detaylarını güncelle
     const updatedDetails = [...invoiceDetails, ...newDetails];
@@ -836,6 +866,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         inputRef={barcodeInputRef}
         scannedItems={scannedItems}
         addAllToInvoice={addAllScannedItemsToInvoice}
+        isPriceIncludeVat={isPriceIncludeVat}
       />
       <Form
         form={form}
@@ -1426,7 +1457,8 @@ const BarcodeModal = ({
   onSelectVariant,
   inputRef,
   scannedItems,
-  addAllToInvoice
+  addAllToInvoice,
+  isPriceIncludeVat
 }: {
   visible: boolean;
   onClose: () => void;
@@ -1439,7 +1471,31 @@ const BarcodeModal = ({
   inputRef: React.RefObject<any>;
   scannedItems: { variant: ProductVariant; quantity: number }[];
   addAllToInvoice: () => void;
+  isPriceIncludeVat: boolean;
 }) => {
+  const [bulkPrice, setBulkPrice] = useState<number | null>(null);
+  const [bulkVatRate, setBulkVatRate] = useState<number>(18); // Varsayılan KDV oranı
+  // Toplu fiyat güncelleme fonksiyonu
+  const updateAllPrices = () => {
+    if (bulkPrice === null) {
+      message.error('Lütfen geçerli bir fiyat girin');
+      return;
+    }
+
+    // Tüm ürünlerin fiyatını güncelle
+    scannedItems.forEach(item => {
+      // KDV dahil fiyat girilmişse, KDV hariç fiyata çevir
+      let newPrice = bulkPrice;
+      if (isPriceIncludeVat) {
+        newPrice = bulkPrice / (1 + (bulkVatRate / 100));
+      }
+      item.variant.salesPrice1 = newPrice;
+      item.variant.vatRate = bulkVatRate;
+    });
+
+    message.success('Tüm ürünlerin fiyatları güncellendi');
+  };
+
   return (
     <Modal
       title="Barkod Tarama"
@@ -1473,6 +1529,57 @@ const BarcodeModal = ({
           </Button>
         </Col>
       </Row>
+
+      {/* Toplu fiyat güncelleme alanı */}
+      {scannedItems.length > 0 && (
+        <Card title="Toplu Fiyat Güncelleme" size="small" style={{ marginBottom: 16 }}>
+          <Row gutter={16} align="middle">
+            <Col span={8}>
+              <Form.Item label="Birim Fiyat" style={{ marginBottom: 0 }}>
+                <InputNumber
+                  placeholder="Fiyat girin"
+                  value={bulkPrice}
+                  onChange={(value) => setBulkPrice(value)}
+                  min={0}
+                  step={0.01}
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label="KDV (%)" style={{ marginBottom: 0 }}>
+                <Select
+                  value={bulkVatRate}
+                  onChange={(value) => setBulkVatRate(value)}
+                  style={{ width: '100%' }}
+                >
+                  <Option value={0}>%0</Option>
+                  <Option value={1}>%1</Option>
+                  <Option value={8}>%8</Option>
+                  <Option value={10}>%10</Option>
+                  <Option value={18}>%18</Option>
+                  <Option value={20}>%20</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={6}>
+              <Form.Item label=" " style={{ marginBottom: 0 }}>
+                <Switch
+                  checked={isPriceIncludeVat}
+                  disabled={true}
+                  checkedChildren="KDV Dahil"
+                  unCheckedChildren="KDV Hariç"
+                />
+              </Form.Item>
+            </Col>
+            <Col span={4}>
+              <Button type="primary" onClick={updateAllPrices}>
+                Uygula
+              </Button>
+            </Col>
+          </Row>
+        </Card>
+      )}
 
       {/* Çoklu varyant bulunduğunda gösterilecek liste */}
       {productVariants.length > 0 && (
