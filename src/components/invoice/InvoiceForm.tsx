@@ -1011,11 +1011,42 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
         <Divider orientation="left">Fatura Detayları</Divider>
         
-        <div style={{ marginBottom: 16 }}>
-          <Button type="dashed" onClick={addInvoiceDetail} block icon={<PlusOutlined />}>
-            Yeni Detay Ekle
-          </Button>
-        </div>
+        <Row justify="space-between" style={{ marginBottom: 16 }}>
+          <Col>
+            <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail} style={{ marginRight: '8px' }}>
+              Detay Ekle
+            </Button>
+            <Button 
+              type="primary" 
+              icon={<BarcodeOutlined />} 
+              onClick={() => {
+                setBarcodeModalVisible(true);
+                // Modal açıldığında input'a odaklan
+                setTimeout(() => {
+                  if (barcodeInputRef.current) {
+                    barcodeInputRef.current.focus();
+                  }
+                }, 100);
+              }}
+            >
+              Barkod ile Ekle
+            </Button>
+          </Col>
+          <Col>
+            <Form.Item
+              label="Birim Fiyat"
+              tooltip="Birim fiyatları KDV dahil olarak girmek için açın"
+              style={{ marginBottom: 0 }}
+            >
+              <Switch
+                checked={isPriceIncludeVat}
+                onChange={(checked) => setIsPriceIncludeVat(checked)}
+                checkedChildren="KDV Dahil"
+                unCheckedChildren="KDV Hariç"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
         
         <Table
           dataSource={invoiceDetails}
@@ -1331,43 +1362,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         </Row>
 
         <Divider />
-
-        <Row justify="space-between" style={{ marginBottom: '16px' }}>
-          <Col>
-            <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail} style={{ marginRight: '8px' }}>
-              Detay Ekle
-            </Button>
-            <Button 
-              type="primary" 
-              icon={<BarcodeOutlined />} 
-              onClick={() => {
-                setBarcodeModalVisible(true);
-                // Modal açıldığında input'a odaklan
-                setTimeout(() => {
-                  if (barcodeInputRef.current) {
-                    barcodeInputRef.current.focus();
-                  }
-                }, 100);
-              }}
-            >
-              Barkod ile Ekle
-            </Button>
-          </Col>
-          <Col>
-            <Form.Item
-              label="Birim Fiyat"
-              tooltip="Birim fiyatları KDV dahil olarak girmek için açın"
-              style={{ marginBottom: 0 }}
-            >
-              <Switch
-                checked={isPriceIncludeVat}
-                onChange={(checked) => setIsPriceIncludeVat(checked)}
-                checkedChildren="KDV Dahil"
-                unCheckedChildren="KDV Hariç"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
 
         <Row justify="end">
           <Col>
