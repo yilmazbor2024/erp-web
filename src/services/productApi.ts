@@ -24,6 +24,30 @@ export interface ProductVariant {
   isBlocked: boolean;
 }
 
+export interface ProductPriceList {
+  priceListNumber: string;
+  priceGroupCode: string;
+  priceGroupDescription: string;
+  priceListTypeCode: string;
+  priceListTypeDescription: string;
+  priceListDate: string | null;
+  validDate: string | null;
+  validTime: string | null;
+  companyCode: string;
+  isConfirmed: boolean;
+  isCompleted: boolean;
+  isLocked: boolean;
+  applicationCode: string;
+  applicationDescription: string;
+  createdUserName: string;
+  lastUpdatedUserName: string;
+  priceListHeaderID: number;
+  applicationID: number;
+  price: number;
+  vatRate: number | null;
+  productCode: string;
+}
+
 export interface Product {
   productCode: string;
   productDescription: string;
@@ -472,6 +496,55 @@ const productApi = {
       return [];
     } catch (error) {
       console.error('Barkod ile ürün varyantları aranırken hata oluştu:', error);
+      throw error;
+    }
+  },
+
+  // Ürün koduna göre fiyat listesini getir
+  async getProductPriceList(productCode: string): Promise<ProductPriceList[]> {
+    try {
+      if (!productCode) {
+        throw new Error('Ürün kodu boş olamaz');
+      }
+      
+      console.log(`Ürün koduna göre fiyat listesi aranıyor: ${productCode}`);
+      const response = await axiosInstance.get(`/api/Product/price-list/${productCode}`);
+      
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        console.log('Ürün fiyat listesi bulundu:', response.data.data);
+        
+        // API'den gelen verileri ProductPriceList formatına dönüştür
+        const priceList: ProductPriceList[] = response.data.data.map((item: any) => ({
+          priceListNumber: item.priceListNumber || '',
+          priceGroupCode: item.priceGroupCode || '',
+          priceGroupDescription: item.priceGroupDescription || '',
+          priceListTypeCode: item.priceListTypeCode || '',
+          priceListTypeDescription: item.priceListTypeDescription || '',
+          priceListDate: item.priceListDate || null,
+          validDate: item.validDate || null,
+          validTime: item.validTime || null,
+          companyCode: item.companyCode || '',
+          isConfirmed: Boolean(item.isConfirmed),
+          isCompleted: Boolean(item.isCompleted),
+          isLocked: Boolean(item.isLocked),
+          applicationCode: item.applicationCode || '',
+          applicationDescription: item.applicationDescription || '',
+          createdUserName: item.createdUserName || '',
+          lastUpdatedUserName: item.lastUpdatedUserName || '',
+          priceListHeaderID: Number(item.priceListHeaderID) || 0,
+          applicationID: Number(item.applicationID) || 0,
+          price: typeof item.price === 'number' ? item.price : 0,
+          vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
+          productCode: item.productCode || ''
+        }));
+        
+        return priceList;
+      }
+      
+      console.warn('Ürün fiyat listesi bulunamadı:', response.data);
+      return [];
+    } catch (error) {
+      console.error('Ürün fiyat listesi aranırken hata oluştu:', error);
       throw error;
     }
   }

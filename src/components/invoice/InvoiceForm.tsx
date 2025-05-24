@@ -116,36 +116,63 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     return invoiceTypeDescriptions[invoiceType] || 'Bilinmeyen Fatura Tipi';
   };
 
+  // Ürün fiyatını fiyat listesinden getir ve varyantı ekle
+  const getProductPriceAndAddVariant = async (variant: ProductVariant) => {
+    try {
+      // Ürün koduna göre fiyat listesini getir
+      const priceList = await productApi.getProductPriceList(variant.productCode);
+      
+      if (priceList.length > 0) {
+        // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
+        const firstPrice = priceList[0];
+        
+        // Varyantın fiyat ve KDV bilgilerini güncelle
+        variant.salesPrice1 = firstPrice.price;
+        variant.vatRate = firstPrice.vatRate || 18;
+        
+        console.log(`Ürün fiyatı fiyat listesinden güncellendi: ${variant.productCode}, Fiyat: ${variant.salesPrice1}, KDV: ${variant.vatRate}`);
+      } else {
+        console.log(`Ürün için fiyat listesi bulunamadı: ${variant.productCode}`);
+      }
+      
+      // Varyantı taranan listeye ekle
+      addVariantToScannedList(variant);
+      
+      // Varyant listesini temizle ve barkod alanını sıfırla
+      setProductVariants([]);
+      setBarcodeInput('');
+    } catch (error) {
+      console.error('Ürün fiyatı getirilirken hata oluştu:', error);
+      // Hata olsa bile varyantı ekle
+      addVariantToScannedList(variant);
+      
+      // Varyant listesini temizle ve barkod alanını sıfırla
+      setProductVariants([]);
+      setBarcodeInput('');
+    }
+  };
+  
   // Barkod ile ürün varyantlarını ara
   const searchProductVariantsByBarcode = async () => {
-    if (!barcodeInput.trim()) {
-      message.error('Lütfen bir barkod girin');
-      return;
-    }
-
     try {
       setLoadingVariants(true);
-      const variants = await productApi.getProductVariantsByBarcode(barcodeInput.trim());
+      const variants = await productApi.getProductVariantsByBarcode(barcodeInput);
       
       if (variants.length === 0) {
-        message.warning('Bu barkoda ait ürün bulunamadı');
+        message.warning(`${barcodeInput} barkoduna sahip ürün bulunamadı.`);
       } else if (variants.length === 1) {
-        // Eğer sadece bir varyant bulunduysa, listeye ekle veya miktarını artır
-        addVariantToScannedList(variants[0]);
-        setBarcodeInput(''); // Input'u temizle, yeni barkod için hazırla
+        // Tek varyant bulunduğunda doğrudan ekle
+        // Ürün fiyatını fiyat listesinden getir
+        await getProductPriceAndAddVariant(variants[0]);
       } else {
-        // Birden fazla varyant bulunduysa, listede göster
+        // Birden fazla varyant bulunduğunda listele
         setProductVariants(variants);
       }
     } catch (error) {
-      console.error('Barkod araması sırasında hata:', error);
-      message.error('Barkod araması sırasında bir hata oluştu');
+      console.error('Barkod ile ürün arama hatası:', error);
+      message.error('Barkod ile ürün aranırken bir hata oluştu.');
     } finally {
       setLoadingVariants(false);
-      // Odağı tekrar input'a getir
-      if (barcodeInputRef.current) {
-        barcodeInputRef.current.focus();
-      }
     }
   };
 
@@ -867,6 +894,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         scannedItems={scannedItems}
         addAllToInvoice={addAllScannedItemsToInvoice}
         isPriceIncludeVat={isPriceIncludeVat}
+        getProductPrice={getProductPriceAndAddVariant}
       />
       <Form
         form={form}
@@ -1458,7 +1486,8 @@ const BarcodeModal = ({
   inputRef,
   scannedItems,
   addAllToInvoice,
-  isPriceIncludeVat
+  isPriceIncludeVat,
+  getProductPrice
 }: {
   visible: boolean;
   onClose: () => void;
@@ -1472,6 +1501,7 @@ const BarcodeModal = ({
   scannedItems: { variant: ProductVariant; quantity: number }[];
   addAllToInvoice: () => void;
   isPriceIncludeVat: boolean;
+  getProductPrice: (variant: ProductVariant) => Promise<void>;
 }) => {
   const [bulkPrice, setBulkPrice] = useState<number | null>(null);
   const [bulkVatRate, setBulkVatRate] = useState<number>(18); // Varsayılan KDV oranı
@@ -1592,7 +1622,10 @@ const BarcodeModal = ({
               <List.Item
                 key={item.barcode}
                 actions={[
-                  <Button type="link" onClick={() => onSelectVariant(item)}>
+                  <Button type="link" onClick={async () => {
+                    // Ürün fiyatını fiyat listesinden getir ve ekle
+                    await getProductPrice(item);
+                  }}>
                     Listeye Ekle
                   </Button>
                 ]}
