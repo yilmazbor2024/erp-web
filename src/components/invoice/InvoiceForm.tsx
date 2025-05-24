@@ -103,6 +103,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
   const [loadingVariants, setLoadingVariants] = useState<boolean>(false);
   const barcodeInputRef = useRef<any>(null);
+  // Taranan barkodları ve miktarlarını tutacak state
+  const [scannedItems, setScannedItems] = useState<{
+    variant: ProductVariant;
+    quantity: number;
+  }[]>([]);
 
   // Fatura tipinin adını döndüren yardımcı fonksiyon
   const getInvoiceTypeName = (invoiceType: InvoiceType) => {
@@ -119,33 +124,61 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     try {
       setLoadingVariants(true);
       const variants = await productApi.getProductVariantsByBarcode(barcodeInput.trim());
-      setProductVariants(variants);
       
       if (variants.length === 0) {
         message.warning('Bu barkoda ait ürün bulunamadı');
       } else if (variants.length === 1) {
-        // Eğer sadece bir varyant bulunduysa, doğrudan ekle
-        addProductVariantToInvoice(variants[0]);
-        setBarcodeModalVisible(false);
-        setBarcodeInput('');
+        // Eğer sadece bir varyant bulunduysa, listeye ekle veya miktarını artır
+        addVariantToScannedList(variants[0]);
+        setBarcodeInput(''); // Input'u temizle, yeni barkod için hazırla
       } else {
-        // Birden fazla varyant bulunduysa, modal göster
-        setBarcodeModalVisible(true);
+        // Birden fazla varyant bulunduysa, listede göster
+        setProductVariants(variants);
       }
     } catch (error) {
       console.error('Barkod araması sırasında hata:', error);
       message.error('Barkod araması sırasında bir hata oluştu');
     } finally {
       setLoadingVariants(false);
+      // Odağı tekrar input'a getir
+      if (barcodeInputRef.current) {
+        barcodeInputRef.current.focus();
+      }
     }
   };
 
+  // Taranan varyantı listeye ekle veya miktarını artır
+  const addVariantToScannedList = (variant: ProductVariant) => {
+    setScannedItems(prevItems => {
+      // Aynı barkoda sahip ürün var mı kontrol et
+      const existingItemIndex = prevItems.findIndex(item => 
+        item.variant.barcode === variant.barcode
+      );
+
+      if (existingItemIndex >= 0) {
+        // Varsa miktarını artır
+        const updatedItems = [...prevItems];
+        updatedItems[existingItemIndex] = {
+          ...updatedItems[existingItemIndex],
+          quantity: updatedItems[existingItemIndex].quantity + 1
+        };
+        return updatedItems;
+      } else {
+        // Yoksa yeni ekle
+        return [...prevItems, { variant, quantity: 1 }];
+      }
+    });
+
+    // Başarı mesajı göster
+    message.success(`${variant.productDescription} listeye eklendi`);
+  };
+
   // Ürün varyantını faturaya ekle
-  const addProductVariantToInvoice = (variant: ProductVariant) => {
+  const addProductVariantToInvoice = (variant: ProductVariant, quantity: number = 1) => {
     const newDetail: InvoiceDetail = {
       id: generateUniqueId(),
       itemCode: variant.productCode,
-      quantity: 1,
+      quantity: quantity,
       unitOfMeasureCode: variant.unitOfMeasureCode1,
       unitPrice: variant.salesPrice1,
       vatRate: variant.vatRate || 18, // Varsayılan KDV oranı
@@ -164,6 +197,40 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     setBarcodeModalVisible(false);
     setBarcodeInput('');
     setProductVariants([]);
+    // Taranan ürünleri temizle
+    setScannedItems([]);
+  };
+
+  // Tüm taranan ürünleri faturaya ekle
+  const addAllScannedItemsToInvoice = () => {
+    if (scannedItems.length === 0) {
+      message.warning('Eklenecek ürün bulunmamaktadır');
+      return;
+    }
+
+    // Her bir taranan ürünü faturaya ekle
+    const newDetails: InvoiceDetail[] = scannedItems.map(item => ({
+      id: generateUniqueId(),
+      itemCode: item.variant.productCode,
+      quantity: item.quantity,
+      unitOfMeasureCode: item.variant.unitOfMeasureCode1,
+      unitPrice: item.variant.salesPrice1,
+      vatRate: item.variant.vatRate || 18, // Varsayılan KDV oranı
+      description: item.variant.productDescription,
+      productDescription: item.variant.productDescription,
+      discountRate: 0
+    }));
+
+    // Fatura detaylarını güncelle
+    const updatedDetails = [...invoiceDetails, ...newDetails];
+    setInvoiceDetails(updatedDetails);
+    calculateInvoiceTotals(updatedDetails);
+    
+    // Başarı mesajı göster
+    message.success(`${scannedItems.length} ürün faturaya eklendi`);
+    
+    // Modalı kapat
+    closeBarcodeModal();
   };
 
   // İlk yükleme için veri yükleme fonksiyonu
@@ -752,10 +819,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         loading={loadingVariants}
         productVariants={productVariants}
         onSelectVariant={(variant) => {
-          addProductVariantToInvoice(variant);
-          closeBarcodeModal();
+          addVariantToScannedList(variant);
         }}
         inputRef={barcodeInputRef}
+        scannedItems={scannedItems}
+        addAllToInvoice={addAllScannedItemsToInvoice}
       />
       <Form
         form={form}
@@ -1323,7 +1391,9 @@ const BarcodeModal = ({
   loading, 
   productVariants, 
   onSelectVariant,
-  inputRef
+  inputRef,
+  scannedItems,
+  addAllToInvoice
 }: {
   visible: boolean;
   onClose: () => void;
@@ -1334,24 +1404,34 @@ const BarcodeModal = ({
   productVariants: ProductVariant[];
   onSelectVariant: (variant: ProductVariant) => void;
   inputRef: React.RefObject<any>;
+  scannedItems: { variant: ProductVariant; quantity: number }[];
+  addAllToInvoice: () => void;
 }) => {
   return (
     <Modal
-      title="Barkod ile Ürün Ara"
+      title="Barkod Tarama"
       open={visible}
       onCancel={onClose}
-      footer={null}
-      width={600}
+      footer={[
+        <Button key="cancel" onClick={onClose}>
+          İptal
+        </Button>,
+        <Button key="submit" type="primary" onClick={addAllToInvoice}>
+          Tamamla ve Faturaya Ekle
+        </Button>
+      ]}
+      width={800}
     >
       <Row gutter={8} style={{ marginBottom: 16 }}>
         <Col flex="auto">
           <Input
-            placeholder="Barkod girin"
+            placeholder="Barkod girin veya okutun"
             value={barcodeInput}
             onChange={(e) => setBarcodeInput(e.target.value)}
             onPressEnter={onSearch}
             ref={inputRef}
             suffix={loading ? <Spin size="small" /> : <ScanOutlined />}
+            autoFocus
           />
         </Col>
         <Col>
@@ -1361,31 +1441,87 @@ const BarcodeModal = ({
         </Col>
       </Row>
 
-      <List
-        loading={loading}
-        dataSource={productVariants}
-        renderItem={(item) => (
-          <List.Item
-            key={item.barcode}
-            actions={[
-              <Button type="link" onClick={() => onSelectVariant(item)}>
-                Ekle
-              </Button>
-            ]}
-          >
-            <List.Item.Meta
-              title={item.productDescription}
-              description={
-                <>
-                  <div><strong>Ürün Kodu:</strong> {item.productCode}</div>
-                  <div><strong>Barkod:</strong> {item.barcode}</div>
-                  <div><strong>Fiyat:</strong> {item.salesPrice1.toFixed(2)} TL</div>
-                </>
-              }
-            />
-          </List.Item>
-        )}
-        locale={{ emptyText: 'Ürün bulunamadı' }}
+      {/* Çoklu varyant bulunduğunda gösterilecek liste */}
+      {productVariants.length > 0 && (
+        <>
+          <Divider orientation="left">Bulunan Ürünler</Divider>
+          <List
+            loading={loading}
+            dataSource={productVariants}
+            renderItem={(item) => (
+              <List.Item
+                key={item.barcode}
+                actions={[
+                  <Button type="link" onClick={() => onSelectVariant(item)}>
+                    Listeye Ekle
+                  </Button>
+                ]}
+              >
+                <List.Item.Meta
+                  title={item.productDescription}
+                  description={
+                    <>
+                      <div><strong>Ürün Kodu:</strong> {item.productCode}</div>
+                      <div><strong>Barkod:</strong> {item.barcode}</div>
+                      <div><strong>Renk:</strong> {item.colorDescription || '-'}</div>
+                      <div><strong>Beden:</strong> {item.itemDim1Code || '-'}</div>
+                      <div><strong>Fiyat:</strong> {item.salesPrice1.toFixed(2)} TL</div>
+                    </>
+                  }
+                />
+              </List.Item>
+            )}
+            locale={{ emptyText: 'Ürün bulunamadı' }}
+          />
+        </>
+      )}
+
+      {/* Taranan ürünlerin listesi */}
+      <Divider orientation="left">Taranan Ürünler ({scannedItems.length})</Divider>
+      <Table
+        dataSource={scannedItems.map((item, index) => ({
+          key: index,
+          ...item
+        }))}
+        columns={[
+          {
+            title: 'Ürün Kodu',
+            dataIndex: ['variant', 'productCode'],
+            key: 'productCode',
+          },
+          {
+            title: 'Ürün Adı',
+            dataIndex: ['variant', 'productDescription'],
+            key: 'productDescription',
+            ellipsis: true,
+          },
+          {
+            title: 'Renk',
+            dataIndex: ['variant', 'colorDescription'],
+            key: 'colorDescription',
+            render: (text) => text || '-'
+          },
+          {
+            title: 'Beden',
+            dataIndex: ['variant', 'itemDim1Code'],
+            key: 'itemDim1Code',
+            render: (text) => text || '-'
+          },
+          {
+            title: 'Miktar',
+            dataIndex: 'quantity',
+            key: 'quantity',
+          },
+          {
+            title: 'Birim Fiyat',
+            dataIndex: ['variant', 'salesPrice1'],
+            key: 'salesPrice1',
+            render: (price) => `${price.toFixed(2)} TL`
+          },
+        ]}
+        pagination={false}
+        size="small"
+        locale={{ emptyText: 'Henüz ürün taranmadı' }}
       />
     </Modal>
   );
