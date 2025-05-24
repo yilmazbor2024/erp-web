@@ -40,7 +40,9 @@ interface InvoiceDetail {
   subtotalAmount?: number; // Alt toplam (iskonto sonrası)
   vatAmount?: number; // KDV tutarı
   netAmount?: number; // Net tutar (KDV dahil)
-  // ItemDim1Code, ItemDim2Code, ItemDim3Code ve color alanları kaldırıldı
+  colorCode?: string; // Renk kodu
+  colorDescription?: string; // Renk açıklaması
+  itemDim1Code?: string; // Beden kodu
 }
 
 // API için gerekli istek tipleri
@@ -184,7 +186,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       vatRate: variant.vatRate || 18, // Varsayılan KDV oranı
       description: variant.productDescription,
       productDescription: variant.productDescription,
-      discountRate: 0
+      discountRate: 0,
+      // Renk ve beden bilgilerini ekle
+      colorCode: variant.colorCode,
+      colorDescription: variant.colorDescription,
+      itemDim1Code: variant.itemDim1Code
     };
 
     setInvoiceDetails([...invoiceDetails, newDetail]);
@@ -218,7 +224,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       vatRate: item.variant.vatRate || 18, // Varsayılan KDV oranı
       description: item.variant.productDescription,
       productDescription: item.variant.productDescription,
-      discountRate: 0
+      discountRate: 0,
+      // Renk ve beden bilgilerini ekle
+      colorCode: item.variant.colorCode,
+      colorDescription: item.variant.colorDescription,
+      itemDim1Code: item.variant.itemDim1Code
     }));
 
     // Fatura detaylarını güncelle
@@ -1120,7 +1130,34 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               />
             )}
           />
-          {/* Renk sütunu kaldırıldı - backend'de sabit bir değer kullanılıyor */}
+          <Table.Column 
+            title="Renk" 
+            dataIndex="colorDescription" 
+            key="colorDescription"
+            width={120}
+            render={(value, record, index) => (
+              <Input 
+                value={value} 
+                disabled={true}
+                style={{ width: '100%' }}
+                placeholder="-"
+              />
+            )}
+          />
+          <Table.Column 
+            title="Beden" 
+            dataIndex="itemDim1Code" 
+            key="itemDim1Code"
+            width={100}
+            render={(value, record, index) => (
+              <Input 
+                value={value} 
+                disabled={true}
+                style={{ width: '100%' }}
+                placeholder="-"
+              />
+            )}
+          />
           <Table.Column 
             title="Birim" 
             dataIndex="unitOfMeasureCode" 
