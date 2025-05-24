@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin, Modal, List, Badge, Tag } from 'antd';
+import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin, Modal, List, Badge, Tag, Checkbox, Radio } from 'antd';
 import { PlusOutlined, DeleteOutlined, BarcodeOutlined, ScanOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import invoiceApi from '../../services/invoiceApi';
@@ -99,6 +99,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       ? CurrAccType.VENDOR 
       : CurrAccType.CUSTOMER
   );
+  
+  // Satır filtreleme için state
+  const [filterText, setFilterText] = useState<string>('');
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  
+  // Ödeme şekli için state
+  const [paymentType, setPaymentType] = useState<'cash' | 'credit'>('credit'); // Varsayılan olarak vadeli
+  const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
   // KDV dahil/hariç seçeneği için state
   const [isPriceIncludeVat, setIsPriceIncludeVat] = useState<boolean>(false);
   const [barcodeInput, setBarcodeInput] = useState<string>('');
@@ -133,13 +141,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         
         // Varyantın fiyat ve KDV bilgilerini güncelle
         // BirimFiyat alanını kullan
-        variant.salesPrice1 = firstPrice.birimFiyat || firstPrice.price;
+        variant.salesPrice1 = firstPrice.birimFiyat || 0; // Varsayılan olarak 0 kullan
         variant.vatRate = firstPrice.vatRate || 18;
         
         console.log(`Ürün fiyatı fiyat listesinden güncellendi: ${variant.productCode}, Fiyat: ${variant.salesPrice1}, KDV: ${variant.vatRate}`);
         console.log('Fiyat detayları:', {
           birimFiyat: firstPrice.birimFiyat,
-          price: firstPrice.price,
           itemTypeCode: firstPrice.itemTypeCode || variant.productTypeCode
         });
       } else {
@@ -910,6 +917,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         
         if (response && response.success) {
           message.success('Fatura başarıyla oluşturuldu.');
+          
           form.resetFields();
           setInvoiceDetails([]);
           if (onSuccess) {
@@ -1172,10 +1180,136 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           </Col>
         </Row>
         
+        {/* Filtreleme ve Toplu Düzenleme Kontrol Paneli */}
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={8}>
+            <Input.Search 
+              placeholder="Ürün kodu veya açıklaması ile filtrele" 
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              allowClear
+            />
+          </Col>
+          <Col span={16} style={{ textAlign: 'right' }}>
+            <Button 
+              type="primary" 
+              disabled={selectedRowKeys.length === 0}
+              onClick={() => {
+                // Önce geçici bir değişken oluştur
+                let tempBulkPrice = 0;
+                
+                // Modal açılmadan önce bulkPrice değerini sıfırla
+                setBulkPrice(0);
+                
+                Modal.confirm({
+                  title: 'Toplu Fiyat Değiştirme',
+                  content: (
+                    <div>
+                      <p>Seçilen {selectedRowKeys.length} satırın birim fiyatını değiştirmek istediğinize emin misiniz?</p>
+                      <p>Yeni birim fiyatı girin:</p>
+                      <InputNumber 
+                        style={{ width: '100%' }} 
+                        placeholder="Yeni birim fiyat" 
+                        min={0}
+                        defaultValue={0}
+                        onChange={(value) => {
+                          // Geçici değişkene atama yap
+                          tempBulkPrice = value || 0;
+                          // State'i de güncelle
+                          setBulkPrice(value || 0);
+                        }}
+                      />
+                    </div>
+                  ),
+                  onOk: () => {
+                    // Hem geçici değişkeni hem de state'i kontrol et
+                    if (tempBulkPrice <= 0 && bulkPrice <= 0) {
+                      message.error('Geçerli bir fiyat girmelisiniz!');
+                      return Promise.reject('Geçerli fiyat girilmedi');
+                    }
+                    
+                    // Kullanılacak fiyatı belirle
+                    const finalPrice = tempBulkPrice > 0 ? tempBulkPrice : bulkPrice;
+                    
+                    console.log('Fiyat güncelleniyor:', {
+                      tempBulkPrice,
+                      bulkPrice,
+                      finalPrice
+                    });
+                    
+                    // Seçili satırların fiyatlarını güncelle
+                    const updatedDetails = invoiceDetails.map(detail => {
+                      if (selectedRowKeys.includes(detail.id)) {
+                        // Sadece birim fiyatı güncelle
+                        const updatedDetail = {
+                          ...detail,
+                          unitPrice: finalPrice
+                        };
+                        
+                        // Satır toplamlarını yeniden hesapla
+                        const quantity = updatedDetail.quantity || 0;
+                        const discountRate = updatedDetail.discountRate || 0;
+                        const vatRate = updatedDetail.vatRate || 0;
+                        
+                        // Toplam tutarı hesapla (miktar * birim fiyat)
+                        const totalAmount = quantity * finalPrice;
+                        updatedDetail.totalAmount = totalAmount;
+                        
+                        // İskonto tutarını hesapla
+                        const discountAmount = totalAmount * (discountRate / 100);
+                        updatedDetail.discountAmount = discountAmount;
+                        
+                        // Alt toplamı hesapla (toplam - iskonto)
+                        const subtotalAmount = totalAmount - discountAmount;
+                        updatedDetail.subtotalAmount = subtotalAmount;
+                        
+                        // KDV tutarını hesapla
+                        const vatAmount = subtotalAmount * (vatRate / 100);
+                        updatedDetail.vatAmount = vatAmount;
+                        
+                        // Net tutarı hesapla (alt toplam + KDV)
+                        const netAmount = subtotalAmount + vatAmount;
+                        updatedDetail.netAmount = netAmount;
+                        
+                        return updatedDetail;
+                      }
+                      return detail;
+                    });
+                    
+                    setInvoiceDetails(updatedDetails);
+                    
+                    // Fatura dip toplamlarını güncelle
+                    calculateInvoiceTotals(updatedDetails);
+                    
+                    setSelectedRowKeys([]);
+                    message.success(`${selectedRowKeys.length} satırın fiyatı ${finalPrice} olarak güncellendi!`);
+                    return Promise.resolve();
+                  },
+                  onCancel: () => {
+                    // İptal edildiğinde bulkPrice'i sıfırla
+                    setBulkPrice(0);
+                  }
+                });
+              }}
+            >
+              Seçili Satırların Fiyatını Değiştir
+            </Button>
+          </Col>
+        </Row>
+        
         <Table
-          dataSource={invoiceDetails}
+          dataSource={invoiceDetails.filter(detail => 
+            filterText ? 
+              (detail.itemCode?.toLowerCase().includes(filterText.toLowerCase()) ||
+               detail.productDescription?.toLowerCase().includes(filterText.toLowerCase()))
+              : true
+          )}
           rowKey="id"
           pagination={false}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys as string[])
+          }}
           size="small"
           bordered
         >
@@ -1457,17 +1591,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         <Divider />
 
         {/* Fatura Dip Toplam Alanı */}
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
-              name="notes"
-              label="Notlar"
-            >
-              <Input.TextArea rows={4} placeholder="Fatura ile ilgili notlar" />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Card title="Fatura Toplamları" variant="borderless">
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={24} md={12} lg={8}>
+            <Card title="Fatura Toplamları" size="small">
               <Row gutter={[16, 8]}>
                 <Col span={12}><strong>Toplam:</strong></Col>
                 <Col span={12}>
@@ -1510,9 +1636,42 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </Row>
             </Card>
           </Col>
+          <Col xs={24} sm={24} md={12} lg={16}>
+            <Form.Item
+              name="notes"
+              label="Notlar"
+            >
+              <Input.TextArea rows={4} placeholder="Fatura ile ilgili notlar" />
+            </Form.Item>
+          </Col>
         </Row>
 
         <Divider />
+        
+        {/* Ödeme Şekli Seçenekleri */}
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={24} md={12} lg={12}>
+            <Form.Item name="paymentType" label="Ödeme Şekli">
+              <Radio.Group 
+                onChange={(e) => {
+                  setPaymentType(e.target.value);
+                  // Peşin seçildiğinde hemen modalı göster
+                  if (e.target.value === 'cash') {
+                    setShowCashPaymentModal(true);
+                  }
+                }}
+                value={paymentType}
+              >
+                <Radio value="cash">
+                  Peşin
+                </Radio>
+                <Radio value="credit">
+                  Vadeli
+                </Radio>
+              </Radio.Group>
+            </Form.Item>
+          </Col>
+        </Row>
 
         <Row justify="end">
           <Col>
@@ -1521,6 +1680,93 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             </Button>
           </Col>
         </Row>
+        
+        {/* Peşin Ödeme Modalı */}
+        <Modal
+          title="Ödeme Planı"
+          visible={showCashPaymentModal}
+          onOk={() => {
+            setShowCashPaymentModal(false);
+            message.success('Peşin ödeme başarıyla kaydedildi!');
+          }}
+          onCancel={() => setShowCashPaymentModal(false)}
+          width={800}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {/* Üst Tablo - Ödeme Planı */}
+            <Table 
+              size="small"
+              pagination={false}
+              bordered
+              dataSource={[{ key: '1', odemeTip: '1', paraBirimi: 'TRY', dovizKuru: '1.0000', tutar: form.getFieldValue('netAmount') || '0.00', tutarTL: form.getFieldValue('netAmount') || '0.00', odemeArac: '' }]}
+              columns={[
+                { title: 'Ödeme Tip', dataIndex: 'odemeTip', key: 'odemeTip', width: 80 },
+                { title: 'Para Birimi', dataIndex: 'paraBirimi', key: 'paraBirimi', width: 100 },
+                { title: 'Döviz Kuru', dataIndex: 'dovizKuru', key: 'dovizKuru', width: 100 },
+                { title: 'Tutar', dataIndex: 'tutar', key: 'tutar', width: 100, align: 'right' as 'right' },
+                { title: 'Tutar (TL)', dataIndex: 'tutarTL', key: 'tutarTL', width: 100, align: 'right' as 'right' },
+                { title: 'Ödeme Araç', dataIndex: 'odemeArac', key: 'odemeArac' },
+              ]}
+              style={{ marginBottom: 16 }}
+            />
+            
+            {/* Form Alanları */}
+            <div style={{ display: 'flex', marginBottom: 16 }}>
+              <div style={{ flex: 1, marginRight: 16 }}>
+                <Form layout="vertical">
+                  <Form.Item label="Nakit Kasa Hesap Kodu">
+                    <Select style={{ width: '100%' }} defaultValue="">
+                      <Select.Option value="">Seçiniz</Select.Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item label="Para Birimi">
+                    <Select style={{ width: '100%' }} defaultValue="TRY">
+                      <Select.Option value="TRY">TRY</Select.Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item label="Döviz Kuru">
+                    <InputNumber style={{ width: '100%' }} defaultValue={1.0000} disabled />
+                  </Form.Item>
+                  <Form.Item label="Ödeme Açıklaması">
+                    <Input.TextArea rows={2} placeholder="Açıklama girin" />
+                  </Form.Item>
+                </Form>
+              </div>
+              
+              {/* Sağ Taraf - Toplam Bilgileri */}
+              <div style={{ width: 300, border: '1px solid #f0f0f0', padding: 16, borderRadius: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span><strong>Toplam:</strong></span>
+                  <span style={{ color: 'red' }}>{form.getFieldValue('netAmount') || '0.00'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span><strong>Ödenen Tutar:</strong></span>
+                  <span style={{ color: 'green' }}>0.00</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span><strong>Para Üstü:</strong></span>
+                  <span style={{ color: 'green' }}>0.00</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Alt Tablo - Vade Bilgileri */}
+            <Table 
+              size="small"
+              pagination={false}
+              bordered
+              dataSource={[{ key: '1', vadeTarihi: dayjs().format('DD.MM.YYYY'), tutar: form.getFieldValue('netAmount') || '0.00', borcNedeni: 'Fatura' }]}
+              columns={[
+                { title: 'Ödeme Tip', dataIndex: 'odemeTip', key: 'odemeTip', width: 30, render: () => <span>✓</span> },
+                { title: 'Vade Tarihi', dataIndex: 'vadeTarihi', key: 'vadeTarihi', width: 120 },
+                { title: 'Para Birimi', dataIndex: 'paraBirimi', key: 'paraBirimi', width: 100, render: () => 'TRY' },
+                { title: 'Tutar', dataIndex: 'tutar', key: 'tutar', width: 100, align: 'right' as 'right' },
+                { title: 'Tutar (TL)', dataIndex: 'tutarTL', key: 'tutarTL', width: 100, align: 'right' as 'right', render: (_, record) => record.tutar },
+                { title: 'Borç Nedeni', dataIndex: 'borcNedeni', key: 'borcNedeni' },
+              ]}
+            />
+          </div>
+        </Modal>
       </Form>
     </Card>
   );

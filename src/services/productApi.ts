@@ -37,13 +37,8 @@ export interface ProductPriceList {
   isConfirmed: boolean;
   isCompleted: boolean;
   isLocked: boolean;
-  applicationCode: string;
-  applicationDescription: string;
   createdUserName: string;
   lastUpdatedUserName: string;
-  priceListHeaderID: number;
-  applicationID: number;
-  price: number;
   birimFiyat?: number; // Yeni SQL sorgusundan gelen BirimFiyat alanı
   itemTypeCode?: string; // Yeni SQL sorgusundan gelen ItemTypeCode alanı
   vatRate: number | null;
