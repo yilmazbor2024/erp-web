@@ -44,6 +44,8 @@ export interface ProductPriceList {
   priceListHeaderID: number;
   applicationID: number;
   price: number;
+  birimFiyat?: number; // Yeni SQL sorgusundan gelen BirimFiyat alanı
+  itemTypeCode?: string; // Yeni SQL sorgusundan gelen ItemTypeCode alanı
   vatRate: number | null;
   productCode: string;
 }
@@ -508,35 +510,53 @@ const productApi = {
       }
       
       console.log(`Ürün koduna göre fiyat listesi aranıyor: ${productCode}`);
-      const response = await axiosInstance.get(`/api/Product/price-list/${productCode}`);
+      // Token'i kontrol et ve konsola yazdır
+      const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
+      console.log('Fiyat Listesi API - Token:', token ? 'Token mevcut' : 'Token yok');
+      
+      // API endpoint'ini düzelt ve konsola yazdır
+      const endpoint = `/api/v1/Product/price-list/${productCode}`;
+      console.log('Fiyat Listesi API - Endpoint:', endpoint);
+      
+      const response = await axiosInstance.get(endpoint);
+      console.log('Fiyat Listesi API - Response:', response);
       
       if (response.data && response.data.success && Array.isArray(response.data.data)) {
         console.log('Ürün fiyat listesi bulundu:', response.data.data);
         
         // API'den gelen verileri ProductPriceList formatına dönüştür
-        const priceList: ProductPriceList[] = response.data.data.map((item: any) => ({
-          priceListNumber: item.priceListNumber || '',
-          priceGroupCode: item.priceGroupCode || '',
-          priceGroupDescription: item.priceGroupDescription || '',
-          priceListTypeCode: item.priceListTypeCode || '',
-          priceListTypeDescription: item.priceListTypeDescription || '',
-          priceListDate: item.priceListDate || null,
-          validDate: item.validDate || null,
-          validTime: item.validTime || null,
-          companyCode: item.companyCode || '',
-          isConfirmed: Boolean(item.isConfirmed),
-          isCompleted: Boolean(item.isCompleted),
-          isLocked: Boolean(item.isLocked),
-          applicationCode: item.applicationCode || '',
-          applicationDescription: item.applicationDescription || '',
-          createdUserName: item.createdUserName || '',
-          lastUpdatedUserName: item.lastUpdatedUserName || '',
-          priceListHeaderID: Number(item.priceListHeaderID) || 0,
-          applicationID: Number(item.applicationID) || 0,
-          price: typeof item.price === 'number' ? item.price : 0,
-          vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
-          productCode: item.productCode || ''
-        }));
+        const priceList: ProductPriceList[] = response.data.data.map((item: any) => {
+          console.log('Fiyat listesi API yanıtı (tek item):', item);
+          return {
+            priceListNumber: item.priceListNumber || '',
+            priceGroupCode: item.priceGroupCode || '',
+            priceGroupDescription: item.priceGroupDescription || '',
+            priceListTypeCode: item.priceListTypeCode || '',
+            priceListTypeDescription: item.priceListTypeDescription || '',
+            priceListDate: item.priceListDate || null,
+            validDate: item.validDate || null,
+            validTime: item.validTime || null,
+            companyCode: item.companyCode || '',
+            isConfirmed: Boolean(item.isConfirmed),
+            isCompleted: Boolean(item.isCompleted),
+            isLocked: Boolean(item.isLocked),
+            applicationCode: item.applicationCode || '',
+            applicationDescription: item.applicationDescription || '',
+            createdUserName: item.createdUserName || '',
+            lastUpdatedUserName: item.lastUpdatedUserName || '',
+            priceListHeaderID: Number(item.headerID || item.priceListHeaderID) || 0,
+            applicationID: Number(item.applicationID) || 0,
+            // Yeni alanları ekle
+            birimFiyat: typeof item.birimFiyat === 'number' ? item.birimFiyat : 
+                       (typeof item.price === 'number' ? item.price : 0),
+            itemTypeCode: item.itemTypeCode || '',
+            // Eski alanları da koru
+            price: typeof item.price === 'number' ? item.price : 
+                  (typeof item.birimFiyat === 'number' ? item.birimFiyat : 0),
+            vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
+            productCode: item.productCode || item.itemCode || ''
+          };
+        });
         
         return priceList;
       }
