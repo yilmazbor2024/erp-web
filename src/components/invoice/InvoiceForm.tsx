@@ -765,7 +765,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           lineDescription: detail.description || detail.productDescription || '',
           currencyCode: values.docCurrencyCode || 'TRY',
           priceCurrencyCode: values.docCurrencyCode || 'TRY',
-          exchangeRate: 1
+          exchangeRate: 1,
+          colorCode: detail.colorCode || '', // Renk kodu API'ye gönderilecek
+          itemDim1Code: detail.itemDim1Code || '' // Beden kodu API'ye gönderilecek
         }))
       };
       
