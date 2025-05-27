@@ -104,6 +104,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [filterText, setFilterText] = useState<string>('');
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   
+  // Düzenlenen satır için state
+  const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
+  const [editingColumn, setEditingColumn] = useState<string | null>(null);
+  
   // Ödeme şekli için state
   const [paymentType, setPaymentType] = useState<'cash' | 'credit'>('credit'); // Varsayılan olarak vadeli
   const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
@@ -129,6 +133,53 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     return invoiceTypeDescriptions[invoiceType] || 'Bilinmeyen Fatura Tipi';
   };
 
+  // Klavye navigasyonu için fonksiyon
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, index: number, column: string) => {
+    // Enter tuşuna basıldığında form gönderimini engelle
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      
+      // Bir sonraki sütuna geç
+      const columns = ['itemCode', 'productDescription', 'colorDescription', 'itemDim1Code', 'quantity', 'unitOfMeasureCode', 'unitPrice', 'vatRate', 'discountRate'];
+      const currentIndex = columns.indexOf(column);
+      
+      if (currentIndex < columns.length - 1) {
+        // Aynı satırda bir sonraki sütuna geç
+        setEditingColumn(columns[currentIndex + 1]);
+      } else if (index < invoiceDetails.length - 1) {
+        // Bir sonraki satırın ilk sütununa geç
+        setEditingRowIndex(index + 1);
+        setEditingColumn(columns[0]);
+      }
+    }
+    // Sağ ok tuşu
+    else if (e.key === 'ArrowRight') {
+      const columns = ['itemCode', 'productDescription', 'colorDescription', 'itemDim1Code', 'quantity', 'unitOfMeasureCode', 'unitPrice', 'vatRate', 'discountRate'];
+      const currentIndex = columns.indexOf(column);
+      
+      if (currentIndex < columns.length - 1) {
+        setEditingColumn(columns[currentIndex + 1]);
+      }
+    }
+    // Sol ok tuşu
+    else if (e.key === 'ArrowLeft') {
+      const columns = ['itemCode', 'productDescription', 'colorDescription', 'itemDim1Code', 'quantity', 'unitOfMeasureCode', 'unitPrice', 'vatRate', 'discountRate'];
+      const currentIndex = columns.indexOf(column);
+      
+      if (currentIndex > 0) {
+        setEditingColumn(columns[currentIndex - 1]);
+      }
+    }
+    // Yukarı ok tuşu
+    else if (e.key === 'ArrowUp' && index > 0) {
+      setEditingRowIndex(index - 1);
+    }
+    // Aşağı ok tuşu
+    else if (e.key === 'ArrowDown' && index < invoiceDetails.length - 1) {
+      setEditingRowIndex(index + 1);
+    }
+  };
+  
   // Ürün fiyatını fiyat listesinden getir ve varyantı ekle
   const getProductPriceAndAddVariant = async (variant: ProductVariant) => {
     try {
@@ -1027,6 +1078,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       <Form
         form={form}
         layout="vertical"
+        onKeyPress={(e) => {
+          // Enter tuşuna basıldığında form gönderimini engelle
+          if (e.key === 'Enter') {
+            e.preventDefault();
+          }
+        }}
         onFinish={handleSubmit}
         initialValues={{
           invoiceDate: dayjs(),
@@ -1390,10 +1447,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               <Select
                 showSearch
                 value={value}
-                style={{ width: '100%' }}
+                style={{ 
+                  width: '100%',
+                  backgroundColor: editingRowIndex === index && editingColumn === 'itemCode' ? '#fffbe6' : undefined
+                }}
                 placeholder="Ürün seçin"
                 loading={loadingProducts}
                 optionFilterProp="children"
+                onFocus={() => {
+                  setEditingRowIndex(index);
+                  setEditingColumn('itemCode');
+                }}
+                onKeyDown={(e) => handleKeyDown(e, index, 'itemCode')}
                 filterOption={(input, option) => {
                   if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
                   
@@ -1437,7 +1502,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Ürün Açıklaması" 
             dataIndex="productDescription" 
             key="productDescription"
-            width="auto"
+            ellipsis={false}
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1450,13 +1515,20 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Renk" 
             dataIndex="colorDescription" 
             key="colorDescription"
-            width="auto"
+            ellipsis={false}
             render={(value, record, index) => (
               <Input 
                 value={value} 
                 disabled={true}
-                style={{ width: '100%' }}
-                placeholder="-"
+                style={{ 
+                  width: '100%',
+                  backgroundColor: editingRowIndex === index && editingColumn === 'colorDescription' ? '#fffbe6' : undefined
+                }}
+                onFocus={() => {
+                  setEditingRowIndex(index);
+                  setEditingColumn('colorDescription');
+                }}
+                onKeyDown={(e) => handleKeyDown(e, index, 'colorDescription')}
               />
             )}
           />
@@ -1464,13 +1536,20 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Beden" 
             dataIndex="itemDim1Code" 
             key="itemDim1Code"
-            width="auto"
+            ellipsis={false}
             render={(value, record, index) => (
               <Input 
                 value={value} 
                 disabled={true}
-                style={{ width: '100%' }}
-                placeholder="-"
+                style={{ 
+                  width: '100%',
+                  backgroundColor: editingRowIndex === index && editingColumn === 'itemDim1Code' ? '#fffbe6' : undefined
+                }}
+                onFocus={() => {
+                  setEditingRowIndex(index);
+                  setEditingColumn('itemDim1Code');
+                }}
+                onKeyDown={(e) => handleKeyDown(e, index, 'itemDim1Code')}
               />
             )}
           />
@@ -1478,12 +1557,21 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Birim" 
             dataIndex="unitOfMeasureCode" 
             key="unitOfMeasureCode"
-            width={150}
+            width={60}
             render={(value, record, index) => (
               <Select
                 value={value}
-                style={{ width: '100%', minWidth: '120px' }}
+                style={{ 
+                  width: '100%', 
+                  maxWidth: '60px',
+                  backgroundColor: editingRowIndex === index && editingColumn === 'unitOfMeasureCode' ? '#fffbe6' : undefined
+                }}
                 dropdownMatchSelectWidth={false}
+                onFocus={() => {
+                  setEditingRowIndex(index);
+                  setEditingColumn('unitOfMeasureCode');
+                }}
+                onKeyDown={(e) => handleKeyDown(e, index, 'unitOfMeasureCode')}
                 suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
                 onChange={(value) => {
                   // Birim değiştiğinde, miktarı da kontrol et ve gerekirse düzelt
@@ -1512,7 +1600,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Miktar" 
             dataIndex="quantity" 
             key="quantity"
-            width={150}
+            width={225}
             render={(value, record, index) => {
               // Birim türüne göre step ve precision değerlerini belirle
               const isUnitAdet = record.unitOfMeasureCode === 'ADET' || record.unitOfMeasureCode === 'AD';
@@ -1523,7 +1611,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   step={isUnitAdet ? 1 : 0.01}
                   precision={isUnitAdet ? 0 : 2}
                   controls={false}
-                  style={{ width: '100%', minWidth: '100px' }}
+                  style={{ width: '100%', minWidth: '150px' }}
                   onChange={(value) => {
                     // Eğer birim ADET ise ve küsurat girilmişse, tam sayıya yuvarla
                     if (isUnitAdet && value && !Number.isInteger(value)) {
@@ -1538,20 +1626,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           <Table.Column 
             title={`Birim Fiyat ${isPriceIncludeVat ? '(KDV Dahil)' : '(KDV Hariç)'}`} 
             dataIndex="unitPrice" 
-            key="unitPrice"
-            width={150}
-            render={(value, record, index) => (
-              <InputNumber 
-                value={value} 
-                min={0} 
-                step={0.01}
-                controls={false}
-                style={{ width: '100%', minWidth: '120px' }}
-                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
-                onChange={(value) => updateInvoiceDetail(index, 'unitPrice', value)}
-              />
-            )}
           />
           <Table.Column 
             title="KDV (%)" 
