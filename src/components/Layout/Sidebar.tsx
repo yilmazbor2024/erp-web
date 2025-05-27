@@ -112,7 +112,8 @@ const Sidebar: React.FC = () => {
 
   // Arama terimine göre menü öğelerini filtrele
   useEffect(() => {
-    if (!searchTerm.trim()) {
+    // Arama terimi boşsa veya 3 karakterden azsa tüm menü öğelerini göster
+    if (!searchTerm.trim() || searchTerm.trim().length < 3) {
       setFilteredMenuItems(mainMenuItems);
       return;
     }
@@ -121,8 +122,9 @@ const Sidebar: React.FC = () => {
     
     const filterMenuItems = (items: typeof mainMenuItems): typeof mainMenuItems => {
       return items.filter(item => {
-        // Başlıkta arama
-        const titleMatch = item.title.toLowerCase().includes(searchTermLower);
+        // Başlıkta arama - tam eşleşme kontrolü
+        const titleLower = item.title.toLowerCase();
+        const titleMatch = titleLower === searchTermLower || titleLower.startsWith(searchTermLower) || titleLower.includes(` ${searchTermLower}`);
         
         // Alt menülerde arama
         let childrenMatch = false;
@@ -150,12 +152,21 @@ const Sidebar: React.FC = () => {
         
         items.forEach(item => {
           if (item.children && item.children.length > 0) {
-            const hasMatch = item.children.some(child => 
-              child.title.toLowerCase().includes(searchTermLower) ||
-              (child.children && child.children.some(grandchild => 
-                grandchild.title.toLowerCase().includes(searchTermLower)
-              ))
-            );
+            const hasMatch = item.children.some(child => {
+              const childTitleLower = child.title.toLowerCase();
+              const childMatch = childTitleLower === searchTermLower || 
+                                childTitleLower.startsWith(searchTermLower) || 
+                                childTitleLower.includes(` ${searchTermLower}`);
+              
+              const grandchildMatch = child.children && child.children.some(grandchild => {
+                const grandchildTitleLower = grandchild.title.toLowerCase();
+                return grandchildTitleLower === searchTermLower || 
+                      grandchildTitleLower.startsWith(searchTermLower) || 
+                      grandchildTitleLower.includes(` ${searchTermLower}`);
+              });
+              
+              return childMatch || grandchildMatch;
+            });
             
             if (hasMatch && item.id) {
               allParentIds.push(item.id);
@@ -202,12 +213,13 @@ const Sidebar: React.FC = () => {
       {!collapsed && (
         <div className="px-4 pt-4">
           <Input 
-            placeholder="Menüde ara..."
+            placeholder="Menüde ara (en az 3 karakter)"
             prefix={<SearchOutlined />}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             allowClear
             className="rounded-lg"
+            status={searchTerm.trim().length > 0 && searchTerm.trim().length < 3 ? 'warning' : undefined}
           />
         </div>
       )}
