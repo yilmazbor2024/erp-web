@@ -115,6 +115,23 @@ export const mainMenuItems: MenuItem[] = [
         icon: 'TruckIcon'
       },
       {
+        id: 'cashier',
+        title: 'Kasa',
+        icon: 'BanknotesIcon',
+        children: [
+          {
+            id: 'payments',
+            title: 'Ödemeler',
+            path: '/cashier/payments'
+          },
+          {
+            id: 'collections',
+            title: 'Tahsilatlar',
+            path: '/cashier/collections'
+          }
+        ]
+      },
+      {
         id: 'receivables',
         title: 'Alacak Hesapları',
         icon: 'RiseOutlined',
@@ -214,23 +231,6 @@ export const mainMenuItems: MenuItem[] = [
         id: 'shipping',
         title: 'Sevkiyat',
         path: '/inventory/shipping'
-      }
-    ]
-  },
-  {
-    id: 'cashier',
-    title: 'Kasa',
-    icon: 'BanknotesIcon',
-    children: [
-      {
-        id: 'payments',
-        title: 'Ödemeler',
-        path: '/cashier/payments'
-      },
-      {
-        id: 'collections',
-        title: 'Tahsilatlar',
-        path: '/cashier/collections'
       }
     ]
   },
