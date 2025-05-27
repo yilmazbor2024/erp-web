@@ -1406,7 +1406,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             }}
             size="small"
             bordered
-            scroll={{ x: 1500 }}
+            scroll={{ x: 2000 }}
             style={{ fontSize: '0.9em', minWidth: '100%' }} // Font boyutunu daha büyük yap
         >
           <Table.Column 
@@ -1513,20 +1513,33 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 />
                 {/* İlk 3 hane girildikten sonra uyuşan en fazla 3 ürün göster */}
                 {value && value.length >= 3 && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    width: '100%',
-                    zIndex: 9999,
-                    backgroundColor: 'white',
-                    border: '1px solid #d9d9d9',
-                    borderRadius: '2px',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    display: editingRowIndex === index && editingColumn === 'itemCode' ? 'block' : 'none'
-                  }}>
+                  <div 
+                    ref={(el) => {
+                      // Dropdown'u doğru konumlandır
+                      if (el && editingRowIndex === index && editingColumn === 'itemCode') {
+                        const rect = el.parentElement?.getBoundingClientRect();
+                        if (rect) {
+                          el.style.position = 'absolute';
+                          el.style.top = rect.height + 'px';
+                          el.style.left = '0';
+                        }
+                      }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: '0',
+                      width: '250px',
+                      zIndex: 9999,
+                      backgroundColor: 'white',
+                      border: '1px solid #d9d9d9',
+                      borderRadius: '2px',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                      maxHeight: '200px',
+                      overflowY: 'auto',
+                      display: editingRowIndex === index && editingColumn === 'itemCode' ? 'block' : 'none'
+                    }}
+                  >
                     {products
                       .filter(p => p.productCode.toLowerCase().startsWith(value.toLowerCase()))
                       .slice(0, 3) // En fazla 3 ürün göster
@@ -1587,6 +1600,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="colorDescription" 
             key="colorDescription"
             width={120}
+            fixed="left"
             ellipsis={false}
             render={(value, record, index) => (
               <Input 
@@ -1609,6 +1623,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="itemDim1Code" 
             key="itemDim1Code"
             width={100}
+            fixed="left"
             ellipsis={false}
             render={(value, record, index) => (
               <Input 
@@ -1693,6 +1708,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="quantity" 
             key="quantity"
             width={150}
+            fixed="left"
             render={(value, record, index) => {
               // Birim türüne göre step ve precision değerlerini belirle
               const isUnitAdet = record.unitOfMeasureCode === 'ADET' || record.unitOfMeasureCode === 'AD';
@@ -1720,6 +1736,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="unitPrice" 
             key="unitPrice"
             width={120}
+            fixed="left"
             render={(value, record, index) => (
               <InputNumber 
                 value={value} 
