@@ -99,6 +99,8 @@ const Sidebar: React.FC = () => {
   const [openSubmenus, setOpenSubmenus] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filteredMenuItems, setFilteredMenuItems] = useState(mainMenuItems);
+  // Arama öncesi açık olan menüleri saklamak için
+  const [previousOpenSubmenus, setPreviousOpenSubmenus] = useState<string[]>([]);
 
   const handleSubmenuClick = (itemId: string | undefined) => {
     if (itemId) {
@@ -113,9 +115,21 @@ const Sidebar: React.FC = () => {
   // Arama terimine göre menü öğelerini filtrele
   useEffect(() => {
     // Arama terimi boşsa veya 3 karakterden azsa tüm menü öğelerini göster
-    if (!searchTerm.trim() || searchTerm.trim().length < 3) {
+    if (!searchTerm.trim()) {
+      setFilteredMenuItems(mainMenuItems);
+      // Arama terimi tamamen silindiğinde, menüyü ilk haline döndür
+      setOpenSubmenus(previousOpenSubmenus);
+      return;
+    }
+    
+    if (searchTerm.trim().length < 3) {
       setFilteredMenuItems(mainMenuItems);
       return;
+    }
+    
+    // İlk arama başladığında açık menüleri kaydet
+    if (searchTerm.trim().length === 3) {
+      setPreviousOpenSubmenus([...openSubmenus]);
     }
 
     const searchTermLower = searchTerm.toLowerCase();
@@ -216,7 +230,18 @@ const Sidebar: React.FC = () => {
             placeholder="Menüde ara (en az 3 karakter)"
             prefix={<SearchOutlined />}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              const newValue = e.target.value;
+              setSearchTerm(newValue);
+              // Arama terimi tamamen silindiğinde menüyü ilk haline döndür
+              if (!newValue.trim()) {
+                setOpenSubmenus(previousOpenSubmenus);
+              }
+            }}
+            onClear={() => {
+              setSearchTerm('');
+              setOpenSubmenus(previousOpenSubmenus);
+            }}
             allowClear
             className="rounded-lg"
             status={searchTerm.trim().length > 0 && searchTerm.trim().length < 3 ? 'warning' : undefined}
