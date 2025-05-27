@@ -242,26 +242,70 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   };
 
   // Ürün varyantını faturaya ekle
-  const addProductVariantToInvoice = (variant: ProductVariant, quantity: number = 1) => {
-    const newDetail: InvoiceDetail = {
-      id: generateUniqueId(),
-      itemCode: variant.productCode,
-      quantity: quantity,
-      unitOfMeasureCode: variant.unitOfMeasureCode1,
-      unitPrice: variant.salesPrice1,
-      vatRate: variant.vatRate || 18, // Varsayılan KDV oranı
-      description: variant.productDescription,
-      productDescription: variant.productDescription,
-      discountRate: 0,
-      // Renk ve beden bilgilerini ekle
-      colorCode: variant.colorCode,
-      colorDescription: variant.colorDescription,
-      itemDim1Code: variant.itemDim1Code
-    };
+  const addProductVariantToInvoice = async (variant: ProductVariant, quantity: number = 1) => {
+    try {
+      // Ürün fiyatını fiyat listesinden getir
+      const priceList = await productApi.getProductPriceList(variant.productCode);
+      
+      // Fiyat bilgilerini güncelle
+      let unitPrice = variant.salesPrice1;
+      let vatRate = variant.vatRate || 18;
+      
+      if (priceList.length > 0) {
+        // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
+        const firstPrice = priceList[0];
+        
+        // Birim fiyatı güncelle
+        unitPrice = firstPrice.birimFiyat || variant.salesPrice1;
+        vatRate = firstPrice.vatRate || vatRate;
+        
+        console.log(`Ürün fiyatı fiyat listesinden getirildi: ${variant.productCode}, Fiyat: ${unitPrice}, KDV: ${vatRate}`);
+      } else {
+        console.log(`Ürün için fiyat listesi bulunamadı: ${variant.productCode}, Varsayılan fiyat kullanılıyor: ${unitPrice}`);
+      }
+      
+      const newDetail: InvoiceDetail = {
+        id: generateUniqueId(),
+        itemCode: variant.productCode,
+        quantity: quantity,
+        unitOfMeasureCode: variant.unitOfMeasureCode1,
+        unitPrice: unitPrice,
+        vatRate: vatRate,
+        description: variant.productDescription,
+        productDescription: variant.productDescription,
+        discountRate: 0,
+        // Renk ve beden bilgilerini ekle
+        colorCode: variant.colorCode,
+        colorDescription: variant.colorDescription,
+        itemDim1Code: variant.itemDim1Code
+      };
 
-    setInvoiceDetails([...invoiceDetails, newDetail]);
-    calculateInvoiceTotals([...invoiceDetails, newDetail]);
-    message.success(`${variant.productDescription} faturaya eklendi`);
+      setInvoiceDetails([...invoiceDetails, newDetail]);
+      calculateInvoiceTotals([...invoiceDetails, newDetail]);
+      message.success(`${variant.productDescription} faturaya eklendi (Birim Fiyat: ${unitPrice.toFixed(2)} TL)`);
+    } catch (error) {
+      console.error('Ürün fiyatı getirilirken hata oluştu:', error);
+      
+      // Hata durumunda varsayılan değerlerle devam et
+      const newDetail: InvoiceDetail = {
+        id: generateUniqueId(),
+        itemCode: variant.productCode,
+        quantity: quantity,
+        unitOfMeasureCode: variant.unitOfMeasureCode1,
+        unitPrice: variant.salesPrice1,
+        vatRate: variant.vatRate || 18,
+        description: variant.productDescription,
+        productDescription: variant.productDescription,
+        discountRate: 0,
+        colorCode: variant.colorCode,
+        colorDescription: variant.colorDescription,
+        itemDim1Code: variant.itemDim1Code
+      };
+
+      setInvoiceDetails([...invoiceDetails, newDetail]);
+      calculateInvoiceTotals([...invoiceDetails, newDetail]);
+      message.success(`${variant.productDescription} faturaya eklendi`);
+    }
   };
 
   // Barkod modalını kapat
@@ -737,7 +781,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   };
 
   // Fatura detayını güncelle
-  const updateInvoiceDetail = (index: number, field: keyof InvoiceDetail, value: any) => {
+  const updateInvoiceDetail = async (index: number, field: keyof InvoiceDetail, value: any) => {
     const updatedDetails = [...invoiceDetails];
     
     // Eğer ürün kodu değiştiyse, ilgili ürünün diğer bilgilerini de otomatik olarak doldur
@@ -747,15 +791,38 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       if (selectedProduct) {
         console.log('Seçilen ürün:', selectedProduct);
         
-        // Ürün bilgilerini otomatik doldur - ItemDim1Code, ItemDim2Code, ItemDim3Code ve color alanı kaldırıldı
+        // Ürün bilgilerini otomatik doldur
         updatedDetails[index] = { 
           ...updatedDetails[index], 
           itemCode: value,
           productDescription: selectedProduct.productDescription || '',
           unitOfMeasureCode: selectedProduct.unitOfMeasureCode1 || 'ADET',
-          unitPrice: selectedProduct.salesPrice1 || 0,
           vatRate: selectedProduct.vatRate || 18
         };
+        
+        try {
+          // Ürün fiyatını fiyat listesinden getir
+          const priceList = await productApi.getProductPriceList(value);
+          
+          if (priceList.length > 0) {
+            // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
+            const firstPrice = priceList[0];
+            
+            // Birim fiyatı güncelle
+            updatedDetails[index].unitPrice = firstPrice.birimFiyat || 0;
+            updatedDetails[index].vatRate = firstPrice.vatRate || 18;
+            
+            console.log(`Ürün fiyatı fiyat listesinden getirildi: ${value}, Fiyat: ${updatedDetails[index].unitPrice}, KDV: ${updatedDetails[index].vatRate}`);
+          } else {
+            // Fiyat listesi bulunamadıysa varsayılan değerleri kullan
+            updatedDetails[index].unitPrice = selectedProduct.salesPrice1 || 0;
+            console.log(`Ürün için fiyat listesi bulunamadı: ${value}, Varsayılan fiyat kullanılıyor: ${updatedDetails[index].unitPrice}`);
+          }
+        } catch (error) {
+          console.error('Ürün fiyatı getirilirken hata oluştu:', error);
+          // Hata durumunda varsayılan fiyatı kullan
+          updatedDetails[index].unitPrice = selectedProduct.salesPrice1 || 0;
+        }
       } else {
         // Sadece ürün kodunu güncelle
         updatedDetails[index] = { ...updatedDetails[index], [field]: value };
