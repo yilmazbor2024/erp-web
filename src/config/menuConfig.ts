@@ -127,6 +127,37 @@ export const mainMenuItems: MenuItem[] = [
             icon: 'ShopOutlined'
           }
         ]
+      },
+      {
+        id: 'cash-transactions',
+        title: 'Nakit Kasa İşlemleri',
+        icon: 'WalletOutlined',
+        children: [
+          {
+            id: 'cash-account',
+            title: 'Nakit Kasa Hesabı',
+            path: '/finance/cash/account',
+            icon: 'AccountBookOutlined'
+          },
+          {
+            id: 'cash-receipt',
+            title: 'Kasa Tahsil',
+            path: '/finance/cash/receipt',
+            icon: 'ImportOutlined'
+          },
+          {
+            id: 'cash-payment',
+            title: 'Kasa Tediye',
+            path: '/finance/cash/payment',
+            icon: 'ExportOutlined'
+          },
+          {
+            id: 'cash-transfer',
+            title: 'Kasalar Arası Virman',
+            path: '/finance/cash/transfer',
+            icon: 'SwapOutlined'
+          }
+        ]
       }
     ]
   },

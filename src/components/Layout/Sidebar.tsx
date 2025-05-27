@@ -18,7 +18,12 @@ import {
   RiseOutlined,
   FallOutlined,
   UserOutlined,
-  ShopOutlined
+  ShopOutlined,
+  WalletOutlined,
+  AccountBookOutlined,
+  ImportOutlined,
+  ExportOutlined,
+  SwapOutlined
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -60,6 +65,16 @@ const getIcon = (iconName: string | undefined) => {
       return <UserOutlined className="text-xl" />;
     case 'ShopOutlined':
       return <ShopOutlined className="text-xl" />;
+    case 'WalletOutlined':
+      return <WalletOutlined className="text-xl" />;
+    case 'AccountBookOutlined':
+      return <AccountBookOutlined className="text-xl" />;
+    case 'ImportOutlined':
+      return <ImportOutlined className="text-xl" />;
+    case 'ExportOutlined':
+      return <ExportOutlined className="text-xl" />;
+    case 'SwapOutlined':
+      return <SwapOutlined className="text-xl" />;
     default:
       return <HomeOutlined className="text-xl" />;
   }
