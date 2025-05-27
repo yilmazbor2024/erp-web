@@ -21,7 +21,7 @@ export interface EditableTableColumn {
   disabled?: boolean;
   render?: (value: any, record: any, index: number) => React.ReactNode;
   formatter?: (value: any) => string;
-  parser?: (value: string) => any;
+  parser?: (value: string | undefined) => any;
   onChange?: (value: any, record: any, index: number) => void;
   customRender?: (props: {
     value: any;
@@ -35,7 +35,7 @@ export interface EditableTableColumn {
   }) => React.ReactNode;
 }
 
-export interface EditableTableProps<T> extends Omit<TableProps<T>, 'columns'> {
+export interface EditableTableProps<T extends Record<string, any>> extends Omit<TableProps<T>, 'columns'> {
   columns: EditableTableColumn[];
   dataSource: T[];
   onDataChange: (data: T[]) => void;
@@ -124,7 +124,8 @@ export function EditableTable<T extends Record<string, any>>({
   // Veri değişikliği işleyicisi
   const handleValueChange = useCallback((index: number, dataIndex: string, value: any) => {
     const newData = [...dataSource];
-    newData[index][dataIndex] = value;
+    // TypeScript hatasını çözmek için as any kullanıyoruz
+    (newData[index] as any)[dataIndex] = value;
     
     // Özel onChange işleyicisi varsa çağır
     const column = columns.find(col => col.dataIndex === dataIndex);
@@ -145,9 +146,11 @@ export function EditableTable<T extends Record<string, any>>({
       // Varsayılan boş satır oluştur
       newRow = {} as T;
       columns.forEach(column => {
-        newRow[column.dataIndex] = undefined;
+        // TypeScript hatasını çözmek için as any kullanıyoruz
+        (newRow as any)[column.dataIndex] = undefined;
       });
-      newRow[rowKey] = `new-${Date.now()}`;
+      // TypeScript hatasını çözmek için as any kullanıyoruz
+      (newRow as any)[rowKey] = `new-${Date.now()}`;
     }
     
     const newData = [...dataSource, newRow];
@@ -228,7 +231,7 @@ export function EditableTable<T extends Record<string, any>>({
                 controls={false}
                 style={editStyle}
                 formatter={column.formatter}
-                parser={column.parser}
+                parser={column.parser as ((displayValue: string | undefined) => any) | undefined}
                 disabled={column.disabled}
                 onChange={(newValue) => handleValueChange(index, dataIndex, newValue)}
                 onFocus={() => {
