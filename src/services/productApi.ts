@@ -522,10 +522,8 @@ const productApi = {
       
       console.log(`Ürün koduna göre fiyat listesi aranıyor: ${productCode}`);
       
-      // Şu anda örnek veriler döndürüyoruz, API entegrasyonu daha sonra eklenecek
-      // Gerçek API entegrasyonu için aşağıdaki kodu kullanabilirsiniz
-      /*
-      const endpoint = `/api/Item/${productCode}/prices`;
+      // API endpoint'i çağır
+      const endpoint = `/api/v1/Product/${productCode}/price-list`;
       console.log('Fiyat Listesi API - Endpoint:', endpoint);
       
       const response = await axiosInstance.get(endpoint);
@@ -553,7 +551,7 @@ const productApi = {
             lastUpdatedUserName: item.lastUpdatedUserName || '',
             birimFiyat: item.birimFiyat || 0,
             itemTypeCode: item.itemTypeCode || '',
-            vatRate: item.vatRate,
+            vatRate: item.vatRate || 18,
             productCode: item.productCode || productCode
           };
         });
@@ -563,72 +561,6 @@ const productApi = {
       
       console.warn('Ürün fiyat listesi bulunamadı');
       return [];
-      */
-      
-      // Örnek veriler - ProductPriceList tipine uygun olarak döndürülüyor
-      const currentDate = new Date().toISOString();
-      return [
-        {
-          priceListNumber: '001',
-          priceGroupCode: 'STANDART',
-          priceGroupDescription: 'Standart Fiyat Grubu',
-          priceListTypeCode: 'ALIS',
-          priceListTypeDescription: 'Alış Fiyatı',
-          priceListDate: currentDate,
-          validDate: currentDate,
-          validTime: null,
-          companyCode: '1',
-          isConfirmed: true,
-          isCompleted: true,
-          isLocked: false,
-          createdUserName: 'admin',
-          lastUpdatedUserName: 'admin',
-          birimFiyat: 120.50,
-          itemTypeCode: '1',
-          vatRate: 18,
-          productCode: productCode
-        },
-        {
-          priceListNumber: '002',
-          priceGroupCode: 'STANDART',
-          priceGroupDescription: 'Standart Fiyat Grubu',
-          priceListTypeCode: 'SATIS',
-          priceListTypeDescription: 'Satış Fiyatı',
-          priceListDate: currentDate,
-          validDate: currentDate,
-          validTime: null,
-          companyCode: '1',
-          isConfirmed: true,
-          isCompleted: true,
-          isLocked: false,
-          createdUserName: 'admin',
-          lastUpdatedUserName: 'admin',
-          birimFiyat: 150.00,
-          itemTypeCode: '1',
-          vatRate: 18,
-          productCode: productCode
-        },
-        {
-          priceListNumber: '003',
-          priceGroupCode: 'IHRACAT',
-          priceGroupDescription: 'İhracat Fiyat Grubu',
-          priceListTypeCode: 'IHRACAT',
-          priceListTypeDescription: 'İhracat Fiyatı',
-          priceListDate: currentDate,
-          validDate: currentDate,
-          validTime: null,
-          companyCode: '1',
-          isConfirmed: true,
-          isCompleted: true,
-          isLocked: false,
-          createdUserName: 'admin',
-          lastUpdatedUserName: 'admin',
-          birimFiyat: 12.50,
-          itemTypeCode: '1',
-          vatRate: 0,
-          productCode: productCode
-        }
-      ];
     } catch (error) {
       console.error('Ürün fiyat listesi aranırken hata oluştu:', error);
       throw error;
