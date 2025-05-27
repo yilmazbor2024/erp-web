@@ -103,44 +103,15 @@ export const mainMenuItems: MenuItem[] = [
     icon: 'DollarOutlined',
     children: [
       {
-        id: 'customers',
-        title: 'Müşteriler',
-        path: '/customers',
-        icon: 'UserGroupIcon'
-      },
-      {
-        id: 'vendors',
-        title: 'Tedarikçiler',
-        path: '/vendors',
-        icon: 'TruckIcon'
-      },
-      {
-        id: 'cashier',
-        title: 'Kasa',
-        icon: 'BanknotesIcon',
-        children: [
-          {
-            id: 'payments',
-            title: 'Ödemeler',
-            path: '/cashier/payments'
-          },
-          {
-            id: 'collections',
-            title: 'Tahsilatlar',
-            path: '/cashier/collections'
-          }
-        ]
-      },
-      {
         id: 'receivables',
         title: 'Alacak Hesapları',
         icon: 'RiseOutlined',
         children: [
           {
-            id: 'customer-accounts',
+            id: 'customers',
             title: 'Müşteri Hesapları',
-            path: '/finance/receivables/customers',
-            icon: 'UserOutlined'
+            path: '/customers',
+            icon: 'UserGroupIcon'
           }
         ]
       },
@@ -150,10 +121,10 @@ export const mainMenuItems: MenuItem[] = [
         icon: 'FallOutlined',
         children: [
           {
-            id: 'vendor-accounts',
+            id: 'vendors',
             title: 'Tedarikçi Hesapları',
-            path: '/finance/payables/vendors',
-            icon: 'ShopOutlined'
+            path: '/vendors',
+            icon: 'TruckIcon'
           }
         ]
       },
