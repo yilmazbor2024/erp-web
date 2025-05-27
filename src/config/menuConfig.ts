@@ -75,7 +75,18 @@ export const mainMenuItems: MenuItem[] = [
     id: 'products',
     title: 'Ürünler',
     icon: 'InboxOutlined',
-    path: '/products'
+    children: [
+      {
+        id: 'product-list',
+        title: 'Ürün Listesi',
+        path: 'products'
+      },
+      {
+        id: 'product-price-list',
+        title: 'Satış Fiyat Listesi',
+        path: 'price-lists/products'
+      }
+    ]
   },
   {
     id: 'materials',

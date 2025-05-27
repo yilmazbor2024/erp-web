@@ -22,6 +22,8 @@ import CreateWholesaleInvoice from './pages/Invoices/CreateWholesaleInvoice';
 import InvoiceListPage from './pages/invoice/InvoiceListPage';
 import InvoiceDetailPage from './pages/invoice/InvoiceDetailPage';
 import InvoiceEditPage from './pages/invoice/InvoiceEditPage';
+import ProductPriceList from './pages/Products/ProductPriceList';
+import ProductDetail from './pages/Products/ProductDetail';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Rota değişikliklerini izlemek için bileşen
@@ -71,6 +73,14 @@ const AppRoutes: React.FC = () => {
           <Route path="customers/:customerCode" element={<CustomerDetail />} />
           <Route path="siparisler" element={<Siparisler />} />
           <Route path="urunler" element={<Urunler />} />
+          {/* Fiyat listesi sayfası - Tamamen farklı bir path kullanıyoruz */}
+          <Route path="price-lists/products" element={<ProductPriceList />} />
+          
+          {/* Eski URL'den yeni URL'ye yönlendirme */}
+          <Route path="products/price-list" element={<Navigate to="/price-lists/products" replace />} />
+          
+          {/* Ürün detay sayfası */}
+          <Route path="products/:productCode" element={<ProductDetail />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="roles" element={<RolesPage />} />
           <Route path="profile" element={<Profile />} />

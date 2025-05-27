@@ -67,6 +67,7 @@ import UserGroups from './pages/settings/UserGroups';
 import ProductList from './pages/Products/ProductList';
 import ProductDetail from './pages/Products/ProductDetail';
 import ProductForm from './pages/Products/ProductForm';
+import ProductPriceList from './pages/Products/ProductPriceList';
 
 // Material pages
 import MaterialList from './pages/Materials/MaterialList';
@@ -157,9 +158,13 @@ function App() {
                 <Route path="products">
                   <Route index element={<AuthGuard><ProductList /></AuthGuard>} />
                   <Route path="new" element={<AuthGuard><ProductForm /></AuthGuard>} />
+                  <Route path="price-list" element={<Navigate to="/price-lists/products" replace />} />
                   <Route path=":productCode" element={<AuthGuard><ProductDetail /></AuthGuard>} />
                   <Route path="edit/:productCode" element={<AuthGuard><ProductForm /></AuthGuard>} />
                 </Route>
+                
+                {/* Product Price List Route */}
+                <Route path="price-lists/products" element={<AuthGuard><ProductPriceList /></AuthGuard>} />
                 
                 {/* User Management Routes */}
                 <Route path="users">

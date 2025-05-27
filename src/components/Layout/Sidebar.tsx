@@ -82,8 +82,12 @@ const Sidebar: React.FC = () => {
       <div className="py-4">
         {mainMenuItems.map((item) => {
           const color = menuColors[item.id as keyof typeof menuColors] || '#1677ff';
-          const isActive = item.path === location.pathname || 
-            (item.children && item.children.some(child => child.path === location.pathname));
+          const normalizedPath = item.path?.startsWith('/') ? item.path.substring(1) : item.path;
+          const isActive = normalizedPath === location.pathname || 
+            (item.children && item.children.some(child => {
+              const normalizedChildPath = child.path?.startsWith('/') ? child.path.substring(1) : child.path;
+              return normalizedChildPath === location.pathname;
+            }));
           const isOpen = openSubmenu === item.id;
 
           return (
@@ -113,11 +117,11 @@ const Sidebar: React.FC = () => {
                     {item.children.map((child) => (
                       <Link
                         key={`${item.id}-${child.id || child.path}`}
-                        to={child.path || ''}
+                        to={child.path ? (child.path.startsWith('/') ? child.path.substring(1) : child.path) : ''}
                         className={`
                           flex items-center pl-9 pr-3 py-2 mt-1 rounded-lg
                           transition-all duration-200 hover:bg-gray-50
-                          ${location.pathname === child.path ? 'bg-gray-50' : ''}
+                          ${location.pathname === (child.path?.startsWith('/') ? child.path.substring(1) : child.path) ? 'bg-gray-50' : ''}
                         `}
                         style={{ color }}
                       >
@@ -129,7 +133,7 @@ const Sidebar: React.FC = () => {
               ) : (
                 <Link
                   key={item.id || item.path}
-                  to={item.path || ''}
+                  to={item.path ? (item.path.startsWith('/') ? item.path.substring(1) : item.path) : ''}
                   className={`
                     flex items-center p-3 rounded-lg
                     transition-all duration-200 hover:bg-gray-50
