@@ -133,49 +133,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     return invoiceTypeDescriptions[invoiceType] || 'Bilinmeyen Fatura Tipi';
   };
 
-  // Klavye navigasyonu için fonksiyon
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, index: number, column: string) => {
-    // Enter tuşuna basıldığında form gönderimini engelle
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      
-      // Bir sonraki sütuna geç
-      const columns = ['itemCode', 'productDescription', 'colorDescription', 'itemDim1Code', 'quantity', 'unitOfMeasureCode', 'unitPrice', 'vatRate', 'discountRate'];
-      const currentIndex = columns.indexOf(column);
-      
-      if (currentIndex < columns.length - 1) {
-        // Aynı satırda bir sonraki sütuna geç
-        setEditingColumn(columns[currentIndex + 1]);
-      } else if (index < invoiceDetails.length - 1) {
-        // Bir sonraki satırın ilk sütununa geç
-        setEditingRowIndex(index + 1);
-        setEditingColumn(columns[0]);
-      }
-    }
-    // Sağ ok tuşu
-    else if (e.key === 'ArrowRight') {
-      const columns = ['itemCode', 'productDescription', 'colorDescription', 'itemDim1Code', 'quantity', 'unitOfMeasureCode', 'unitPrice', 'vatRate', 'discountRate'];
-      const currentIndex = columns.indexOf(column);
-      
-      if (currentIndex < columns.length - 1) {
-        setEditingColumn(columns[currentIndex + 1]);
-      }
-    }
-    // Sol ok tuşu
-    else if (e.key === 'ArrowLeft') {
-      const columns = ['itemCode', 'productDescription', 'colorDescription', 'itemDim1Code', 'quantity', 'unitOfMeasureCode', 'unitPrice', 'vatRate', 'discountRate'];
-      const currentIndex = columns.indexOf(column);
-      
-      if (currentIndex > 0) {
-        setEditingColumn(columns[currentIndex - 1]);
-      }
-    }
+  // Klavye navigasyonu için yardımcı fonksiyon
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, rowIndex: number, columnName: string) => {
     // Yukarı ok tuşu
-    else if (e.key === 'ArrowUp' && index > 0) {
-      setEditingRowIndex(index - 1);
+    if (e.key === 'ArrowUp' && rowIndex > 0) {
+      e.preventDefault();
+      setEditingRowIndex(rowIndex - 1);
+      setEditingColumn(columnName);
     }
     // Aşağı ok tuşu
-    else if (e.key === 'ArrowDown' && index < invoiceDetails.length - 1) {
+    else if (e.key === 'ArrowDown' && rowIndex < invoiceDetails.length - 1) {
+      e.preventDefault();
+      setEditingRowIndex(rowIndex + 1);
+      setEditingColumn(columnName);
       setEditingRowIndex(index + 1);
     }
   };
@@ -1447,61 +1417,126 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             width={180}
             fixed="left"
             render={(value, record, index) => (
-              <Input
-                value={value}
-                style={{ 
-                  width: '100%',
-                  minWidth: '120px',
-                  backgroundColor: editingRowIndex === index && editingColumn === 'itemCode' ? '#fffbe6' : undefined
-                }}
-                placeholder="En az 8 hane girin"
-                minLength={8}
-                onFocus={() => {
-                  setEditingRowIndex(index);
-                  setEditingColumn('itemCode');
-                }}
-                onKeyDown={(e) => {
-                  // Enter tuşuna basıldığında ve en az 8 karakter girildiğinde ürünü ara
-                  if (e.key === 'Enter' && e.currentTarget.value.length >= 8) {
-                    const productCode = e.currentTarget.value;
-                    
-                    // Ürün kodunu ara
-                    const foundProduct = products.find(p => p.productCode === productCode);
-                    
-                    if (foundProduct) {
-                      // Ürün bulundu, detayları güncelle
-                      updateInvoiceDetail(index, 'itemCode', foundProduct.productCode);
-                      updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
-                      updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
-                      updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
+              <div style={{ position: 'relative', width: '100%' }}>
+                <Input
+                  value={value}
+                  style={{ 
+                    width: '100%',
+                    minWidth: '120px',
+                    backgroundColor: editingRowIndex === index && editingColumn === 'itemCode' ? '#fffbe6' : undefined
+                  }}
+                  placeholder="Ürün kodu girin"
+                  onFocus={() => {
+                    setEditingRowIndex(index);
+                    setEditingColumn('itemCode');
+                  }}
+                  onKeyDown={(e) => {
+                    // Enter tuşuna basıldığında ve en az 8 karakter girildiğinde ürünü ara
+                    if (e.key === 'Enter' && e.currentTarget.value.length >= 8) {
+                      const productCode = e.currentTarget.value;
                       
-                      // Bir sonraki sütuna geç
-                      handleKeyDown(e, index, 'itemCode');
+                      // Ürün kodunu ara
+                      const foundProduct = products.find(p => p.productCode === productCode);
+                      
+                      if (foundProduct) {
+                        // Ürün bulundu, detayları güncelle
+                        updateInvoiceDetail(index, 'itemCode', foundProduct.productCode);
+                        updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
+                        updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
+                        updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
+                        
+                        // Bir sonraki sütuna geç
+                        const nextColumn = 'productDescription';
+                        setEditingColumn(nextColumn);
+                      } else {
+                        // Ürün bulunamadı, uyarı göster
+                        message.warning(`${productCode} kodlu ürün bulunamadı.`);
+                      }
                     } else {
-                      // Ürün bulunamadı, uyarı göster
-                      message.warning(`${productCode} kodlu ürün bulunamadı.`);
+                      // Diğer tuş navigasyonları için
+                      if (e.key === 'ArrowDown' && index < invoiceDetails.length - 1) {
+                        e.preventDefault();
+                        setEditingRowIndex(index + 1);
+                      } else if (e.key === 'ArrowUp' && index > 0) {
+                        e.preventDefault();
+                        setEditingRowIndex(index - 1);
+                      } else if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        setEditingColumn('productDescription');
+                      }
                     }
-                  } else {
-                    handleKeyDown(e, index, 'itemCode');
-                  }
-                }}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  updateInvoiceDetail(index, 'itemCode', newValue);
-                  
-                  // Eğer 8 veya daha fazla karakter girilmişse otomatik arama yap
-                  if (newValue.length >= 8) {
-                    const foundProduct = products.find(p => p.productCode === newValue);
+                  }}
+                  onChange={(e) => {
+                    const newValue = e.target.value;
+                    updateInvoiceDetail(index, 'itemCode', newValue);
                     
-                    if (foundProduct) {
-                      // Ürün bulundu, detayları güncelle
-                      updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
-                      updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
-                      updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
+                    // Eğer 8 veya daha fazla karakter girilmişse otomatik arama yap
+                    if (newValue.length >= 8) {
+                      const foundProduct = products.find(p => p.productCode === newValue);
+                      
+                      if (foundProduct) {
+                        // Ürün bulundu, detayları güncelle
+                        updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
+                        updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
+                        updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
+                      }
                     }
-                  }
-                }}
-              />
+                  }}
+                />
+                {/* İlk 3 hane girildikten sonra uyuşan en fazla 3 ürün göster */}
+                {value && value.length >= 3 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    width: '100%',
+                    zIndex: 1000,
+                    backgroundColor: 'white',
+                    border: '1px solid #d9d9d9',
+                    borderRadius: '2px',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    display: editingRowIndex === index && editingColumn === 'itemCode' ? 'block' : 'none'
+                  }}>
+                    {products
+                      .filter(p => p.productCode.toLowerCase().startsWith(value.toLowerCase()))
+                      .slice(0, 3) // En fazla 3 ürün göster
+                      .map(product => (
+                        <div 
+                          key={product.productCode}
+                          style={{
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #f0f0f0',
+                            display: 'flex',
+                            justifyContent: 'space-between'
+                          }}
+                          onClick={() => {
+                            // Ürün seçildiğinde detayları güncelle
+                            updateInvoiceDetail(index, 'itemCode', product.productCode);
+                            updateInvoiceDetail(index, 'productDescription', product.productDescription);
+                            updateInvoiceDetail(index, 'unitOfMeasureCode', product.unitOfMeasureCode || 'ADET');
+                            updateInvoiceDetail(index, 'vatRate', product.vatRate || 18);
+                            
+                            // Bir sonraki sütuna geç
+                            setTimeout(() => {
+                              setEditingColumn('productDescription');
+                            }, 0);
+                          }}
+                        >
+                          <span><strong>{product.productCode}</strong></span>
+                          <span>{product.productDescription.substring(0, 20)}{product.productDescription.length > 20 ? '...' : ''}</span>
+                        </div>
+                      ))}
+                    {products.filter(p => p.productCode.toLowerCase().startsWith(value.toLowerCase())).length === 0 && (
+                      <div style={{ padding: '8px 12px', color: '#999' }}>
+                        Ürün bulunamadı
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           />
           <Table.Column 
