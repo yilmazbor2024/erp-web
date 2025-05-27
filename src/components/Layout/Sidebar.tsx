@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout, Input } from 'antd';
 import { Link, useLocation } from 'react-router-dom';
 import { mainMenuItems } from '../../config/menuConfig';
@@ -101,6 +101,9 @@ const Sidebar: React.FC = () => {
   const [filteredMenuItems, setFilteredMenuItems] = useState(mainMenuItems);
   // Arama öncesi açık olan menüleri saklamak için
   const [previousOpenSubmenus, setPreviousOpenSubmenus] = useState<string[]>([]);
+  // Tam eşleşen menü öğesine referans
+  const [exactMatchId, setExactMatchId] = useState<string | null>(null);
+  const exactMatchRef = useRef<HTMLAnchorElement | null>(null);
 
   const handleSubmenuClick = (itemId: string | undefined) => {
     if (itemId) {
@@ -130,6 +133,7 @@ const Sidebar: React.FC = () => {
     // İlk arama başladığında açık menüleri kaydet
     if (searchTerm.trim().length === 3) {
       setPreviousOpenSubmenus([...openSubmenus]);
+      setExactMatchId(null); // Yeni arama başladığında tam eşleşme ID'sini sıfırla
     }
 
     const searchTermLower = searchTerm.toLowerCase();
@@ -138,7 +142,13 @@ const Sidebar: React.FC = () => {
       return items.filter(item => {
         // Başlıkta arama - tam eşleşme kontrolü
         const titleLower = item.title.toLowerCase();
-        const titleMatch = titleLower === searchTermLower || titleLower.startsWith(searchTermLower) || titleLower.includes(` ${searchTermLower}`);
+        const exactMatch = titleLower === searchTermLower;
+        const titleMatch = exactMatch || titleLower.startsWith(searchTermLower) || titleLower.includes(` ${searchTermLower}`);
+        
+        // Tam eşleşme varsa ve path varsa, bu öğeyi işaretle
+        if (exactMatch && item.path && item.id) {
+          setExactMatchId(item.id);
+        }
         
         // Alt menülerde arama
         let childrenMatch = false;
@@ -208,6 +218,14 @@ const Sidebar: React.FC = () => {
       });
     }
   }, [searchTerm]);
+  
+  // Tam eşleşen menü öğesine odaklan
+  useEffect(() => {
+    if (exactMatchId && exactMatchRef.current) {
+      exactMatchRef.current.focus();
+      exactMatchRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [exactMatchId, filteredMenuItems]);
 
   return (
     <Sider
@@ -328,8 +346,11 @@ const Sidebar: React.FC = () => {
                                   flex items-center pl-16 pr-3 py-2 mt-1 rounded-lg
                                   transition-all duration-200 hover:bg-gray-50
                                   ${location.pathname === (grandchild.path?.startsWith('/') ? grandchild.path.substring(1) : grandchild.path) ? 'bg-gray-50' : ''}
+                                  ${exactMatchId === grandchild.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
                                 `}
                                 style={{ color }}
+                                ref={exactMatchId === grandchild.id ? exactMatchRef : null}
+                                tabIndex={exactMatchId === grandchild.id ? 0 : -1}
                               >
                                 {grandchild.icon && <span className="mr-2">{getIcon(grandchild.icon)}</span>}
                                 <span className="font-medium">{grandchild.title}</span>
@@ -345,8 +366,11 @@ const Sidebar: React.FC = () => {
                             flex items-center pl-9 pr-3 py-2 mt-1 rounded-lg
                             transition-all duration-200 hover:bg-gray-50
                             ${location.pathname === childNormalizedPath ? 'bg-gray-50' : ''}
+                            ${exactMatchId === child.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
                           `}
                           style={{ color }}
+                          ref={exactMatchId === child.id ? exactMatchRef : null}
+                          tabIndex={exactMatchId === child.id ? 0 : -1}
                         >
                           {child.icon && <span className="mr-2">{getIcon(child.icon)}</span>}
                           <span className="font-medium">{child.title}</span>
@@ -363,8 +387,11 @@ const Sidebar: React.FC = () => {
                     flex items-center p-3 rounded-lg
                     transition-all duration-200 hover:bg-gray-50
                     ${isActive ? 'bg-gray-50' : ''}
+                    ${exactMatchId === item.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
                   `}
                   style={{ color }}
+                  ref={exactMatchId === item.id ? exactMatchRef : null}
+                  tabIndex={exactMatchId === item.id ? 0 : -1}
                 >
                   <span className="mr-3">{getIcon(item.icon)}</span>
                   {!collapsed && <span className="font-medium">{item.title}</span>}
