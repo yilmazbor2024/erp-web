@@ -1442,60 +1442,63 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Ürün Kodu" 
             dataIndex="itemCode" 
             key="itemCode"
-            width="auto"
+            width={150}
             render={(value, record, index) => (
-              <Select
-                showSearch
+              <Input
                 value={value}
                 style={{ 
                   width: '100%',
+                  minWidth: '120px',
                   backgroundColor: editingRowIndex === index && editingColumn === 'itemCode' ? '#fffbe6' : undefined
                 }}
-                placeholder="Ürün seçin"
-                loading={loadingProducts}
-                optionFilterProp="children"
+                placeholder="En az 8 hane girin"
+                minLength={8}
                 onFocus={() => {
                   setEditingRowIndex(index);
                   setEditingColumn('itemCode');
                 }}
-                onKeyDown={(e) => handleKeyDown(e, index, 'itemCode')}
-                filterOption={(input, option) => {
-                  if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
-                  
-                  // Option içeriğini string'e çevir
-                  let childText = '';
-                  if (typeof option.children === 'string') {
-                    childText = option.children;
-                  } else if (React.isValidElement(option.children)) {
-                    try {
-                      childText = JSON.stringify(option.children);
-                    } catch (e) {
-                      childText = '';
+                onKeyDown={(e) => {
+                  // Enter tuşuna basıldığında ve en az 8 karakter girildiğinde ürünü ara
+                  if (e.key === 'Enter' && e.currentTarget.value.length >= 8) {
+                    const productCode = e.currentTarget.value;
+                    
+                    // Ürün kodunu ara
+                    const foundProduct = products.find(p => p.productCode === productCode);
+                    
+                    if (foundProduct) {
+                      // Ürün bulundu, detayları güncelle
+                      updateInvoiceDetail(index, 'itemCode', foundProduct.productCode);
+                      updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
+                      updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
+                      updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
+                      
+                      // Bir sonraki sütuna geç
+                      handleKeyDown(e, index, 'itemCode');
+                    } else {
+                      // Ürün bulunamadı, uyarı göster
+                      message.warning(`${productCode} kodlu ürün bulunamadı.`);
                     }
                   } else {
-                    try {
-                      childText = option.children.toString();
-                    } catch (e) {
-                      childText = '';
+                    handleKeyDown(e, index, 'itemCode');
+                  }
+                }}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  updateInvoiceDetail(index, 'itemCode', newValue);
+                  
+                  // Eğer 8 veya daha fazla karakter girilmişse otomatik arama yap
+                  if (newValue.length >= 8) {
+                    const foundProduct = products.find(p => p.productCode === newValue);
+                    
+                    if (foundProduct) {
+                      // Ürün bulundu, detayları güncelle
+                      updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
+                      updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
+                      updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
                     }
                   }
-                  
-                  return childText.toLowerCase().includes(input.toLowerCase());
                 }}
-                onChange={(value) => updateInvoiceDetail(index, 'itemCode', value)}
-              >
-                {Array.isArray(products) && products.length > 0 ? (
-                  products.map(product => (
-                    <Option key={product.productCode} value={product.productCode}>
-                      {product.productCode}
-                    </Option>
-                  ))
-                ) : (
-                  <Option value="" disabled>
-                    Ürün bulunamadı
-                  </Option>
-                )}
-              </Select>
+              />
             )}
           />
           <Table.Column 
