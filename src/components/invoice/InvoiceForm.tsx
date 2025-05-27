@@ -1240,7 +1240,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         <Row justify="space-between" style={{ marginBottom: 16 }}>
           <Col>
             <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail} style={{ marginRight: '8px' }}>
-              Detay Ekle
+              Satır Ekle
             </Button>
             <Button 
               type="primary" 
@@ -1457,9 +1457,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                       if (e.key === 'ArrowDown' && index < invoiceDetails.length - 1) {
                         e.preventDefault();
                         setEditingRowIndex(index + 1);
+                        setEditingColumn('itemCode');
                       } else if (e.key === 'ArrowUp' && index > 0) {
                         e.preventDefault();
                         setEditingRowIndex(index - 1);
+                        setEditingColumn('itemCode');
                       } else if (e.key === 'ArrowRight') {
                         e.preventDefault();
                         setEditingColumn('productDescription');
@@ -1616,7 +1618,26 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   setEditingRowIndex(index);
                   setEditingColumn('unitOfMeasureCode');
                 }}
-                onKeyDown={(e) => handleKeyDown(e, index, 'unitOfMeasureCode')}
+                onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => {
+                  if (e.key === 'ArrowDown' && index < invoiceDetails.length - 1) {
+                    e.preventDefault();
+                    setEditingRowIndex(index + 1);
+                    setEditingColumn('unitOfMeasureCode');
+                  } else if (e.key === 'ArrowUp' && index > 0) {
+                    e.preventDefault();
+                    setEditingRowIndex(index - 1);
+                    setEditingColumn('unitOfMeasureCode');
+                  } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    setEditingColumn('unitPrice');
+                  } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    setEditingColumn('quantity');
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setEditingColumn('unitPrice');
+                  }
+                }}
                 suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
                 onChange={(value) => {
                   // Birim değiştiğinde, miktarı da kontrol et ve gerekirse düzelt
