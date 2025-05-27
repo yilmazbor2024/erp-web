@@ -45,6 +45,8 @@ src/
 - Responsive tasarım
 - Offline çalışabilme
 - Push bildirimler
+- Ürün yönetimi ve fiyat listesi görüntüleme
+- Göreceli URL yapısı ile gelişmiş routing
 
 ## Build
 
