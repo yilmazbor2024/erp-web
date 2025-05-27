@@ -1,5 +1,5 @@
-import React from 'react';
-import { Layout } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Layout, Input } from 'antd';
 import { Link, useLocation } from 'react-router-dom';
 import { mainMenuItems } from '../../config/menuConfig';
 import {
@@ -23,7 +23,8 @@ import {
   AccountBookOutlined,
   ImportOutlined,
   ExportOutlined,
-  SwapOutlined
+  SwapOutlined,
+  SearchOutlined
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -94,8 +95,10 @@ const menuColors = {
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
-  const [collapsed, setCollapsed] = React.useState(false);
-  const [openSubmenus, setOpenSubmenus] = React.useState<string[]>([]);
+  const [collapsed, setCollapsed] = useState(false);
+  const [openSubmenus, setOpenSubmenus] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filteredMenuItems, setFilteredMenuItems] = useState(mainMenuItems);
 
   const handleSubmenuClick = (itemId: string | undefined) => {
     if (itemId) {
@@ -106,6 +109,80 @@ const Sidebar: React.FC = () => {
       );
     }
   };
+
+  // Arama terimine göre menü öğelerini filtrele
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredMenuItems(mainMenuItems);
+      return;
+    }
+
+    const searchTermLower = searchTerm.toLowerCase();
+    
+    const filterMenuItems = (items: typeof mainMenuItems): typeof mainMenuItems => {
+      return items.filter(item => {
+        // Başlıkta arama
+        const titleMatch = item.title.toLowerCase().includes(searchTermLower);
+        
+        // Alt menülerde arama
+        let childrenMatch = false;
+        if (item.children && item.children.length > 0) {
+          const filteredChildren: typeof mainMenuItems = filterMenuItems(item.children);
+          childrenMatch = filteredChildren.length > 0;
+          
+          // Alt menülerde eşleşme varsa, alt menüleri filtrelenmiş haliyle güncelle
+          if (childrenMatch) {
+            item = { ...item, children: filteredChildren };
+          }
+        }
+        
+        return titleMatch || childrenMatch;
+      });
+    };
+    
+    const filtered = filterMenuItems([...mainMenuItems]);
+    setFilteredMenuItems(filtered);
+    
+    // Eşleşen alt menülerin üst menülerini otomatik olarak aç
+    if (searchTerm.trim()) {
+      const findParentIds = (items: typeof mainMenuItems, parentIds: string[] = []): string[] => {
+        let allParentIds: string[] = [];
+        
+        items.forEach(item => {
+          if (item.children && item.children.length > 0) {
+            const hasMatch = item.children.some(child => 
+              child.title.toLowerCase().includes(searchTermLower) ||
+              (child.children && child.children.some(grandchild => 
+                grandchild.title.toLowerCase().includes(searchTermLower)
+              ))
+            );
+            
+            if (hasMatch && item.id) {
+              allParentIds.push(item.id);
+            }
+            
+            if (item.children) {
+              const childParentIds = findParentIds(item.children, [...parentIds, item.id || '']);
+              allParentIds = [...allParentIds, ...childParentIds];
+            }
+          }
+        });
+        
+        return allParentIds;
+      };
+      
+      const parentIds = findParentIds(mainMenuItems);
+      setOpenSubmenus(prev => {
+        const newOpenSubmenus = [...prev];
+        parentIds.forEach(id => {
+          if (!newOpenSubmenus.includes(id)) {
+            newOpenSubmenus.push(id);
+          }
+        });
+        return newOpenSubmenus;
+      });
+    }
+  }, [searchTerm]);
 
   return (
     <Sider
@@ -122,8 +199,21 @@ const Sidebar: React.FC = () => {
         </h1>
       </div>
       
+      {!collapsed && (
+        <div className="px-4 pt-4">
+          <Input 
+            placeholder="Menüde ara..."
+            prefix={<SearchOutlined />}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            allowClear
+            className="rounded-lg"
+          />
+        </div>
+      )}
+      
       <div className="py-4">
-        {mainMenuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           const color = menuColors[item.id as keyof typeof menuColors] || '#1677ff';
           const normalizedPath = item.path?.startsWith('/') ? item.path.substring(1) : item.path;
           const isActive = normalizedPath === location.pathname || 
