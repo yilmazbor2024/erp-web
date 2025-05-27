@@ -146,7 +146,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       e.preventDefault();
       setEditingRowIndex(rowIndex + 1);
       setEditingColumn(columnName);
-      setEditingRowIndex(index + 1);
     }
   };
   
