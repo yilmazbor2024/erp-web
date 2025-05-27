@@ -1471,6 +1471,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                     const newValue = e.target.value;
                     updateInvoiceDetail(index, 'itemCode', newValue);
                     
+                    // Ürün kodu boş ise diğer alanları sıfırla
+                    if (!newValue || newValue.trim() === '') {
+                      updateInvoiceDetail(index, 'productDescription', '');
+                      updateInvoiceDetail(index, 'unitOfMeasureCode', 'ADET');
+                      updateInvoiceDetail(index, 'vatRate', 18);
+                      updateInvoiceDetail(index, 'unitPrice', 0);
+                      updateInvoiceDetail(index, 'discountRate', 0);
+                      updateInvoiceDetail(index, 'colorDescription', '');
+                      updateInvoiceDetail(index, 'itemDim1Code', '');
+                      return;
+                    }
+                    
                     // Eğer 8 veya daha fazla karakter girilmişse otomatik arama yap
                     if (newValue.length >= 8) {
                       const foundProduct = products.find(p => p.productCode === newValue);
