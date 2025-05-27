@@ -1379,12 +1379,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           }}
           size="small"
           bordered
+          style={{ fontSize: '0.8em' }} // Font boyutunu %20 küçült
         >
           <Table.Column 
             title="Ürün Kodu" 
             dataIndex="itemCode" 
             key="itemCode"
-            width={200}
+            width="auto"
             render={(value, record, index) => (
               <Select
                 showSearch
@@ -1436,7 +1437,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Ürün Açıklaması" 
             dataIndex="productDescription" 
             key="productDescription"
-            width={250}
+            width="auto"
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1449,7 +1450,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Renk" 
             dataIndex="colorDescription" 
             key="colorDescription"
-            width={120}
+            width="auto"
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1463,7 +1464,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Beden" 
             dataIndex="itemDim1Code" 
             key="itemDim1Code"
-            width={100}
+            width="auto"
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1477,11 +1478,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Birim" 
             dataIndex="unitOfMeasureCode" 
             key="unitOfMeasureCode"
-            width={120}
+            width={150}
             render={(value, record, index) => (
               <Select
                 value={value}
-                style={{ width: '100%' }}
+                style={{ width: '100%', minWidth: '120px' }}
+                dropdownMatchSelectWidth={false}
                 suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
                 onChange={(value) => {
                   // Birim değiştiğinde, miktarı da kontrol et ve gerekirse düzelt
@@ -1510,7 +1512,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Miktar" 
             dataIndex="quantity" 
             key="quantity"
-            width={120}
+            width={150}
             render={(value, record, index) => {
               // Birim türüne göre step ve precision değerlerini belirle
               const isUnitAdet = record.unitOfMeasureCode === 'ADET' || record.unitOfMeasureCode === 'AD';
@@ -1520,7 +1522,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   min={isUnitAdet ? 1 : 0.01} 
                   step={isUnitAdet ? 1 : 0.01}
                   precision={isUnitAdet ? 0 : 2}
-                  style={{ width: '100%' }}
+                  controls={false}
+                  style={{ width: '100%', minWidth: '100px' }}
                   onChange={(value) => {
                     // Eğer birim ADET ise ve küsurat girilmişse, tam sayıya yuvarla
                     if (isUnitAdet && value && !Number.isInteger(value)) {
@@ -1542,7 +1545,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 value={value} 
                 min={0} 
                 step={0.01}
-                style={{ width: '100%' }}
+                controls={false}
+                style={{ width: '100%', minWidth: '120px' }}
                 formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
                 onChange={(value) => updateInvoiceDetail(index, 'unitPrice', value)}
@@ -1580,7 +1584,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 value={value} 
                 min={0} 
                 max={100}
-                style={{ width: '100%' }}
+                controls={false}
+                style={{ width: '100%', minWidth: '80px' }}
                 onChange={(value) => updateInvoiceDetail(index, 'discountRate', value)}
               />
             )}
