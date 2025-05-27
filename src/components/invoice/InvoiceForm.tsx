@@ -1421,28 +1421,31 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           </Col>
         </Row>
         
-        <Table
-          dataSource={invoiceDetails.filter(detail => 
-            filterText ? 
-              (detail.itemCode?.toLowerCase().includes(filterText.toLowerCase()) ||
-               detail.productDescription?.toLowerCase().includes(filterText.toLowerCase()))
-              : true
-          )}
-          rowKey="id"
-          pagination={false}
-          rowSelection={{
-            selectedRowKeys,
-            onChange: (keys) => setSelectedRowKeys(keys as string[])
-          }}
-          size="small"
-          bordered
-          style={{ fontSize: '0.8em' }} // Font boyutunu %20 küçült
+        <div style={{ width: '100%', overflowX: 'auto' }}>
+          <Table
+            dataSource={invoiceDetails.filter(detail => 
+              filterText ? 
+                (detail.itemCode?.toLowerCase().includes(filterText.toLowerCase()) ||
+                detail.productDescription?.toLowerCase().includes(filterText.toLowerCase()))
+                : true
+            )}
+            rowKey="id"
+            pagination={false}
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys as string[])
+            }}
+            size="small"
+            bordered
+            scroll={{ x: 1500 }}
+            style={{ fontSize: '0.9em', minWidth: '100%' }} // Font boyutunu daha büyük yap
         >
           <Table.Column 
             title="Ürün Kodu" 
             dataIndex="itemCode" 
             key="itemCode"
-            width={150}
+            width={180}
+            fixed="left"
             render={(value, record, index) => (
               <Input
                 value={value}
@@ -1505,7 +1508,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Ürün Açıklaması" 
             dataIndex="productDescription" 
             key="productDescription"
+            width={250}
             ellipsis={false}
+            fixed="left"
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1518,6 +1523,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Renk" 
             dataIndex="colorDescription" 
             key="colorDescription"
+            width={120}
             ellipsis={false}
             render={(value, record, index) => (
               <Input 
@@ -1539,6 +1545,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Beden" 
             dataIndex="itemDim1Code" 
             key="itemDim1Code"
+            width={100}
             ellipsis={false}
             render={(value, record, index) => (
               <Input 
@@ -1603,7 +1610,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Miktar" 
             dataIndex="quantity" 
             key="quantity"
-            width={225}
+            width={150}
             render={(value, record, index) => {
               // Birim türüne göre step ve precision değerlerini belirle
               const isUnitAdet = record.unitOfMeasureCode === 'ADET' || record.unitOfMeasureCode === 'AD';
@@ -1695,6 +1702,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="totalAmount"
             key="totalAmount"
             width={120}
+            fixed="right"
             render={(value, record) => (
               <span>
                 {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -1706,6 +1714,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="discountAmount"
             key="discountAmount"
             width={120}
+            fixed="right"
             render={(value, record) => (
               <span>
                 {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -1718,6 +1727,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="vatAmount"
             key="vatAmount"
             width={120}
+            fixed="right"
             render={(value, record) => (
               <span>
                 {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -1729,6 +1739,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="netAmount"
             key="netAmount"
             width={120}
+            fixed="right"
             render={(value, record) => (
               <span>
                 {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -1737,18 +1748,20 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           />
           <Table.Column 
             title="İşlemler" 
-            key="actions"
+            key="operations"
             width={80}
-            render={(text, record, index) => (
+            fixed="right"
+            render={(_, record, i) => (
               <Button 
                 type="text" 
                 danger 
                 icon={<DeleteOutlined />} 
-                onClick={() => removeInvoiceDetail(index)}
+                onClick={() => removeInvoiceDetail(i)}
               />
             )}
           />
         </Table>
+        </div>
 
         <Divider />
 
