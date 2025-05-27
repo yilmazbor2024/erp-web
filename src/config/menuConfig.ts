@@ -103,13 +103,25 @@ export const mainMenuItems: MenuItem[] = [
     icon: 'DollarOutlined',
     children: [
       {
+        id: 'customers',
+        title: 'Müşteriler',
+        path: '/customers',
+        icon: 'UserGroupIcon'
+      },
+      {
+        id: 'vendors',
+        title: 'Tedarikçiler',
+        path: '/vendors',
+        icon: 'TruckIcon'
+      },
+      {
         id: 'receivables',
         title: 'Alacak Hesapları',
         icon: 'RiseOutlined',
         children: [
           {
             id: 'customer-accounts',
-            title: 'Müşteriler',
+            title: 'Müşteri Hesapları',
             path: '/finance/receivables/customers',
             icon: 'UserOutlined'
           }
@@ -122,7 +134,7 @@ export const mainMenuItems: MenuItem[] = [
         children: [
           {
             id: 'vendor-accounts',
-            title: 'Tedarikçiler',
+            title: 'Tedarikçi Hesapları',
             path: '/finance/payables/vendors',
             icon: 'ShopOutlined'
           }
@@ -204,18 +216,6 @@ export const mainMenuItems: MenuItem[] = [
         path: '/inventory/shipping'
       }
     ]
-  },
-  {
-    id: 'customers',
-    title: 'Müşteriler',
-    path: '/customers',
-    icon: 'UserGroupIcon'
-  },
-  {
-    id: 'vendors',
-    title: 'Tedarikçiler',
-    path: '/vendors',
-    icon: 'TruckIcon'
   },
   {
     id: 'cashier',
