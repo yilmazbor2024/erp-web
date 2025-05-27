@@ -18,9 +18,9 @@ export const mainMenuItems: MenuItem[] = [
     icon: 'HomeIcon'
   },
   {
-    id: 'invoices',
-    title: 'Faturalar',
-    icon: 'FileTextOutlined',
+    id: 'sales',
+    title: 'Satış & Pazarlama',
+    icon: 'ShoppingOutlined',
     children: [
       {
         id: 'wholesale-invoices',
@@ -29,28 +29,127 @@ export const mainMenuItems: MenuItem[] = [
         icon: 'FileTextOutlined'
       },
       {
+        id: 'wholesale-delivery-notes',
+        title: 'Toptan Satış İrsaliyeleri',
+        path: '/delivery-notes/list?type=wholesale',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'wholesale-orders',
+        title: 'Toptan Satış Siparişleri',
+        path: '/orders/list?type=wholesale',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'sales-price-list',
+        title: 'Satış Fiyat Listesi',
+        path: '/price-lists/products',
+        icon: 'FileTextOutlined'
+      }
+    ]
+  },
+  {
+    id: 'purchase',
+    title: 'Satınalma',
+    icon: 'ShoppingCartOutlined',
+    children: [
+      {
         id: 'wholesale-purchase-invoices',
         title: 'Toptan Alış Faturaları',
         path: '/invoice/list?type=wholesale-purchase',
         icon: 'FileTextOutlined'
       },
       {
-        id: 'expense-invoices',
-        title: 'Masraf Faturaları',
-        path: '/invoice/list?type=expense',
+        id: 'wholesale-purchase-delivery-notes',
+        title: 'Toptan Alış İrsaliyeleri',
+        path: '/delivery-notes/list?type=wholesale-purchase',
         icon: 'FileTextOutlined'
+      },
+      {
+        id: 'wholesale-purchase-orders',
+        title: 'Toptan Alış Siparişleri',
+        path: '/orders/list?type=wholesale-purchase',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'expense-purchase-invoices',
+        title: 'Masraf Alış Faturaları',
+        path: '/invoice/list?type=expense-purchase',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'expense-sales-invoices',
+        title: 'Masraf Satış Faturaları',
+        path: '/invoice/list?type=expense-sales',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'expenses',
+        title: 'Masraflar',
+        path: '/expenses',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'materials',
+        title: 'Malzemeler',
+        path: '/materials',
+        icon: 'CubeIcon'
+      }
+    ]
+  },
+  {
+    id: 'products',
+    title: 'Ürün Yönetimi',
+    icon: 'InboxOutlined',
+    children: [
+      {
+        id: 'product-list',
+        title: 'Ürünler',
+        path: '/products'
+      },
+      {
+        id: 'product-codings',
+        title: 'Ürün Yönetimi Kodlamaları',
+        path: '/products/codings'
+      }
+    ]
+  },
+  {
+    id: 'inventory',
+    title: 'Depo Yönetimi',
+    icon: 'ArchiveBoxIcon',
+    children: [
+      {
+        id: 'inventory-stock',
+        title: 'Envanter/Stok',
+        path: '/inventory/stock'
+      },
+      {
+        id: 'inventory-count',
+        title: 'Sayımlar',
+        path: '/inventory/count'
+      },
+      {
+        id: 'warehouse-transfer',
+        title: 'Depo ve Depolar Arası Transfer',
+        path: '/inventory/transfer'
+      },
+      {
+        id: 'shipping',
+        title: 'Sevkiyat',
+        path: '/inventory/shipping'
       }
     ]
   },
   {
     id: 'customers',
-    title: 'Müşteri',
+    title: 'Müşteriler',
     path: '/customers',
     icon: 'UserGroupIcon'
   },
   {
     id: 'vendors',
-    title: 'Tedarikçi',
+    title: 'Tedarikçiler',
     path: '/vendors',
     icon: 'TruckIcon'
   },
@@ -68,67 +167,6 @@ export const mainMenuItems: MenuItem[] = [
         id: 'collections',
         title: 'Tahsilatlar',
         path: '/cashier/collections'
-      }
-    ]
-  },
-  {
-    id: 'products',
-    title: 'Ürünler',
-    icon: 'InboxOutlined',
-    children: [
-      {
-        id: 'product-list',
-        title: 'Ürün Listesi',
-        path: 'products'
-      },
-      {
-        id: 'product-price-list',
-        title: 'Satış Fiyat Listesi',
-        path: 'price-lists/products'
-      }
-    ]
-  },
-  {
-    id: 'materials',
-    title: 'Malzemeler',
-    icon: 'CubeIcon',
-    children: [
-      {
-        id: 'material-management',
-        title: 'Malzeme Yönetimi',
-        path: '/materials/management'
-      },
-      {
-        id: 'material-barcodes',
-        title: 'Barkodlar',
-        path: '/materials/barcodes'
-      }
-    ]
-  },
-  {
-    id: 'inventory',
-    title: 'Stoklar',
-    icon: 'ArchiveBoxIcon',
-    children: [
-      {
-        id: 'inventory-count',
-        title: 'Sayım',
-        path: '/inventory/count'
-      },
-      {
-        id: 'inventory-management',
-        title: 'Envanter',
-        path: '/inventory/management'
-      },
-      {
-        id: 'warehouse-management',
-        title: 'Depo Yönetimi',
-        path: '/inventory/warehouse'
-      },
-      {
-        id: 'branch-management',
-        title: 'Ofis/Şube Yönetimi',
-        path: '/inventory/branch'
       }
     ]
   },
@@ -194,10 +232,10 @@ export const mobileBottomMenu: MenuItem[] = [
 
 export const mobileCardMenu: MenuItem[] = [
   {
-    id: 'invoices',
-    title: 'Faturalar',
-    icon: 'FileTextOutlined',
-    color: '#0065cc', 
+    id: 'sales',
+    title: 'Satış & Pazarlama',
+    icon: 'ShoppingOutlined',
+    color: '#c41d7f',
     children: [
       {
         id: 'wholesale-invoices',
@@ -206,38 +244,146 @@ export const mobileCardMenu: MenuItem[] = [
         icon: 'FileTextOutlined'
       },
       {
+        id: 'wholesale-delivery-notes',
+        title: 'Toptan Satış İrsaliyeleri',
+        path: '/delivery-notes/list?type=wholesale',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'wholesale-orders',
+        title: 'Toptan Satış Siparişleri',
+        path: '/orders/list?type=wholesale',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'sales-price-list',
+        title: 'Satış Fiyat Listesi',
+        path: '/price-lists/products',
+        icon: 'FileTextOutlined'
+      }
+    ]
+  },
+  {
+    id: 'purchase',
+    title: 'Satınalma',
+    icon: 'ShoppingCartOutlined',
+    color: '#0065cc',
+    children: [
+      {
         id: 'wholesale-purchase-invoices',
         title: 'Toptan Alış Faturaları',
         path: '/invoice/list?type=wholesale-purchase',
         icon: 'FileTextOutlined'
       },
       {
-        id: 'expense-invoices',
-        title: 'Masraf Faturaları',
-        path: '/invoice/list?type=expense',
+        id: 'wholesale-purchase-delivery-notes',
+        title: 'Toptan Alış İrsaliyeleri',
+        path: '/delivery-notes/list?type=wholesale-purchase',
         icon: 'FileTextOutlined'
+      },
+      {
+        id: 'wholesale-purchase-orders',
+        title: 'Toptan Alış Siparişleri',
+        path: '/orders/list?type=wholesale-purchase',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'expense-purchase-invoices',
+        title: 'Masraf Alış Faturaları',
+        path: '/invoice/list?type=expense-purchase',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'expense-sales-invoices',
+        title: 'Masraf Satış Faturaları',
+        path: '/invoice/list?type=expense-sales',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'expenses',
+        title: 'Masraflar',
+        path: '/expenses',
+        icon: 'FileTextOutlined'
+      },
+      {
+        id: 'materials',
+        title: 'Malzemeler',
+        path: '/materials',
+        icon: 'CubeIcon'
+      }
+    ]
+  },
+  {
+    id: 'products',
+    title: 'Ürün Yönetimi',
+    icon: 'InboxOutlined',
+    color: '#c41d7f',
+    children: [
+      {
+        id: 'product-list',
+        title: 'Ürünler',
+        path: '/products',
+        icon: 'InboxOutlined'
+      },
+      {
+        id: 'product-codings',
+        title: 'Ürün Yönetimi Kodlamaları',
+        path: '/products/codings',
+        icon: 'InboxOutlined'
+      }
+    ]
+  },
+  {
+    id: 'inventory',
+    title: 'Depo Yönetimi',
+    icon: 'ArchiveBoxIcon',
+    color: '#d4380d',
+    children: [
+      {
+        id: 'inventory-stock',
+        title: 'Envanter/Stok',
+        path: '/inventory/stock',
+        icon: 'ArchiveBoxIcon'
+      },
+      {
+        id: 'inventory-count',
+        title: 'Sayımlar',
+        path: '/inventory/count',
+        icon: 'ArchiveBoxIcon'
+      },
+      {
+        id: 'warehouse-transfer',
+        title: 'Depo ve Depolar Arası Transfer',
+        path: '/inventory/transfer',
+        icon: 'ArchiveBoxIcon'
+      },
+      {
+        id: 'shipping',
+        title: 'Sevkiyat',
+        path: '/inventory/shipping',
+        icon: 'ArchiveBoxIcon'
       }
     ]
   },
   {
     id: 'customers',
-    title: 'Müşteri',
+    title: 'Müşteriler',
     path: '/customers',
     icon: 'UserGroupIcon',
-    color: '#389e0d' 
+    color: '#389e0d'
   },
   {
     id: 'vendors',
-    title: 'Tedarikçi',
+    title: 'Tedarikçiler',
     path: '/vendors',
     icon: 'TruckIcon',
-    color: '#531dab' 
+    color: '#531dab'
   },
   {
     id: 'cashier',
     title: 'Kasa',
     icon: 'BanknotesIcon',
-    color: '#d48806', 
+    color: '#d48806',
     children: [
       {
         id: 'payments',
@@ -254,82 +400,10 @@ export const mobileCardMenu: MenuItem[] = [
     ]
   },
   {
-    id: 'products',
-    title: 'Ürünler',
-    icon: 'ShoppingBagIcon',
-    color: '#c41d7f', 
-    children: [
-      {
-        id: 'product-management',
-        title: 'Ürün Yönetimi',
-        path: '/products/management',
-        icon: 'ShoppingBagIcon'
-      },
-      {
-        id: 'product-barcodes',
-        title: 'Barkodlar',
-        path: '/products/barcodes',
-        icon: 'ShoppingBagIcon'
-      }
-    ]
-  },
-  {
-    id: 'materials',
-    title: 'Malzemeler',
-    icon: 'CubeIcon',
-    color: '#08979c', 
-    children: [
-      {
-        id: 'material-management',
-        title: 'Malzeme Yönetimi',
-        path: '/materials/management',
-        icon: 'CubeIcon'
-      },
-      {
-        id: 'material-barcodes',
-        title: 'Barkodlar',
-        path: '/materials/barcodes',
-        icon: 'CubeIcon'
-      }
-    ]
-  },
-  {
-    id: 'inventory',
-    title: 'Stoklar',
-    icon: 'ArchiveBoxIcon',
-    color: '#d4380d', 
-    children: [
-      {
-        id: 'inventory-count',
-        title: 'Sayım',
-        path: '/inventory/count',
-        icon: 'ArchiveBoxIcon'
-      },
-      {
-        id: 'inventory-management',
-        title: 'Envanter',
-        path: '/inventory/management',
-        icon: 'ArchiveBoxIcon'
-      },
-      {
-        id: 'warehouse-management',
-        title: 'Depo Yönetimi',
-        path: '/inventory/warehouse',
-        icon: 'ArchiveBoxIcon'
-      },
-      {
-        id: 'branch-management',
-        title: 'Ofis/Şube Yönetimi',
-        path: '/inventory/branch',
-        icon: 'ArchiveBoxIcon'
-      }
-    ]
-  },
-  {
     id: 'settings',
     title: 'Ayarlar',
     icon: 'CogIcon',
-    color: '#434343', 
+    color: '#434343',
     children: [
       {
         id: 'user-management',

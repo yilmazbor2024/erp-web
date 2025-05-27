@@ -9,6 +9,7 @@ import {
   CarOutlined,
   BankOutlined,
   ShoppingOutlined,
+  ShoppingCartOutlined,
   InboxOutlined,
   DatabaseOutlined,
   SettingOutlined,
@@ -22,6 +23,7 @@ const getIcon = (iconName: string | undefined) => {
     case 'HomeIcon':
       return <HomeOutlined className="text-xl" />;
     case 'ReceiptIcon':
+    case 'FileTextOutlined':
       return <FileTextOutlined className="text-xl" />;
     case 'UserGroupIcon':
       return <TeamOutlined className="text-xl" />;
@@ -30,12 +32,18 @@ const getIcon = (iconName: string | undefined) => {
     case 'BanknotesIcon':
       return <BankOutlined className="text-xl" />;
     case 'ShoppingBagIcon':
+    case 'ShoppingOutlined':
       return <ShoppingOutlined className="text-xl" />;
+    case 'ShoppingCartOutlined':
+      return <ShoppingCartOutlined className="text-xl" />;
     case 'CubeIcon':
+    case 'InboxOutlined':
       return <InboxOutlined className="text-xl" />;
     case 'ArchiveBoxIcon':
+    case 'DatabaseOutlined':
       return <DatabaseOutlined className="text-xl" />;
     case 'CogIcon':
+    case 'SettingOutlined':
       return <SettingOutlined className="text-xl" />;
     default:
       return <HomeOutlined className="text-xl" />;
