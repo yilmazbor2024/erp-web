@@ -1473,13 +1473,28 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                     
                     // Ürün kodu boş ise diğer alanları sıfırla
                     if (!newValue || newValue.trim() === '') {
-                      updateInvoiceDetail(index, 'productDescription', '');
-                      updateInvoiceDetail(index, 'unitOfMeasureCode', 'ADET');
-                      updateInvoiceDetail(index, 'vatRate', 18);
-                      updateInvoiceDetail(index, 'unitPrice', 0);
-                      updateInvoiceDetail(index, 'discountRate', 0);
-                      updateInvoiceDetail(index, 'colorDescription', '');
-                      updateInvoiceDetail(index, 'itemDim1Code', '');
+                      // Tüm hücreyi temizle
+                      const emptyDetail = {
+                        ...invoiceDetails[index],
+                        itemCode: '',
+                        productDescription: '',
+                        unitOfMeasureCode: 'ADET',
+                        vatRate: 18,
+                        unitPrice: 0,
+                        quantity: 1,
+                        discountRate: 0,
+                        colorDescription: '',
+                        itemDim1Code: '',
+                        totalAmount: 0,
+                        discountAmount: 0,
+                        vatAmount: 0,
+                        netAmount: 0
+                      };
+                      
+                      // Tüm hücreyi güncelle
+                      const updatedDetails = [...invoiceDetails];
+                      updatedDetails[index] = emptyDetail;
+                      setInvoiceDetails(updatedDetails);
                       return;
                     }
                     
@@ -1503,7 +1518,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                     top: '100%',
                     left: 0,
                     width: '100%',
-                    zIndex: 1000,
+                    zIndex: 9999,
                     backgroundColor: 'white',
                     border: '1px solid #d9d9d9',
                     borderRadius: '2px',
