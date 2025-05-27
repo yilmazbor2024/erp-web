@@ -109,7 +109,7 @@ export const mainMenuItems: MenuItem[] = [
         children: [
           {
             id: 'customers',
-            title: 'Müşteri Hesapları',
+            title: 'Müşteri',
             path: '/customers',
             icon: 'UserGroupIcon'
           }
@@ -122,7 +122,7 @@ export const mainMenuItems: MenuItem[] = [
         children: [
           {
             id: 'vendors',
-            title: 'Tedarikçi Hesapları',
+            title: 'Tedarikçi',
             path: '/vendors',
             icon: 'TruckIcon'
           }
