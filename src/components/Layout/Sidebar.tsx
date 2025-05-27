@@ -13,7 +13,12 @@ import {
   InboxOutlined,
   DatabaseOutlined,
   SettingOutlined,
-  RightOutlined
+  RightOutlined,
+  DollarOutlined,
+  RiseOutlined,
+  FallOutlined,
+  UserOutlined,
+  ShopOutlined
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -45,6 +50,16 @@ const getIcon = (iconName: string | undefined) => {
     case 'CogIcon':
     case 'SettingOutlined':
       return <SettingOutlined className="text-xl" />;
+    case 'DollarOutlined':
+      return <DollarOutlined className="text-xl" />;
+    case 'RiseOutlined':
+      return <RiseOutlined className="text-xl" />;
+    case 'FallOutlined':
+      return <FallOutlined className="text-xl" />;
+    case 'UserOutlined':
+      return <UserOutlined className="text-xl" />;
+    case 'ShopOutlined':
+      return <ShopOutlined className="text-xl" />;
     default:
       return <HomeOutlined className="text-xl" />;
   }
@@ -58,17 +73,22 @@ const menuColors = {
   'products': '#c41d7f',
   'materials': '#08979c',
   'inventory': '#d4380d',
-  'settings': '#434343'
+  'settings': '#434343',
+  'finance': '#1890ff'
 };
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const [collapsed, setCollapsed] = React.useState(false);
-  const [openSubmenu, setOpenSubmenu] = React.useState<string | null>(null);
+  const [openSubmenus, setOpenSubmenus] = React.useState<string[]>([]);
 
   const handleSubmenuClick = (itemId: string | undefined) => {
     if (itemId) {
-      setOpenSubmenu(openSubmenu === itemId ? null : itemId);
+      setOpenSubmenus(prev => 
+        prev.includes(itemId) 
+          ? prev.filter(id => id !== itemId) 
+          : [...prev, itemId]
+      );
     }
   };
 
@@ -94,9 +114,17 @@ const Sidebar: React.FC = () => {
           const isActive = normalizedPath === location.pathname || 
             (item.children && item.children.some(child => {
               const normalizedChildPath = child.path?.startsWith('/') ? child.path.substring(1) : child.path;
-              return normalizedChildPath === location.pathname;
+              const childActive = normalizedChildPath === location.pathname;
+              
+              // Check if any grandchild is active
+              const grandchildActive = child.children && child.children.some(grandchild => {
+                const normalizedGrandchildPath = grandchild.path?.startsWith('/') ? grandchild.path.substring(1) : grandchild.path;
+                return normalizedGrandchildPath === location.pathname;
+              });
+              
+              return childActive || grandchildActive;
             }));
-          const isOpen = openSubmenu === item.id;
+          const isOpen = openSubmenus.includes(item.id || '');
 
           return (
             <div key={item.id || item.path} className="px-4 mb-2">
@@ -120,22 +148,69 @@ const Sidebar: React.FC = () => {
                   
                   <div className={`
                     overflow-hidden transition-all duration-200
-                    ${isOpen ? 'max-h-96' : 'max-h-0'}
+                    ${isOpen ? 'max-h-[800px]' : 'max-h-0'}
                   `}>
-                    {item.children.map((child) => (
-                      <Link
-                        key={`${item.id}-${child.id || child.path}`}
-                        to={child.path ? (child.path.startsWith('/') ? child.path.substring(1) : child.path) : ''}
-                        className={`
-                          flex items-center pl-9 pr-3 py-2 mt-1 rounded-lg
-                          transition-all duration-200 hover:bg-gray-50
-                          ${location.pathname === (child.path?.startsWith('/') ? child.path.substring(1) : child.path) ? 'bg-gray-50' : ''}
-                        `}
-                        style={{ color }}
-                      >
-                        <span className="font-medium">{child.title}</span>
-                      </Link>
-                    ))}
+                    {item.children.map((child) => {
+                      const childNormalizedPath = child.path?.startsWith('/') ? child.path.substring(1) : child.path;
+                      const childIsActive = location.pathname === childNormalizedPath;
+                      const childHasChildren = child.children && child.children.length > 0;
+                      const childIsOpen = openSubmenus.includes(child.id || '');
+                      
+                      return childHasChildren ? (
+                        <div key={`${item.id}-${child.id || child.path}`}>
+                          <div
+                            onClick={() => handleSubmenuClick(child.id)}
+                            className={`
+                              flex items-center justify-between pl-9 pr-3 py-2 mt-1 rounded-lg cursor-pointer
+                              transition-all duration-200 hover:bg-gray-50
+                              ${childIsActive ? 'bg-gray-50' : ''}
+                            `}
+                            style={{ color }}
+                          >
+                            <div className="flex items-center">
+                              {child.icon && <span className="mr-2">{getIcon(child.icon)}</span>}
+                              <span className="font-medium">{child.title}</span>
+                            </div>
+                            <RightOutlined className={`transform transition-transform duration-200 ${childIsOpen ? 'rotate-90' : ''}`} />
+                          </div>
+                          
+                          <div className={`
+                            overflow-hidden transition-all duration-200
+                            ${childIsOpen ? 'max-h-96' : 'max-h-0'}
+                          `}>
+                            {child.children?.map((grandchild) => (
+                              <Link
+                                key={`${item.id}-${child.id}-${grandchild.id || grandchild.path}`}
+                                to={grandchild.path ? (grandchild.path.startsWith('/') ? grandchild.path.substring(1) : grandchild.path) : ''}
+                                className={`
+                                  flex items-center pl-16 pr-3 py-2 mt-1 rounded-lg
+                                  transition-all duration-200 hover:bg-gray-50
+                                  ${location.pathname === (grandchild.path?.startsWith('/') ? grandchild.path.substring(1) : grandchild.path) ? 'bg-gray-50' : ''}
+                                `}
+                                style={{ color }}
+                              >
+                                {grandchild.icon && <span className="mr-2">{getIcon(grandchild.icon)}</span>}
+                                <span className="font-medium">{grandchild.title}</span>
+                              </Link>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <Link
+                          key={`${item.id}-${child.id || child.path}`}
+                          to={child.path ? (child.path.startsWith('/') ? child.path.substring(1) : child.path) : ''}
+                          className={`
+                            flex items-center pl-9 pr-3 py-2 mt-1 rounded-lg
+                            transition-all duration-200 hover:bg-gray-50
+                            ${location.pathname === childNormalizedPath ? 'bg-gray-50' : ''}
+                          `}
+                          style={{ color }}
+                        >
+                          {child.icon && <span className="mr-2">{getIcon(child.icon)}</span>}
+                          <span className="font-medium">{child.title}</span>
+                        </Link>
+                      );
+                    })}
                   </div>
                 </>
               ) : (

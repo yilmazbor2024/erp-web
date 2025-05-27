@@ -98,6 +98,39 @@ export const mainMenuItems: MenuItem[] = [
     ]
   },
   {
+    id: 'finance',
+    title: 'Finans Yönetimi',
+    icon: 'DollarOutlined',
+    children: [
+      {
+        id: 'receivables',
+        title: 'Alacak Hesapları',
+        icon: 'RiseOutlined',
+        children: [
+          {
+            id: 'customer-accounts',
+            title: 'Müşteriler',
+            path: '/finance/receivables/customers',
+            icon: 'UserOutlined'
+          }
+        ]
+      },
+      {
+        id: 'payables',
+        title: 'Borç Hesapları',
+        icon: 'FallOutlined',
+        children: [
+          {
+            id: 'vendor-accounts',
+            title: 'Tedarikçiler',
+            path: '/finance/payables/vendors',
+            icon: 'ShopOutlined'
+          }
+        ]
+      }
+    ]
+  },
+  {
     id: 'products',
     title: 'Ürün Yönetimi',
     icon: 'InboxOutlined',
