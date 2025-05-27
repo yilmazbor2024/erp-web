@@ -1626,6 +1626,28 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           <Table.Column 
             title={`Birim Fiyat ${isPriceIncludeVat ? '(KDV Dahil)' : '(KDV Hariç)'}`} 
             dataIndex="unitPrice" 
+            key="unitPrice"
+            width={120}
+            render={(value, record, index) => (
+              <InputNumber 
+                value={value} 
+                min={0} 
+                step={0.01}
+                precision={2}
+                controls={false}
+                style={{ 
+                  width: '100%', 
+                  minWidth: '100px',
+                  backgroundColor: editingRowIndex === index && editingColumn === 'unitPrice' ? '#fffbe6' : undefined
+                }}
+                onFocus={() => {
+                  setEditingRowIndex(index);
+                  setEditingColumn('unitPrice');
+                }}
+                onKeyDown={(e) => handleKeyDown(e, index, 'unitPrice')}
+                onChange={(value) => updateInvoiceDetail(index, 'unitPrice', value)}
+              />
+            )}
           />
           <Table.Column 
             title="KDV (%)" 
@@ -1649,17 +1671,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             )}
           />
           <Table.Column 
-            title="İskonto (%)" 
+            title="İsk(%)" 
             dataIndex="discountRate" 
             key="discountRate"
-            width={100}
+            width={70}
             render={(value, record, index) => (
               <InputNumber 
                 value={value} 
                 min={0} 
                 max={100}
+                precision={2}
                 controls={false}
-                style={{ width: '100%', minWidth: '80px' }}
+                style={{ width: '100%', minWidth: '60px' }}
                 onChange={(value) => updateInvoiceDetail(index, 'discountRate', value)}
               />
             )}
@@ -1686,17 +1709,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </span>
             )}
           />
-          <Table.Column 
-            title="Alt Toplam" 
-            dataIndex="subtotalAmount"
-            key="subtotalAmount"
-            width={120}
-            render={(value, record) => (
-              <span>
-                {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              </span>
-            )}
-          />
+
           <Table.Column 
             title="KDV Tutarı" 
             dataIndex="vatAmount"
