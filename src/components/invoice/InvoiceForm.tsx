@@ -133,10 +133,50 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     return invoiceTypeDescriptions[invoiceType] || 'Bilinmeyen Fatura Tipi';
   };
 
-  // Klavye navigasyonu için yardımcı fonksiyon
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>, rowIndex: number, columnName: string) => {
+  // Klavye navigasyonu için yardımcı fonksiyon - Excel benzeri davranış
+  const handleKeyDown = (e: React.KeyboardEvent<any>, rowIndex: number, columnName: string) => {
+    // Sırasıyla düzenlenebilir sütunlar
+    const editableColumns = [
+      'itemCode',
+      'productDescription',
+      'colorDescription',
+      'itemDim1Code',
+      'quantity',
+      'unitOfMeasureCode',
+      'unitPrice',
+      'discountRate',
+      'vatRate'
+    ];
+    
+    const currentColumnIndex = editableColumns.indexOf(columnName);
+    
+    // Enter tuşuna basıldığında
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      
+      // Eğer son sütundaysa ve son satırdaysa, yeni satır ekle
+      if (currentColumnIndex === editableColumns.length - 1 && rowIndex === invoiceDetails.length - 1) {
+        addInvoiceDetail(); // Yeni satır ekle
+        setTimeout(() => {
+          // Yeni eklenen satırın ilk sütununa odaklan
+          setEditingRowIndex(invoiceDetails.length);
+          setEditingColumn(editableColumns[0]);
+        }, 0);
+        return;
+      }
+      
+      // Eğer son sütundaysa, bir sonraki satırın ilk sütununa geç
+      if (currentColumnIndex === editableColumns.length - 1) {
+        setEditingRowIndex(rowIndex + 1);
+        setEditingColumn(editableColumns[0]);
+        return;
+      }
+      
+      // Değilse, aynı satırda bir sonraki sütuna geç
+      setEditingColumn(editableColumns[currentColumnIndex + 1]);
+    }
     // Yukarı ok tuşu
-    if (e.key === 'ArrowUp' && rowIndex > 0) {
+    else if (e.key === 'ArrowUp' && rowIndex > 0) {
       e.preventDefault();
       setEditingRowIndex(rowIndex - 1);
       setEditingColumn(columnName);
@@ -146,6 +186,30 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       e.preventDefault();
       setEditingRowIndex(rowIndex + 1);
       setEditingColumn(columnName);
+    }
+    // Sağ ok tuşu - bir sonraki sütuna geç
+    else if (e.key === 'ArrowRight') {
+      // Eğer metin seçili değilse veya imleç metnin sonundaysa
+      const input = e.target as HTMLInputElement;
+      if (input.selectionStart === input.value.length) {
+        e.preventDefault();
+        // Son sütun değilse bir sonraki sütuna geç
+        if (currentColumnIndex < editableColumns.length - 1) {
+          setEditingColumn(editableColumns[currentColumnIndex + 1]);
+        }
+      }
+    }
+    // Sol ok tuşu - bir önceki sütuna geç
+    else if (e.key === 'ArrowLeft') {
+      // Eğer metin seçili değilse veya imleç metnin başındaysa
+      const input = e.target as HTMLInputElement;
+      if (input.selectionStart === 0) {
+        e.preventDefault();
+        // İlk sütun değilse bir önceki sütuna geç
+        if (currentColumnIndex > 0) {
+          setEditingColumn(editableColumns[currentColumnIndex - 1]);
+        }
+      }
     }
   };
   
@@ -1431,40 +1495,27 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   }}
                   onKeyDown={(e) => {
                     // Enter tuşuna basıldığında ve en az 8 karakter girildiğinde ürünü ara
-                    if (e.key === 'Enter' && e.currentTarget.value.length >= 8) {
-                      const productCode = e.currentTarget.value;
-                      
-                      // Ürün kodunu ara
-                      const foundProduct = products.find(p => p.productCode === productCode);
-                      
-                      if (foundProduct) {
-                        // Ürün bulundu, detayları güncelle
-                        updateInvoiceDetail(index, 'itemCode', foundProduct.productCode);
-                        updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
-                        updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
-                        updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (e.currentTarget.value.length >= 8) {
+                        const productCode = e.currentTarget.value;
                         
-                        // Bir sonraki sütuna geç
-                        const nextColumn = 'productDescription';
-                        setEditingColumn(nextColumn);
-                      } else {
-                        // Ürün bulunamadı, uyarı göster
-                        message.warning(`${productCode} kodlu ürün bulunamadı.`);
+                        // Ürün kodunu ara
+                        const foundProduct = products.find(p => p.productCode === productCode);
+                        
+                        if (foundProduct) {
+                          // Ürün bulundu, detayları güncelle
+                          updateInvoiceDetail(index, 'itemCode', foundProduct.productCode);
+                          updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
+                          updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
+                          updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
+                        }
                       }
+                      // Her durumda bir sonraki sütuna geç
+                      handleKeyDown(e, index, 'itemCode');
                     } else {
                       // Diğer tuş navigasyonları için
-                      if (e.key === 'ArrowDown' && index < invoiceDetails.length - 1) {
-                        e.preventDefault();
-                        setEditingRowIndex(index + 1);
-                        setEditingColumn('itemCode');
-                      } else if (e.key === 'ArrowUp' && index > 0) {
-                        e.preventDefault();
-                        setEditingRowIndex(index - 1);
-                        setEditingColumn('itemCode');
-                      } else if (e.key === 'ArrowRight') {
-                        e.preventDefault();
-                        setEditingColumn('productDescription');
-                      }
+                      handleKeyDown(e, index, 'itemCode');
                     }
                   }}
                   onChange={(e) => {
@@ -1659,26 +1710,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   setEditingRowIndex(index);
                   setEditingColumn('unitOfMeasureCode');
                 }}
-                onKeyDown={(e: React.KeyboardEvent<HTMLElement>) => {
-                  if (e.key === 'ArrowDown' && index < invoiceDetails.length - 1) {
-                    e.preventDefault();
-                    setEditingRowIndex(index + 1);
-                    setEditingColumn('unitOfMeasureCode');
-                  } else if (e.key === 'ArrowUp' && index > 0) {
-                    e.preventDefault();
-                    setEditingRowIndex(index - 1);
-                    setEditingColumn('unitOfMeasureCode');
-                  } else if (e.key === 'ArrowRight') {
-                    e.preventDefault();
-                    setEditingColumn('unitPrice');
-                  } else if (e.key === 'ArrowLeft') {
-                    e.preventDefault();
-                    setEditingColumn('quantity');
-                  } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    setEditingColumn('unitPrice');
-                  }
-                }}
+                onKeyDown={(e) => handleKeyDown(e, index, 'unitOfMeasureCode')}
                 suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
                 onChange={(value) => {
                   // Birim değiştiğinde, miktarı da kontrol et ve gerekirse düzelt
