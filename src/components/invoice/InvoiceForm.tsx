@@ -1048,8 +1048,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           </Col>
         </Row>
 
-        <Row gutter={16}>
-          <Col span={8}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={12} md={8} lg={8}>
             <Form.Item
               name="currAccCode"
               label={currAccType === CurrAccType.CUSTOMER ? 'Müşteri' : 'Tedarikçi'}
@@ -1109,7 +1109,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </Select>
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col xs={24} sm={12} md={8} lg={8}>
             <Form.Item
               name="officeCode"
               label="Ofis"
@@ -1124,7 +1124,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </Select>
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col xs={24} sm={12} md={8} lg={8}>
             <Form.Item
               name="warehouseCode"
               label="Depo"
@@ -1143,28 +1143,30 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
         <Divider orientation="left">Fatura Detayları</Divider>
         
-        <Row justify="space-between" style={{ marginBottom: 16 }}>
-          <Col>
-            <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail} style={{ marginRight: '8px' }}>
-              Detay Ekle
-            </Button>
-            <Button 
-              type="primary" 
-              icon={<BarcodeOutlined />} 
-              onClick={() => {
-                setBarcodeModalVisible(true);
-                // Modal açıldığında input'a odaklan
-                setTimeout(() => {
-                  if (barcodeInputRef.current) {
-                    barcodeInputRef.current.focus();
-                  }
-                }, 100);
-              }}
-            >
-              Barkod ile Ekle
-            </Button>
+        <Row justify="space-between" align="middle" gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={24} md={12} lg={12}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+              <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail}>
+                Detay Ekle
+              </Button>
+              <Button 
+                type="primary" 
+                icon={<BarcodeOutlined />} 
+                onClick={() => {
+                  setBarcodeModalVisible(true);
+                  // Modal açıldığında input'a odaklan
+                  setTimeout(() => {
+                    if (barcodeInputRef.current) {
+                      barcodeInputRef.current.focus();
+                    }
+                  }, 100);
+                }}
+              >
+                Barkod ile Ekle
+              </Button>
+            </div>
           </Col>
-          <Col>
+          <Col xs={24} sm={24} md={12} lg={12} style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Form.Item
               label="Birim Fiyat"
               tooltip="Birim fiyatları KDV dahil olarak girmek için açın"
@@ -1181,8 +1183,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         </Row>
         
         {/* Filtreleme ve Toplu Düzenleme Kontrol Paneli */}
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={8}>
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={24} md={12} lg={8}>
             <Input.Search 
               placeholder="Ürün kodu veya açıklaması ile filtrele" 
               value={filterText}
@@ -1190,7 +1192,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               allowClear
             />
           </Col>
-          <Col span={16} style={{ textAlign: 'right' }}>
+          <Col xs={24} sm={24} md={12} lg={16} style={{ textAlign: 'right' }}>
             <Button 
               type="primary" 
               disabled={selectedRowKeys.length === 0}
@@ -1312,12 +1314,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           }}
           size="small"
           bordered
+          scroll={{ x: 'max-content' }} // Yatay kaydırma ekleyerek mobile uyumlu hale getirdik
+          responsive={true}
         >
           <Table.Column 
             title="Ürün Kodu" 
             dataIndex="itemCode" 
             key="itemCode"
-            width={120} // 8 hane için
+            width={100} // Ürün Kodu alanı 100px
             render={(value, record, index) => (
               <Select
                 showSearch
@@ -1326,7 +1330,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 placeholder="Ürün seçin"
                 loading={loadingProducts}
                 optionFilterProp="children"
-                dropdownMatchSelectWidth={true}
+                dropdownStyle={{ width: '200px' }}
+                dropdownMatchSelectWidth={false}
                 maxTagCount={4}
                 filterOption={(input, option) => {
                   if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
