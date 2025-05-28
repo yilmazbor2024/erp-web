@@ -1570,15 +1570,21 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                       if (el && editingRowIndex === index && editingColumn === 'itemCode') {
                         const rect = el.parentElement?.getBoundingClientRect();
                         if (rect) {
-                          el.style.position = 'absolute';
-                          el.style.top = rect.height + 'px';
-                          el.style.left = '0';
+                          // Sabit pozisyon kullan
+                          el.style.position = 'fixed';
+                          // Mevcut hücrenin altında göster
+                          const inputRect = el.parentElement?.querySelector('input')?.getBoundingClientRect();
+                          if (inputRect) {
+                            el.style.top = (inputRect.bottom + window.scrollY) + 'px';
+                            el.style.left = (inputRect.left + window.scrollX) + 'px';
+                            el.style.width = (inputRect.width) + 'px';
+                          }
                         }
                       }
                     }}
                     style={{
-                      position: 'absolute',
-                      top: '100%',
+                      position: 'fixed',
+                      top: '0',
                       left: '0',
                       width: '250px',
                       zIndex: 9999,
