@@ -1565,29 +1565,23 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 {/* İlk 3 hane girildikten sonra uyuşan en fazla 3 ürün göster */}
                 {value && value.length >= 3 && (
                   <div 
+                    className="product-search-dropdown"
                     ref={(el) => {
                       // Dropdown'u doğru konumlandır
                       if (el && editingRowIndex === index && editingColumn === 'itemCode') {
-                        const rect = el.parentElement?.getBoundingClientRect();
-                        if (rect) {
-                          // Sabit pozisyon kullan
-                          el.style.position = 'fixed';
-                          // Mevcut hücrenin altında göster
-                          const inputRect = el.parentElement?.querySelector('input')?.getBoundingClientRect();
-                          if (inputRect) {
-                            el.style.top = (inputRect.bottom + window.scrollY) + 'px';
-                            el.style.left = (inputRect.left + window.scrollX) + 'px';
-                            el.style.width = (inputRect.width) + 'px';
-                          }
-                        }
+                        // Sabit pozisyon kullan
+                        el.style.position = 'absolute';
+                        el.style.top = '100%';
+                        el.style.left = '0';
+                        el.style.width = '100%';
                       }
                     }}
                     style={{
-                      position: 'fixed',
-                      top: '0',
+                      position: 'absolute',
+                      top: '100%',
                       left: '0',
-                      width: '250px',
-                      zIndex: 9999,
+                      width: '100%',
+                      zIndex: 99999, // Çok yüksek z-index değeri
                       backgroundColor: 'white',
                       border: '1px solid #d9d9d9',
                       borderRadius: '2px',
