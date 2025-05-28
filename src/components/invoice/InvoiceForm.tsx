@@ -1563,60 +1563,46 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                     }
                   }}
                 />
-                {/* İlk 3 hane girildikten sonra uyuşan en fazla 5 ürün göster */}
                 {value && value.length >= 3 && (
-                  <div 
-                    className="product-search-results"
-                    style={{
-                      position: 'fixed',
-                      top: (index * 40) + 200, // Yaklaşık olarak satır pozisyonu
-                      left: 180,
-                      width: '300px',
-                      zIndex: 999999,
-                      backgroundColor: 'white',
-                      border: '1px solid #d9d9d9',
-                      borderRadius: '2px',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
-                      padding: '8px',
-                      display: editingRowIndex === index && editingColumn === 'itemCode' ? 'block' : 'none'
+                  <Select
+                    open={editingRowIndex === index && editingColumn === 'itemCode'}
+                    value={value}
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', opacity: 0 }}
+                    dropdownStyle={{ width: '300px', zIndex: 9999999 }}
+                    dropdownMatchSelectWidth={false}
+                    showSearch
+                    filterOption={false}
+                    onSearch={(searchValue) => {
+                      updateInvoiceDetail(index, 'itemCode', searchValue);
                     }}
+                    onSelect={(selectedValue) => {
+                      const product = products.find(p => p.productCode === selectedValue);
+                      if (product) {
+                        updateInvoiceDetail(index, 'itemCode', product.productCode);
+                        updateInvoiceDetail(index, 'productDescription', product.productDescription);
+                        updateInvoiceDetail(index, 'unitOfMeasureCode', product.unitOfMeasureCode || 'ADET');
+                        updateInvoiceDetail(index, 'vatRate', product.vatRate || 18);
+                        
+                        // Bir sonraki sütuna geç
+                        setTimeout(() => {
+                          setEditingColumn('productDescription');
+                        }, 0);
+                      }
+                    }}
+                    notFoundContent="Ürün bulunamadı"
                   >
                     {products
                       .filter(p => p.productCode.toLowerCase().startsWith(value.toLowerCase()))
                       .slice(0, 5) // En fazla 5 ürün göster
                       .map(product => (
-                        <div 
-                          key={product.productCode}
-                          style={{
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                            borderBottom: '1px solid #f0f0f0',
-                            display: 'flex',
-                            justifyContent: 'space-between'
-                          }}
-                          onClick={() => {
-                            // Ürün seçildiğinde detayları güncelle
-                            updateInvoiceDetail(index, 'itemCode', product.productCode);
-                            updateInvoiceDetail(index, 'productDescription', product.productDescription);
-                            updateInvoiceDetail(index, 'unitOfMeasureCode', product.unitOfMeasureCode || 'ADET');
-                            updateInvoiceDetail(index, 'vatRate', product.vatRate || 18);
-                            
-                            // Bir sonraki sütuna geç
-                            setTimeout(() => {
-                              setEditingColumn('productDescription');
-                            }, 0);
-                          }}
-                        >
-                          <span><strong>{product.productCode}</strong></span>
-                          <span>{product.productDescription.substring(0, 20)}{product.productDescription.length > 20 ? '...' : ''}</span>
-                        </div>
+                        <Select.Option key={product.productCode} value={product.productCode}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <strong>{product.productCode}</strong>
+                            <span>{product.productDescription.substring(0, 20)}{product.productDescription.length > 20 ? '...' : ''}</span>
+                          </div>
+                        </Select.Option>
                       ))}
-                    {products.filter(p => p.productCode.toLowerCase().startsWith(value.toLowerCase())).length === 0 && (
-                      <div style={{ padding: '8px 12px', color: '#999' }}>
-                        Ürün bulunamadı
-                      </div>
-                    )}
-                  </div>
+                  </Select>
                 )}
               </div>
             )}
