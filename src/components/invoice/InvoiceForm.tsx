@@ -1562,32 +1562,21 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                     }
                   }}
                 />
-                {/* İlk 3 hane girildikten sonra uyuşan en fazla 3 ürün göster */}
+                {/* İlk 3 hane girildikten sonra uyuşan en fazla 5 ürün göster */}
                 {value && value.length >= 3 && (
                   <div 
-                    className="product-search-dropdown"
-                    ref={(el) => {
-                      // Dropdown'u doğru konumlandır
-                      if (el && editingRowIndex === index && editingColumn === 'itemCode') {
-                        // Sabit pozisyon kullan
-                        el.style.position = 'absolute';
-                        el.style.top = '100%';
-                        el.style.left = '0';
-                        el.style.width = '100%';
-                      }
-                    }}
+                    className="product-search-results"
                     style={{
                       position: 'absolute',
                       top: '100%',
                       left: '0',
-                      width: '100%',
-                      zIndex: 99999, // Çok yüksek z-index değeri
+                      width: '300px',
+                      zIndex: 99999,
                       backgroundColor: 'white',
                       border: '1px solid #d9d9d9',
                       borderRadius: '2px',
-                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                      maxHeight: 'none',
-                      overflowY: 'visible',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
+                      padding: '8px',
                       display: editingRowIndex === index && editingColumn === 'itemCode' ? 'block' : 'none'
                     }}
                   >
