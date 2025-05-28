@@ -1454,7 +1454,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           </Col>
         </Row>
         
-        <div style={{ width: '100%', overflow: 'auto' }}>
+        <div style={{ width: '100%', overflow: 'auto', position: 'relative' }}>
           <Table
             dataSource={invoiceDetails.filter(detail => 
               filterText ? 
@@ -1471,6 +1471,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             size="small"
             bordered
             scroll={{ x: 'max-content' }}
+            tableLayout="fixed"
             style={{ fontSize: '0.9em', minWidth: '100%' }} // Font boyutunu daha büyük yap
         >
           <Table.Column 
@@ -1567,11 +1568,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   <div 
                     className="product-search-results"
                     style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: '0',
+                      position: 'fixed',
+                      top: (index * 40) + 200, // Yaklaşık olarak satır pozisyonu
+                      left: 180,
                       width: '300px',
-                      zIndex: 99999,
+                      zIndex: 999999,
                       backgroundColor: 'white',
                       border: '1px solid #d9d9d9',
                       borderRadius: '2px',
