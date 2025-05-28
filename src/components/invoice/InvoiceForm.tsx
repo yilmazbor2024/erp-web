@@ -1643,6 +1643,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             key="productDescription"
             width={250}
             ellipsis={false}
+            fixed="left"
             render={(value, record, index) => (
               <Input 
   value={value} 
@@ -1665,6 +1666,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             key="colorDescription"
             width={120}
             ellipsis={false}
+            fixed="left"
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1687,6 +1689,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             key="itemDim1Code"
             width={100}
             ellipsis={false}
+            fixed="left"
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1708,6 +1711,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="unitOfMeasureCode" 
             key="unitOfMeasureCode"
             width={60}
+            fixed="left"
             render={(value, record, index) => (
               <Select
                 value={value}
