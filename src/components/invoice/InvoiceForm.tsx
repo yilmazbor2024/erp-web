@@ -1317,7 +1317,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Ürün Kodu" 
             dataIndex="itemCode" 
             key="itemCode"
-            width={200}
+            width={120} // 8 hane için
             render={(value, record, index) => (
               <Select
                 showSearch
@@ -1326,6 +1326,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 placeholder="Ürün seçin"
                 loading={loadingProducts}
                 optionFilterProp="children"
+                dropdownMatchSelectWidth={true}
+                maxTagCount={4}
                 filterOption={(input, option) => {
                   if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
                   
@@ -1352,7 +1354,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 onChange={(value) => updateInvoiceDetail(index, 'itemCode', value)}
               >
                 {Array.isArray(products) && products.length > 0 ? (
-                  products.map(product => (
+                  products.slice(0, 4).map(product => (
                     <Option key={product.productCode} value={product.productCode}>
                       {product.productCode}
                     </Option>
@@ -1369,7 +1371,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Ürün Açıklaması" 
             dataIndex="productDescription" 
             key="productDescription"
-            width={250}
+            width={200} // 200px olsun
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1382,7 +1384,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Renk" 
             dataIndex="colorDescription" 
             key="colorDescription"
-            width={120}
+            width={100} // 10 hane için
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1396,7 +1398,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Beden" 
             dataIndex="itemDim1Code" 
             key="itemDim1Code"
-            width={100}
+            width={60} // 4 hane için
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1453,6 +1455,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   min={isUnitAdet ? 1 : 0.01} 
                   step={isUnitAdet ? 1 : 0.01}
                   precision={isUnitAdet ? 0 : 2}
+                  controls={false}
                   style={{ width: '100%' }}
                   onChange={(value) => {
                     // Eğer birim ADET ise ve küsurat girilmişse, tam sayıya yuvarla
@@ -1513,6 +1516,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 value={value} 
                 min={0} 
                 max={100}
+                controls={false}
                 style={{ width: '100%' }}
                 onChange={(value) => updateInvoiceDetail(index, 'discountRate', value)}
               />
@@ -1540,17 +1544,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </span>
             )}
           />
-          <Table.Column 
-            title="Alt Toplam" 
-            dataIndex="subtotalAmount"
-            key="subtotalAmount"
-            width={120}
-            render={(value, record) => (
-              <span>
-                {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              </span>
-            )}
-          />
+          {/* Alt Toplam sütunu gizlendi */}
           <Table.Column 
             title="KDV Tutarı" 
             dataIndex="vatAmount"
