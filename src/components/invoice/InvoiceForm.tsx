@@ -1315,7 +1315,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           size="small"
           bordered
           scroll={{ x: 'max-content' }} // Yatay kaydırma ekleyerek mobile uyumlu hale getirdik
-          responsive={true}
         >
           <Table.Column 
             title="Ürün Kodu" 
