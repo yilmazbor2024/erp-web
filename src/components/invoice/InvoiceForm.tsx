@@ -1471,7 +1471,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             size="small"
             bordered
             scroll={{ x: 2000 }}
-            style={{ fontSize: '0.9em', minWidth: '100%' }} // Font boyutunu daha büyük yap
+            style={{ fontSize: '0.9em', minWidth: '100%', overflowX: 'auto', overflowY: 'visible' }} // Font boyutunu daha büyük yap
         >
           <Table.Column 
             title="Ürün Kodu" 
@@ -1592,14 +1592,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                       border: '1px solid #d9d9d9',
                       borderRadius: '2px',
                       boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-                      maxHeight: '200px',
-                      overflowY: 'auto',
+                      maxHeight: 'none',
+                      overflowY: 'visible',
                       display: editingRowIndex === index && editingColumn === 'itemCode' ? 'block' : 'none'
                     }}
                   >
                     {products
                       .filter(p => p.productCode.toLowerCase().startsWith(value.toLowerCase()))
-                      .slice(0, 3) // En fazla 3 ürün göster
+                      .slice(0, 5) // En fazla 5 ürün göster
                       .map(product => (
                         <div 
                           key={product.productCode}
