@@ -1454,7 +1454,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           </Col>
         </Row>
         
-        <div style={{ width: '100%', overflowX: 'auto' }}>
+        <div style={{ width: '100%', overflow: 'auto' }}>
           <Table
             dataSource={invoiceDetails.filter(detail => 
               filterText ? 
@@ -1470,15 +1470,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             }}
             size="small"
             bordered
-            scroll={{ x: 2000 }}
-            style={{ fontSize: '0.9em', minWidth: '100%', overflowX: 'auto', overflowY: 'visible' }} // Font boyutunu daha büyük yap
+            scroll={{ x: 'max-content' }}
+            style={{ fontSize: '0.9em', minWidth: '100%' }} // Font boyutunu daha büyük yap
         >
           <Table.Column 
             title="Ürün Kodu" 
             dataIndex="itemCode" 
             key="itemCode"
-            width={180}
-            fixed="left"
+            width={80} // Sütun genişliğini 80 piksele sabitle
+            fixed="left" // Sütunu sabit tut
             render={(value, record, index) => (
               <div style={{ position: 'relative', width: '100%' }}>
                 <Input
@@ -1643,12 +1643,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             key="productDescription"
             width={250}
             ellipsis={false}
-            fixed="left"
             render={(value, record, index) => (
               <Input 
-                value={value} 
-                disabled={true}
-                style={{ width: '100%' }}
+  value={value} 
+  disabled={true}
+  style={{ 
+    width: '100%',
+    backgroundColor: editingRowIndex === index && editingColumn === 'productDescription' ? '#fffbe6' : undefined
+  }}
+                onFocus={() => {
+                  setEditingRowIndex(index);
+                  setEditingColumn('productDescription');
+                }}
+                onKeyDown={(e) => handleKeyDown(e, index, 'productDescription')}
               />
             )}
           />
@@ -1657,7 +1664,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="colorDescription" 
             key="colorDescription"
             width={120}
-            fixed="left"
             ellipsis={false}
             render={(value, record, index) => (
               <Input 
@@ -1680,7 +1686,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="itemDim1Code" 
             key="itemDim1Code"
             width={100}
-            fixed="left"
             ellipsis={false}
             render={(value, record, index) => (
               <Input 
