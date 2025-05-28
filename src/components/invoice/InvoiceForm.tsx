@@ -104,10 +104,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [filterText, setFilterText] = useState<string>('');
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   
-  // Düzenlenen satır için state
-  const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
-  const [editingColumn, setEditingColumn] = useState<string | null>(null);
-  
   // Ödeme şekli için state
   const [paymentType, setPaymentType] = useState<'cash' | 'credit'>('credit'); // Varsayılan olarak vadeli
   const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
@@ -133,86 +129,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     return invoiceTypeDescriptions[invoiceType] || 'Bilinmeyen Fatura Tipi';
   };
 
-  // Klavye navigasyonu için yardımcı fonksiyon - Excel benzeri davranış
-  const handleKeyDown = (e: React.KeyboardEvent<any>, rowIndex: number, columnName: string) => {
-    // Sırasıyla düzenlenebilir sütunlar
-    const editableColumns = [
-      'itemCode',
-      'productDescription',
-      'colorDescription',
-      'itemDim1Code',
-      'quantity',
-      'unitOfMeasureCode',
-      'unitPrice',
-      'discountRate',
-      'vatRate'
-    ];
-    
-    const currentColumnIndex = editableColumns.indexOf(columnName);
-    
-    // Enter tuşuna basıldığında
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      
-      // Eğer son sütundaysa ve son satırdaysa, yeni satır ekle
-      if (currentColumnIndex === editableColumns.length - 1 && rowIndex === invoiceDetails.length - 1) {
-        addInvoiceDetail(); // Yeni satır ekle
-        setTimeout(() => {
-          // Yeni eklenen satırın ilk sütununa odaklan
-          setEditingRowIndex(invoiceDetails.length);
-          setEditingColumn(editableColumns[0]);
-        }, 0);
-        return;
-      }
-      
-      // Eğer son sütundaysa, bir sonraki satırın ilk sütununa geç
-      if (currentColumnIndex === editableColumns.length - 1) {
-        setEditingRowIndex(rowIndex + 1);
-        setEditingColumn(editableColumns[0]);
-        return;
-      }
-      
-      // Değilse, aynı satırda bir sonraki sütuna geç
-      setEditingColumn(editableColumns[currentColumnIndex + 1]);
-    }
-    // Yukarı ok tuşu
-    else if (e.key === 'ArrowUp' && rowIndex > 0) {
-      e.preventDefault();
-      setEditingRowIndex(rowIndex - 1);
-      setEditingColumn(columnName);
-    }
-    // Aşağı ok tuşu
-    else if (e.key === 'ArrowDown' && rowIndex < invoiceDetails.length - 1) {
-      e.preventDefault();
-      setEditingRowIndex(rowIndex + 1);
-      setEditingColumn(columnName);
-    }
-    // Sağ ok tuşu - bir sonraki sütuna geç
-    else if (e.key === 'ArrowRight') {
-      // Eğer metin seçili değilse veya imleç metnin sonundaysa
-      const input = e.target as HTMLInputElement;
-      if (input.selectionStart === input.value.length) {
-        e.preventDefault();
-        // Son sütun değilse bir sonraki sütuna geç
-        if (currentColumnIndex < editableColumns.length - 1) {
-          setEditingColumn(editableColumns[currentColumnIndex + 1]);
-        }
-      }
-    }
-    // Sol ok tuşu - bir önceki sütuna geç
-    else if (e.key === 'ArrowLeft') {
-      // Eğer metin seçili değilse veya imleç metnin başındaysa
-      const input = e.target as HTMLInputElement;
-      if (input.selectionStart === 0) {
-        e.preventDefault();
-        // İlk sütun değilse bir önceki sütuna geç
-        if (currentColumnIndex > 0) {
-          setEditingColumn(editableColumns[currentColumnIndex - 1]);
-        }
-      }
-    }
-  };
-  
   // Ürün fiyatını fiyat listesinden getir ve varyantı ekle
   const getProductPriceAndAddVariant = async (variant: ProductVariant) => {
     try {
@@ -326,70 +242,26 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   };
 
   // Ürün varyantını faturaya ekle
-  const addProductVariantToInvoice = async (variant: ProductVariant, quantity: number = 1) => {
-    try {
-      // Ürün fiyatını fiyat listesinden getir
-      const priceList = await productApi.getProductPriceList(variant.productCode);
-      
-      // Fiyat bilgilerini güncelle
-      let unitPrice = variant.salesPrice1;
-      let vatRate = variant.vatRate || 18;
-      
-      if (priceList.length > 0) {
-        // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
-        const firstPrice = priceList[0];
-        
-        // Birim fiyatı güncelle
-        unitPrice = firstPrice.birimFiyat || variant.salesPrice1;
-        vatRate = firstPrice.vatRate || vatRate;
-        
-        console.log(`Ürün fiyatı fiyat listesinden getirildi: ${variant.productCode}, Fiyat: ${unitPrice}, KDV: ${vatRate}`);
-      } else {
-        console.log(`Ürün için fiyat listesi bulunamadı: ${variant.productCode}, Varsayılan fiyat kullanılıyor: ${unitPrice}`);
-      }
-      
-      const newDetail: InvoiceDetail = {
-        id: generateUniqueId(),
-        itemCode: variant.productCode,
-        quantity: quantity,
-        unitOfMeasureCode: variant.unitOfMeasureCode1,
-        unitPrice: unitPrice,
-        vatRate: vatRate,
-        description: variant.productDescription,
-        productDescription: variant.productDescription,
-        discountRate: 0,
-        // Renk ve beden bilgilerini ekle
-        colorCode: variant.colorCode,
-        colorDescription: variant.colorDescription,
-        itemDim1Code: variant.itemDim1Code
-      };
+  const addProductVariantToInvoice = (variant: ProductVariant, quantity: number = 1) => {
+    const newDetail: InvoiceDetail = {
+      id: generateUniqueId(),
+      itemCode: variant.productCode,
+      quantity: quantity,
+      unitOfMeasureCode: variant.unitOfMeasureCode1,
+      unitPrice: variant.salesPrice1,
+      vatRate: variant.vatRate || 18, // Varsayılan KDV oranı
+      description: variant.productDescription,
+      productDescription: variant.productDescription,
+      discountRate: 0,
+      // Renk ve beden bilgilerini ekle
+      colorCode: variant.colorCode,
+      colorDescription: variant.colorDescription,
+      itemDim1Code: variant.itemDim1Code
+    };
 
-      setInvoiceDetails([...invoiceDetails, newDetail]);
-      calculateInvoiceTotals([...invoiceDetails, newDetail]);
-      message.success(`${variant.productDescription} faturaya eklendi (Birim Fiyat: ${unitPrice.toFixed(2)} TL)`);
-    } catch (error) {
-      console.error('Ürün fiyatı getirilirken hata oluştu:', error);
-      
-      // Hata durumunda varsayılan değerlerle devam et
-      const newDetail: InvoiceDetail = {
-        id: generateUniqueId(),
-        itemCode: variant.productCode,
-        quantity: quantity,
-        unitOfMeasureCode: variant.unitOfMeasureCode1,
-        unitPrice: variant.salesPrice1,
-        vatRate: variant.vatRate || 18,
-        description: variant.productDescription,
-        productDescription: variant.productDescription,
-        discountRate: 0,
-        colorCode: variant.colorCode,
-        colorDescription: variant.colorDescription,
-        itemDim1Code: variant.itemDim1Code
-      };
-
-      setInvoiceDetails([...invoiceDetails, newDetail]);
-      calculateInvoiceTotals([...invoiceDetails, newDetail]);
-      message.success(`${variant.productDescription} faturaya eklendi`);
-    }
+    setInvoiceDetails([...invoiceDetails, newDetail]);
+    calculateInvoiceTotals([...invoiceDetails, newDetail]);
+    message.success(`${variant.productDescription} faturaya eklendi`);
   };
 
   // Barkod modalını kapat
@@ -865,7 +737,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   };
 
   // Fatura detayını güncelle
-  const updateInvoiceDetail = async (index: number, field: keyof InvoiceDetail, value: any) => {
+  const updateInvoiceDetail = (index: number, field: keyof InvoiceDetail, value: any) => {
     const updatedDetails = [...invoiceDetails];
     
     // Eğer ürün kodu değiştiyse, ilgili ürünün diğer bilgilerini de otomatik olarak doldur
@@ -875,38 +747,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       if (selectedProduct) {
         console.log('Seçilen ürün:', selectedProduct);
         
-        // Ürün bilgilerini otomatik doldur
+        // Ürün bilgilerini otomatik doldur - ItemDim1Code, ItemDim2Code, ItemDim3Code ve color alanı kaldırıldı
         updatedDetails[index] = { 
           ...updatedDetails[index], 
           itemCode: value,
           productDescription: selectedProduct.productDescription || '',
           unitOfMeasureCode: selectedProduct.unitOfMeasureCode1 || 'ADET',
+          unitPrice: selectedProduct.salesPrice1 || 0,
           vatRate: selectedProduct.vatRate || 18
         };
-        
-        try {
-          // Ürün fiyatını fiyat listesinden getir
-          const priceList = await productApi.getProductPriceList(value);
-          
-          if (priceList.length > 0) {
-            // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
-            const firstPrice = priceList[0];
-            
-            // Birim fiyatı güncelle
-            updatedDetails[index].unitPrice = firstPrice.birimFiyat || 0;
-            updatedDetails[index].vatRate = firstPrice.vatRate || 18;
-            
-            console.log(`Ürün fiyatı fiyat listesinden getirildi: ${value}, Fiyat: ${updatedDetails[index].unitPrice}, KDV: ${updatedDetails[index].vatRate}`);
-          } else {
-            // Fiyat listesi bulunamadıysa varsayılan değerleri kullan
-            updatedDetails[index].unitPrice = selectedProduct.salesPrice1 || 0;
-            console.log(`Ürün için fiyat listesi bulunamadı: ${value}, Varsayılan fiyat kullanılıyor: ${updatedDetails[index].unitPrice}`);
-          }
-        } catch (error) {
-          console.error('Ürün fiyatı getirilirken hata oluştu:', error);
-          // Hata durumunda varsayılan fiyatı kullan
-          updatedDetails[index].unitPrice = selectedProduct.salesPrice1 || 0;
-        }
       } else {
         // Sadece ürün kodunu güncelle
         updatedDetails[index] = { ...updatedDetails[index], [field]: value };
@@ -1111,12 +960,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       <Form
         form={form}
         layout="vertical"
-        onKeyPress={(e) => {
-          // Enter tuşuna basıldığında form gönderimini engelle
-          if (e.key === 'Enter') {
-            e.preventDefault();
-          }
-        }}
         onFinish={handleSubmit}
         initialValues={{
           invoiceDate: dayjs(),
@@ -1303,7 +1146,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         <Row justify="space-between" style={{ marginBottom: 16 }}>
           <Col>
             <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail} style={{ marginRight: '8px' }}>
-              Satır Ekle
+              Detay Ekle
             </Button>
             <Button 
               type="primary" 
@@ -1454,157 +1297,72 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           </Col>
         </Row>
         
-        <div style={{ width: '100%', overflow: 'auto', position: 'relative' }}>
-          <Table
-            dataSource={invoiceDetails.filter(detail => 
-              filterText ? 
-                (detail.itemCode?.toLowerCase().includes(filterText.toLowerCase()) ||
-                detail.productDescription?.toLowerCase().includes(filterText.toLowerCase()))
-                : true
-            )}
-            rowKey="id"
-            pagination={false}
-            rowSelection={{
-              selectedRowKeys,
-              onChange: (keys) => setSelectedRowKeys(keys as string[])
-            }}
-            size="small"
-            bordered
-            scroll={{ x: 'max-content' }}
-            tableLayout="fixed"
-            style={{ fontSize: '0.9em', minWidth: '100%' }} // Font boyutunu daha büyük yap
+        <Table
+          dataSource={invoiceDetails.filter(detail => 
+            filterText ? 
+              (detail.itemCode?.toLowerCase().includes(filterText.toLowerCase()) ||
+               detail.productDescription?.toLowerCase().includes(filterText.toLowerCase()))
+              : true
+          )}
+          rowKey="id"
+          pagination={false}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys as string[])
+          }}
+          size="small"
+          bordered
         >
           <Table.Column 
             title="Ürün Kodu" 
             dataIndex="itemCode" 
             key="itemCode"
-            width={80} // Sütun genişliğini 80 piksele sabitle
-            fixed="left" // Sütunu sabit tut
+            width={200}
             render={(value, record, index) => (
-              <div style={{ position: 'relative', width: '100%' }}>
-                <Input
-                  value={value}
-                  style={{ 
-                    width: '100%',
-                    minWidth: '120px',
-                    backgroundColor: editingRowIndex === index && editingColumn === 'itemCode' ? '#fffbe6' : undefined
-                  }}
-                  placeholder="Ürün kodu girin"
-                  onFocus={() => {
-                    setEditingRowIndex(index);
-                    setEditingColumn('itemCode');
-                  }}
-                  onKeyDown={(e) => {
-                    // Enter tuşuna basıldığında ve en az 8 karakter girildiğinde ürünü ara
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (e.currentTarget.value.length >= 8) {
-                        const productCode = e.currentTarget.value;
-                        
-                        // Ürün kodunu ara
-                        const foundProduct = products.find(p => p.productCode === productCode);
-                        
-                        if (foundProduct) {
-                          // Ürün bulundu, detayları güncelle
-                          updateInvoiceDetail(index, 'itemCode', foundProduct.productCode);
-                          updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
-                          updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
-                          updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
-                        }
-                      }
-                      // Her durumda bir sonraki sütuna geç
-                      handleKeyDown(e, index, 'itemCode');
-                    } else {
-                      // Diğer tuş navigasyonları için
-                      handleKeyDown(e, index, 'itemCode');
+              <Select
+                showSearch
+                value={value}
+                style={{ width: '100%' }}
+                placeholder="Ürün seçin"
+                loading={loadingProducts}
+                optionFilterProp="children"
+                filterOption={(input, option) => {
+                  if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
+                  
+                  // Option içeriğini string'e çevir
+                  let childText = '';
+                  if (typeof option.children === 'string') {
+                    childText = option.children;
+                  } else if (React.isValidElement(option.children)) {
+                    try {
+                      childText = JSON.stringify(option.children);
+                    } catch (e) {
+                      childText = '';
                     }
-                  }}
-                  onChange={(e) => {
-                    const newValue = e.target.value;
-                    updateInvoiceDetail(index, 'itemCode', newValue);
-                    
-                    // Ürün kodu boş ise diğer alanları sıfırla
-                    if (!newValue || newValue.trim() === '') {
-                      // Tüm hücreyi temizle
-                      const emptyDetail = {
-                        ...invoiceDetails[index],
-                        itemCode: '',
-                        productDescription: '',
-                        unitOfMeasureCode: 'ADET',
-                        vatRate: 18,
-                        unitPrice: 0,
-                        quantity: 1,
-                        discountRate: 0,
-                        colorDescription: '',
-                        itemDim1Code: '',
-                        totalAmount: 0,
-                        discountAmount: 0,
-                        vatAmount: 0,
-                        netAmount: 0
-                      };
-                      
-                      // Tüm hücreyi güncelle
-                      const updatedDetails = [...invoiceDetails];
-                      updatedDetails[index] = emptyDetail;
-                      setInvoiceDetails(updatedDetails);
-                      return;
+                  } else {
+                    try {
+                      childText = option.children.toString();
+                    } catch (e) {
+                      childText = '';
                     }
-                    
-                    // Eğer 8 veya daha fazla karakter girilmişse otomatik arama yap
-                    if (newValue.length >= 8) {
-                      const foundProduct = products.find(p => p.productCode === newValue);
-                      
-                      if (foundProduct) {
-                        // Ürün bulundu, detayları güncelle
-                        updateInvoiceDetail(index, 'productDescription', foundProduct.productDescription);
-                        updateInvoiceDetail(index, 'unitOfMeasureCode', foundProduct.unitOfMeasureCode || 'ADET');
-                        updateInvoiceDetail(index, 'vatRate', foundProduct.vatRate || 18);
-                      }
-                    }
-                  }}
-                />
-                {value && value.length >= 3 && (
-                  <Select
-                    open={editingRowIndex === index && editingColumn === 'itemCode'}
-                    value={value}
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', opacity: 0 }}
-                    dropdownStyle={{ width: '300px', zIndex: 9999999 }}
-                    dropdownMatchSelectWidth={false}
-                    showSearch
-                    filterOption={false}
-                    onSearch={(searchValue) => {
-                      updateInvoiceDetail(index, 'itemCode', searchValue);
-                    }}
-                    onSelect={(selectedValue) => {
-                      const product = products.find(p => p.productCode === selectedValue);
-                      if (product) {
-                        updateInvoiceDetail(index, 'itemCode', product.productCode);
-                        updateInvoiceDetail(index, 'productDescription', product.productDescription);
-                        updateInvoiceDetail(index, 'unitOfMeasureCode', product.unitOfMeasureCode || 'ADET');
-                        updateInvoiceDetail(index, 'vatRate', product.vatRate || 18);
-                        
-                        // Bir sonraki sütuna geç
-                        setTimeout(() => {
-                          setEditingColumn('productDescription');
-                        }, 0);
-                      }
-                    }}
-                    notFoundContent="Ürün bulunamadı"
-                  >
-                    {products
-                      .filter(p => p.productCode.toLowerCase().startsWith(value.toLowerCase()))
-                      .slice(0, 5) // En fazla 5 ürün göster
-                      .map(product => (
-                        <Select.Option key={product.productCode} value={product.productCode}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <strong>{product.productCode}</strong>
-                            <span>{product.productDescription.substring(0, 20)}{product.productDescription.length > 20 ? '...' : ''}</span>
-                          </div>
-                        </Select.Option>
-                      ))}
-                  </Select>
+                  }
+                  
+                  return childText.toLowerCase().includes(input.toLowerCase());
+                }}
+                onChange={(value) => updateInvoiceDetail(index, 'itemCode', value)}
+              >
+                {Array.isArray(products) && products.length > 0 ? (
+                  products.map(product => (
+                    <Option key={product.productCode} value={product.productCode}>
+                      {product.productCode}
+                    </Option>
+                  ))
+                ) : (
+                  <Option value="" disabled>
+                    Ürün bulunamadı
+                  </Option>
                 )}
-              </div>
+              </Select>
             )}
           />
           <Table.Column 
@@ -1612,21 +1370,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="productDescription" 
             key="productDescription"
             width={250}
-            ellipsis={false}
-            fixed="left"
             render={(value, record, index) => (
               <Input 
-  value={value} 
-  disabled={true}
-  style={{ 
-    width: '100%',
-    backgroundColor: editingRowIndex === index && editingColumn === 'productDescription' ? '#fffbe6' : undefined
-  }}
-                onFocus={() => {
-                  setEditingRowIndex(index);
-                  setEditingColumn('productDescription');
-                }}
-                onKeyDown={(e) => handleKeyDown(e, index, 'productDescription')}
+                value={value} 
+                disabled={true}
+                style={{ width: '100%' }}
               />
             )}
           />
@@ -1635,21 +1383,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="colorDescription" 
             key="colorDescription"
             width={120}
-            ellipsis={false}
-            fixed="left"
             render={(value, record, index) => (
               <Input 
                 value={value} 
                 disabled={true}
-                style={{ 
-                  width: '100%',
-                  backgroundColor: editingRowIndex === index && editingColumn === 'colorDescription' ? '#fffbe6' : undefined
-                }}
-                onFocus={() => {
-                  setEditingRowIndex(index);
-                  setEditingColumn('colorDescription');
-                }}
-                onKeyDown={(e) => handleKeyDown(e, index, 'colorDescription')}
+                style={{ width: '100%' }}
+                placeholder="-"
               />
             )}
           />
@@ -1658,21 +1397,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="itemDim1Code" 
             key="itemDim1Code"
             width={100}
-            ellipsis={false}
-            fixed="left"
             render={(value, record, index) => (
               <Input 
                 value={value} 
                 disabled={true}
-                style={{ 
-                  width: '100%',
-                  backgroundColor: editingRowIndex === index && editingColumn === 'itemDim1Code' ? '#fffbe6' : undefined
-                }}
-                onFocus={() => {
-                  setEditingRowIndex(index);
-                  setEditingColumn('itemDim1Code');
-                }}
-                onKeyDown={(e) => handleKeyDown(e, index, 'itemDim1Code')}
+                style={{ width: '100%' }}
+                placeholder="-"
               />
             )}
           />
@@ -1680,22 +1410,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Birim" 
             dataIndex="unitOfMeasureCode" 
             key="unitOfMeasureCode"
-            width={60}
-            fixed="left"
+            width={120}
             render={(value, record, index) => (
               <Select
                 value={value}
-                style={{ 
-                  width: '100%', 
-                  maxWidth: '60px',
-                  backgroundColor: editingRowIndex === index && editingColumn === 'unitOfMeasureCode' ? '#fffbe6' : undefined
-                }}
-                dropdownMatchSelectWidth={false}
-                onFocus={() => {
-                  setEditingRowIndex(index);
-                  setEditingColumn('unitOfMeasureCode');
-                }}
-                onKeyDown={(e) => handleKeyDown(e, index, 'unitOfMeasureCode')}
+                style={{ width: '100%' }}
                 suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
                 onChange={(value) => {
                   // Birim değiştiğinde, miktarı da kontrol et ve gerekirse düzelt
@@ -1724,8 +1443,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Miktar" 
             dataIndex="quantity" 
             key="quantity"
-            width={150}
-            fixed="left"
+            width={120}
             render={(value, record, index) => {
               // Birim türüne göre step ve precision değerlerini belirle
               const isUnitAdet = record.unitOfMeasureCode === 'ADET' || record.unitOfMeasureCode === 'AD';
@@ -1735,8 +1453,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   min={isUnitAdet ? 1 : 0.01} 
                   step={isUnitAdet ? 1 : 0.01}
                   precision={isUnitAdet ? 0 : 2}
-                  controls={false}
-                  style={{ width: '100%', minWidth: '150px' }}
+                  style={{ width: '100%' }}
                   onChange={(value) => {
                     // Eğer birim ADET ise ve küsurat girilmişse, tam sayıya yuvarla
                     if (isUnitAdet && value && !Number.isInteger(value)) {
@@ -1752,25 +1469,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title={`Birim Fiyat ${isPriceIncludeVat ? '(KDV Dahil)' : '(KDV Hariç)'}`} 
             dataIndex="unitPrice" 
             key="unitPrice"
-            width={120}
-            fixed="left"
+            width={150}
             render={(value, record, index) => (
               <InputNumber 
                 value={value} 
                 min={0} 
                 step={0.01}
-                precision={2}
-                controls={false}
-                style={{ 
-                  width: '100%', 
-                  minWidth: '100px',
-                  backgroundColor: editingRowIndex === index && editingColumn === 'unitPrice' ? '#fffbe6' : undefined
-                }}
-                onFocus={() => {
-                  setEditingRowIndex(index);
-                  setEditingColumn('unitPrice');
-                }}
-                onKeyDown={(e) => handleKeyDown(e, index, 'unitPrice')}
+                style={{ width: '100%' }}
+                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
                 onChange={(value) => updateInvoiceDetail(index, 'unitPrice', value)}
               />
             )}
@@ -1797,18 +1504,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             )}
           />
           <Table.Column 
-            title="İsk(%)" 
+            title="İskonto (%)" 
             dataIndex="discountRate" 
             key="discountRate"
-            width={70}
+            width={100}
             render={(value, record, index) => (
               <InputNumber 
                 value={value} 
                 min={0} 
                 max={100}
-                precision={2}
-                controls={false}
-                style={{ width: '100%', minWidth: '60px' }}
+                style={{ width: '100%' }}
                 onChange={(value) => updateInvoiceDetail(index, 'discountRate', value)}
               />
             )}
@@ -1818,7 +1523,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="totalAmount"
             key="totalAmount"
             width={120}
-            fixed="right"
             render={(value, record) => (
               <span>
                 {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -1830,20 +1534,28 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="discountAmount"
             key="discountAmount"
             width={120}
-            fixed="right"
             render={(value, record) => (
               <span>
                 {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               </span>
             )}
           />
-
+          <Table.Column 
+            title="Alt Toplam" 
+            dataIndex="subtotalAmount"
+            key="subtotalAmount"
+            width={120}
+            render={(value, record) => (
+              <span>
+                {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              </span>
+            )}
+          />
           <Table.Column 
             title="KDV Tutarı" 
             dataIndex="vatAmount"
             key="vatAmount"
             width={120}
-            fixed="right"
             render={(value, record) => (
               <span>
                 {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -1855,7 +1567,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             dataIndex="netAmount"
             key="netAmount"
             width={120}
-            fixed="right"
             render={(value, record) => (
               <span>
                 {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -1864,20 +1575,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           />
           <Table.Column 
             title="İşlemler" 
-            key="operations"
+            key="actions"
             width={80}
-            fixed="right"
-            render={(_, record, i) => (
+            render={(text, record, index) => (
               <Button 
                 type="text" 
                 danger 
                 icon={<DeleteOutlined />} 
-                onClick={() => removeInvoiceDetail(i)}
+                onClick={() => removeInvoiceDetail(index)}
               />
             )}
           />
         </Table>
-        </div>
 
         <Divider />
 
