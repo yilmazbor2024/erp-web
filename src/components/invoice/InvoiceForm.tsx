@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin, Modal, List, Badge, Tag, Checkbox, Radio } from 'antd';
+import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin, Modal, List, Badge, Tag, Checkbox, Radio, Dropdown } from 'antd';
 import { PlusOutlined, DeleteOutlined, BarcodeOutlined, ScanOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import invoiceApi from '../../services/invoiceApi';
@@ -1221,9 +1221,38 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         
         <Row justify="space-between" style={{ marginBottom: 16 }}>
           <Col>
-            <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail} style={{ marginRight: '8px' }}>
+            <Dropdown.Button 
+              type="primary" 
+              icon={<PlusOutlined />}
+              menu={{
+                items: [
+                  {
+                    key: '1',
+                    label: 'Manuel Ekle',
+                    icon: <PlusOutlined />,
+                    onClick: addInvoiceDetail
+                  },
+                  {
+                    key: '2',
+                    label: 'Barkod ile Ekle',
+                    icon: <BarcodeOutlined />,
+                    onClick: () => {
+                      setBarcodeModalVisible(true);
+                      // Modal açıldığında input'a odaklan
+                      setTimeout(() => {
+                        if (barcodeInputRef.current) {
+                          barcodeInputRef.current.focus();
+                        }
+                      }, 100);
+                    }
+                  }
+                ]
+              }}
+              onClick={addInvoiceDetail}
+              style={{ marginRight: '8px' }}
+            >
               Detay Ekle
-            </Button>
+            </Dropdown.Button>
             <Button 
               type="primary" 
               icon={<BarcodeOutlined />} 
@@ -1236,8 +1265,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   }
                 }, 100);
               }}
+              style={{ marginRight: '8px' }}
             >
-              Barkod ile Ekle
+              Barkod Tara
             </Button>
           </Col>
           <Col>
