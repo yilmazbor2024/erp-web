@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin, Modal, List, Badge, Tag, Checkbox, Radio, Dropdown } from 'antd';
-import { PlusOutlined, DeleteOutlined, BarcodeOutlined, ScanOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin, Modal, List, Badge, Tag, Checkbox, Radio } from 'antd';
+import { PlusOutlined, DeleteOutlined, BarcodeOutlined, ScanOutlined, InfoCircleOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import invoiceApi from '../../services/invoiceApi';
 import { customerApi, warehouseApi, officeApi, vendorApi, currencyApi } from '../../services/entityApi';
@@ -308,16 +308,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     }
   };
 
-  // Barkod modalını kapat (sadece görünürlüğü kapatır, taranan ürünleri temizlemez)
+  // Barkod modalını kapat
   const closeBarcodeModal = () => {
     setBarcodeModalVisible(false);
-    setBarcodeInput('');
-    setProductVariants([]);
-    // Taranan ürünleri temizlemiyoruz, böylece ana forma aktarılabilirler
-  };
-  
-  // Barkod modalını tamamen temizle (tüm verileri sıfırlar)
-  const resetBarcodeModal = () => {
     setBarcodeInput('');
     setProductVariants([]);
     setScannedItems([]);
@@ -408,10 +401,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     // Başarı mesajı göster
     message.success(`${scannedItems.length} ürün faturaya eklendi`);
     
-    // Modalı kapat ve temizle
-    setBarcodeModalVisible(false);
-    // Modalı kapatmadan önce tüm verileri temizle
-    resetBarcodeModal();
+    // Modalı kapat
+    closeBarcodeModal();
   };
 
   // İlk yükleme için veri yükleme fonksiyonu
@@ -1221,38 +1212,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         
         <Row justify="space-between" style={{ marginBottom: 16 }}>
           <Col>
-            <Dropdown.Button 
-              type="primary" 
-              icon={<PlusOutlined />}
-              menu={{
-                items: [
-                  {
-                    key: '1',
-                    label: 'Manuel Ekle',
-                    icon: <PlusOutlined />,
-                    onClick: addInvoiceDetail
-                  },
-                  {
-                    key: '2',
-                    label: 'Barkod ile Ekle',
-                    icon: <BarcodeOutlined />,
-                    onClick: () => {
-                      setBarcodeModalVisible(true);
-                      // Modal açıldığında input'a odaklan
-                      setTimeout(() => {
-                        if (barcodeInputRef.current) {
-                          barcodeInputRef.current.focus();
-                        }
-                      }, 100);
-                    }
-                  }
-                ]
-              }}
-              onClick={addInvoiceDetail}
-              style={{ marginRight: '8px' }}
-            >
-              Detay Ekle
-            </Dropdown.Button>
             <Button 
               type="primary" 
               icon={<BarcodeOutlined />} 
@@ -1265,9 +1224,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   }
                 }, 100);
               }}
-              style={{ marginRight: '8px' }}
             >
-              Barkod Tara
+              Satır Ekle
             </Button>
           </Col>
           <Col>
@@ -1418,13 +1376,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           }}
           size="small"
           bordered
-          style={{ fontSize: '0.8em' }} // Font boyutunu %20 küçült
+          scroll={{ x: 'max-content', y: 400 }} // Yatay ve dikey kaydırma ekle, yüksekliği 400px ile sınırla
+          style={{ fontSize: '0.8em', width: '100%' }} // Font boyutunu %20 küçült ve genişliği ayarla
+          className="compact-table" // Başlıkları daha kompakt göstermek için özel sınıf
         >
           <Table.Column 
             title="Ürün Kodu" 
             dataIndex="itemCode" 
             key="itemCode"
-            width="auto"
+            width={100} // 10 karakter genişliğinde
             render={(value, record, index) => (
               <Select
                 showSearch
@@ -1476,7 +1436,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Ürün Açıklaması" 
             dataIndex="productDescription" 
             key="productDescription"
-            width="auto"
+            width={250} // 25 karakter genişliğinde
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1489,7 +1449,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Renk" 
             dataIndex="colorDescription" 
             key="colorDescription"
-            width="auto"
+            width={100} // 10 karakter genişliğinde
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1503,7 +1463,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Beden" 
             dataIndex="itemDim1Code" 
             key="itemDim1Code"
-            width="auto"
+            width={50} // 5 karakter genişliğinde
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1517,11 +1477,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Birim" 
             dataIndex="unitOfMeasureCode" 
             key="unitOfMeasureCode"
-            width={150}
+            width={60} // 4 hane için 60px yeterli
             render={(value, record, index) => (
               <Select
                 value={value}
-                style={{ width: '100%', minWidth: '120px' }}
+                style={{ width: '100%', minWidth: '60px' }} // 4 hane için 60px yeterli
                 dropdownMatchSelectWidth={false}
                 suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
                 onChange={(value) => {
@@ -1551,7 +1511,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Miktar" 
             dataIndex="quantity" 
             key="quantity"
-            width={150}
+            width={80} // Miktar için daha dar bir sütun
             render={(value, record, index) => {
               // Birim türüne göre step ve precision değerlerini belirle
               const isUnitAdet = record.unitOfMeasureCode === 'ADET' || record.unitOfMeasureCode === 'AD';
@@ -1559,10 +1519,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 <InputNumber 
                   value={value} 
                   min={isUnitAdet ? 1 : 0.01} 
+                  max={9999} // Maksimum 9999 değeri
                   step={isUnitAdet ? 1 : 0.01}
                   precision={isUnitAdet ? 0 : 2}
                   controls={false}
-                  style={{ width: '100%', minWidth: '100px' }}
+                  style={{ width: '100%', minWidth: '80px' }} // Genişliği azaltıyorum
                   onChange={(value) => {
                     // Eğer birim ADET ise ve küsurat girilmişse, tam sayıya yuvarla
                     if (isUnitAdet && value && !Number.isInteger(value)) {
@@ -1578,14 +1539,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title={`Birim Fiyat ${isPriceIncludeVat ? '(KDV Dahil)' : '(KDV Hariç)'}`} 
             dataIndex="unitPrice" 
             key="unitPrice"
-            width={150}
+            width={100} // Birim Fiyat için daha dar bir sütun
             render={(value, record, index) => (
               <InputNumber 
                 value={value} 
-                min={0} 
+                min={1} // Minimum 1 değeri
+                max={999999} // Maksimum 999.999 değeri
                 step={0.01}
+                precision={2} // Virgülden sonra 2 hane
                 controls={false}
-                style={{ width: '100%', minWidth: '120px' }}
+                style={{ width: '100%', minWidth: '100px' }} // Genişliği azaltıyorum
                 formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
                 onChange={(value) => updateInvoiceDetail(index, 'unitPrice', value)}
@@ -1940,7 +1903,7 @@ const BarcodeModal = ({
 
   return (
     <Modal
-      title="Barkod Tarama"
+      title="Satır Ekle"
       open={visible}
       onCancel={onClose}
       footer={[
@@ -1956,17 +1919,36 @@ const BarcodeModal = ({
       <Row gutter={8} style={{ marginBottom: 16 }}>
         <Col flex="auto">
           <Input
-            placeholder="Barkod girin veya okutun"
+            placeholder="Ürün kodu, açıklaması veya barkod girin (en az 3 karakter)"
             value={barcodeInput}
             onChange={(e) => setBarcodeInput(e.target.value)}
-            onPressEnter={onSearch}
+            onPressEnter={() => {
+              // En az 3 karakter kontrolü
+              if (barcodeInput.trim().length >= 3) {
+                onSearch();
+              } else if (barcodeInput.trim().length > 0) {
+                message.warning('Lütfen en az 3 karakter girin');
+              }
+            }}
             ref={inputRef}
-            suffix={loading ? <Spin size="small" /> : <ScanOutlined />}
+            suffix={loading ? <Spin size="small" /> : <SearchOutlined />}
             autoFocus
           />
         </Col>
         <Col>
-          <Button type="primary" onClick={onSearch} loading={loading}>
+          <Button 
+            type="primary" 
+            onClick={() => {
+              // En az 3 karakter kontrolü
+              if (barcodeInput.trim().length >= 3) {
+                onSearch();
+              } else if (barcodeInput.trim().length > 0) {
+                message.warning('Lütfen en az 3 karakter girin');
+              }
+            }} 
+            loading={loading}
+            disabled={barcodeInput.trim().length < 3}
+          >
             Ara
           </Button>
         </Col>
@@ -2023,39 +2005,84 @@ const BarcodeModal = ({
         </Card>
       )}
 
-      {/* Çoklu varyant bulunduğunda gösterilecek liste */}
+      {/* Çoklu varyant bulunduğunda gösterilecek tablo */}
       {productVariants.length > 0 && (
         <>
-          <Divider orientation="left">Bulunan Ürünler</Divider>
-          <List
+          <Divider orientation="left">Bulunan Ürünler ({productVariants.length})</Divider>
+          <Table
             loading={loading}
             dataSource={productVariants}
-            renderItem={(item) => (
-              <List.Item
-                key={item.barcode}
-                actions={[
-                  <Button type="link" onClick={async () => {
-                    // Ürün fiyatını fiyat listesinden getir ve ekle
-                    await getProductPrice(item);
-                  }}>
-                    Listeye Ekle
+            rowKey="barcode"
+            size="small"
+            className="compact-table"
+            pagination={false}
+            scroll={{ y: 300 }}
+            columns={[
+              {
+                title: 'Ürün Kodu',
+                dataIndex: 'productCode',
+                key: 'productCode',
+                width: 100
+              },
+              {
+                title: 'Ürün Açıklaması',
+                dataIndex: 'productDescription',
+                key: 'productDescription',
+                width: 250,
+                ellipsis: true
+              },
+              {
+                title: 'Renk',
+                dataIndex: 'colorDescription',
+                key: 'colorDescription',
+                width: 100,
+                render: (text) => text || '-'
+              },
+              {
+                title: 'Beden',
+                dataIndex: 'itemDim1Code',
+                key: 'itemDim1Code',
+                width: 60,
+                render: (text) => text || '-'
+              },
+              {
+                title: 'Stok',
+                key: 'stock',
+                width: 60,
+                render: (_, record) => {
+                  // Envanter stok bilgisini bul
+                  const stockItem = inventoryStock.find(s => 
+                    s.itemCode === record.productCode && 
+                    s.colorCode === record.colorCode && 
+                    s.itemDim1Code === record.itemDim1Code
+                  );
+                  return stockItem ? stockItem.qty : '-';
+                }
+              },
+              {
+                title: 'Satış Fiyat',
+                dataIndex: 'salesPrice1',
+                key: 'salesPrice1',
+                width: 100,
+                render: (price) => `${price.toFixed(2)} TL`
+              },
+              {
+                title: 'İşlem',
+                key: 'action',
+                width: 80,
+                render: (_, record) => (
+                  <Button 
+                    type="link" 
+                    onClick={async () => {
+                      // Ürün fiyatını fiyat listesinden getir ve ekle
+                      await getProductPrice(record);
+                    }}
+                  >
+                    Ekle
                   </Button>
-                ]}
-              >
-                <List.Item.Meta
-                  title={item.productDescription}
-                  description={
-                    <>
-                      <div><strong>Ürün Kodu:</strong> {item.productCode}</div>
-                      <div><strong>Barkod:</strong> {item.barcode}</div>
-                      <div><strong>Renk:</strong> {item.colorDescription || '-'}</div>
-                      <div><strong>Beden:</strong> {item.itemDim1Code || '-'}</div>
-                      <div><strong>Fiyat:</strong> {item.salesPrice1.toFixed(2)} TL</div>
-                    </>
-                  }
-                />
-              </List.Item>
-            )}
+                )
+              }
+            ]}
             locale={{ emptyText: 'Ürün bulunamadı' }}
           />
         </>
