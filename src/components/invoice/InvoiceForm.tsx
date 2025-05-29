@@ -242,31 +242,82 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   };
 
   // Ürün varyantını faturaya ekle
-  const addProductVariantToInvoice = (variant: ProductVariant, quantity: number = 1) => {
-    const newDetail: InvoiceDetail = {
-      id: generateUniqueId(),
-      itemCode: variant.productCode,
-      quantity: quantity,
-      unitOfMeasureCode: variant.unitOfMeasureCode1,
-      unitPrice: variant.salesPrice1,
-      vatRate: variant.vatRate || 18, // Varsayılan KDV oranı
-      description: variant.productDescription,
-      productDescription: variant.productDescription,
-      discountRate: 0,
-      // Renk ve beden bilgilerini ekle
-      colorCode: variant.colorCode,
-      colorDescription: variant.colorDescription,
-      itemDim1Code: variant.itemDim1Code
-    };
+  const addProductVariantToInvoice = async (variant: ProductVariant, quantity: number = 1) => {
+    try {
+      // Ürün fiyatını fiyat listesinden getir
+      const priceList = await productApi.getProductPriceList(variant.productCode);
+      
+      // Fiyat bilgilerini güncelle
+      let unitPrice = variant.salesPrice1;
+      let vatRate = variant.vatRate || 18;
+      
+      if (priceList.length > 0) {
+        // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
+        const firstPrice = priceList[0];
+        
+        // Birim fiyatı güncelle
+        unitPrice = firstPrice.birimFiyat || variant.salesPrice1;
+        vatRate = firstPrice.vatRate || vatRate;
+        
+        console.log(`Ürün fiyatı fiyat listesinden getirildi: ${variant.productCode}, Fiyat: ${unitPrice}, KDV: ${vatRate}`);
+      } else {
+        console.log(`Ürün için fiyat listesi bulunamadı: ${variant.productCode}, Varsayılan fiyat kullanılıyor: ${unitPrice}`);
+      }
+      
+      const newDetail: InvoiceDetail = {
+        id: generateUniqueId(),
+        itemCode: variant.productCode,
+        quantity: quantity,
+        unitOfMeasureCode: variant.unitOfMeasureCode1,
+        unitPrice: unitPrice,
+        vatRate: vatRate,
+        description: variant.productDescription,
+        productDescription: variant.productDescription,
+        discountRate: 0,
+        // Renk ve beden bilgilerini ekle
+        colorCode: variant.colorCode,
+        colorDescription: variant.colorDescription,
+        itemDim1Code: variant.itemDim1Code
+      };
 
-    setInvoiceDetails([...invoiceDetails, newDetail]);
-    calculateInvoiceTotals([...invoiceDetails, newDetail]);
-    message.success(`${variant.productDescription} faturaya eklendi`);
+      setInvoiceDetails([...invoiceDetails, newDetail]);
+      calculateInvoiceTotals([...invoiceDetails, newDetail]);
+      message.success(`${variant.productDescription} faturaya eklendi (Birim Fiyat: ${unitPrice.toFixed(2)} TL)`);
+    } catch (error) {
+      console.error('Ürün fiyatı getirilirken hata oluştu:', error);
+      
+      // Hata durumunda varsayılan değerlerle devam et
+      const newDetail: InvoiceDetail = {
+        id: generateUniqueId(),
+        itemCode: variant.productCode,
+        quantity: quantity,
+        unitOfMeasureCode: variant.unitOfMeasureCode1,
+        unitPrice: variant.salesPrice1,
+        vatRate: variant.vatRate || 18,
+        description: variant.productDescription,
+        productDescription: variant.productDescription,
+        discountRate: 0,
+        colorCode: variant.colorCode,
+        colorDescription: variant.colorDescription,
+        itemDim1Code: variant.itemDim1Code
+      };
+
+      setInvoiceDetails([...invoiceDetails, newDetail]);
+      calculateInvoiceTotals([...invoiceDetails, newDetail]);
+      message.success(`${variant.productDescription} faturaya eklendi`);
+    }
   };
 
-  // Barkod modalını kapat
+  // Barkod modalını kapat (sadece görünürlüğü kapatır, taranan ürünleri temizlemez)
   const closeBarcodeModal = () => {
     setBarcodeModalVisible(false);
+    setBarcodeInput('');
+    setProductVariants([]);
+    // Taranan ürünleri temizlemiyoruz, böylece ana forma aktarılabilirler
+  };
+  
+  // Barkod modalını tamamen temizle (tüm verileri sıfırlar)
+  const resetBarcodeModal = () => {
     setBarcodeInput('');
     setProductVariants([]);
     setScannedItems([]);
@@ -357,8 +408,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     // Başarı mesajı göster
     message.success(`${scannedItems.length} ürün faturaya eklendi`);
     
-    // Modalı kapat
-    closeBarcodeModal();
+    // Modalı kapat ve temizle
+    setBarcodeModalVisible(false);
+    // Modalı kapatmadan önce tüm verileri temizle
+    resetBarcodeModal();
   };
 
   // İlk yükleme için veri yükleme fonksiyonu
@@ -737,7 +790,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   };
 
   // Fatura detayını güncelle
-  const updateInvoiceDetail = (index: number, field: keyof InvoiceDetail, value: any) => {
+  const updateInvoiceDetail = async (index: number, field: keyof InvoiceDetail, value: any) => {
     const updatedDetails = [...invoiceDetails];
     
     // Eğer ürün kodu değiştiyse, ilgili ürünün diğer bilgilerini de otomatik olarak doldur
@@ -747,15 +800,38 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       if (selectedProduct) {
         console.log('Seçilen ürün:', selectedProduct);
         
-        // Ürün bilgilerini otomatik doldur - ItemDim1Code, ItemDim2Code, ItemDim3Code ve color alanı kaldırıldı
+        // Ürün bilgilerini otomatik doldur
         updatedDetails[index] = { 
           ...updatedDetails[index], 
           itemCode: value,
           productDescription: selectedProduct.productDescription || '',
           unitOfMeasureCode: selectedProduct.unitOfMeasureCode1 || 'ADET',
-          unitPrice: selectedProduct.salesPrice1 || 0,
           vatRate: selectedProduct.vatRate || 18
         };
+        
+        try {
+          // Ürün fiyatını fiyat listesinden getir
+          const priceList = await productApi.getProductPriceList(value);
+          
+          if (priceList.length > 0) {
+            // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
+            const firstPrice = priceList[0];
+            
+            // Birim fiyatı güncelle
+            updatedDetails[index].unitPrice = firstPrice.birimFiyat || 0;
+            updatedDetails[index].vatRate = firstPrice.vatRate || 18;
+            
+            console.log(`Ürün fiyatı fiyat listesinden getirildi: ${value}, Fiyat: ${updatedDetails[index].unitPrice}, KDV: ${updatedDetails[index].vatRate}`);
+          } else {
+            // Fiyat listesi bulunamadıysa varsayılan değerleri kullan
+            updatedDetails[index].unitPrice = selectedProduct.salesPrice1 || 0;
+            console.log(`Ürün için fiyat listesi bulunamadı: ${value}, Varsayılan fiyat kullanılıyor: ${updatedDetails[index].unitPrice}`);
+          }
+        } catch (error) {
+          console.error('Ürün fiyatı getirilirken hata oluştu:', error);
+          // Hata durumunda varsayılan fiyatı kullan
+          updatedDetails[index].unitPrice = selectedProduct.salesPrice1 || 0;
+        }
       } else {
         // Sadece ürün kodunu güncelle
         updatedDetails[index] = { ...updatedDetails[index], [field]: value };
@@ -1048,8 +1124,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           </Col>
         </Row>
 
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={8} lg={8}>
+        <Row gutter={16}>
+          <Col span={8}>
             <Form.Item
               name="currAccCode"
               label={currAccType === CurrAccType.CUSTOMER ? 'Müşteri' : 'Tedarikçi'}
@@ -1109,7 +1185,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </Select>
             </Form.Item>
           </Col>
-          <Col xs={24} sm={12} md={8} lg={8}>
+          <Col span={8}>
             <Form.Item
               name="officeCode"
               label="Ofis"
@@ -1124,7 +1200,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </Select>
             </Form.Item>
           </Col>
-          <Col xs={24} sm={12} md={8} lg={8}>
+          <Col span={8}>
             <Form.Item
               name="warehouseCode"
               label="Depo"
@@ -1143,30 +1219,28 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
         <Divider orientation="left">Fatura Detayları</Divider>
         
-        <Row justify="space-between" align="middle" gutter={[16, 16]} style={{ marginBottom: 16 }}>
-          <Col xs={24} sm={24} md={12} lg={12}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-              <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail}>
-                Detay Ekle
-              </Button>
-              <Button 
-                type="primary" 
-                icon={<BarcodeOutlined />} 
-                onClick={() => {
-                  setBarcodeModalVisible(true);
-                  // Modal açıldığında input'a odaklan
-                  setTimeout(() => {
-                    if (barcodeInputRef.current) {
-                      barcodeInputRef.current.focus();
-                    }
-                  }, 100);
-                }}
-              >
-                Barkod ile Ekle
-              </Button>
-            </div>
+        <Row justify="space-between" style={{ marginBottom: 16 }}>
+          <Col>
+            <Button type="primary" icon={<PlusOutlined />} onClick={addInvoiceDetail} style={{ marginRight: '8px' }}>
+              Detay Ekle
+            </Button>
+            <Button 
+              type="primary" 
+              icon={<BarcodeOutlined />} 
+              onClick={() => {
+                setBarcodeModalVisible(true);
+                // Modal açıldığında input'a odaklan
+                setTimeout(() => {
+                  if (barcodeInputRef.current) {
+                    barcodeInputRef.current.focus();
+                  }
+                }, 100);
+              }}
+            >
+              Barkod ile Ekle
+            </Button>
           </Col>
-          <Col xs={24} sm={24} md={12} lg={12} style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Col>
             <Form.Item
               label="Birim Fiyat"
               tooltip="Birim fiyatları KDV dahil olarak girmek için açın"
@@ -1183,8 +1257,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         </Row>
         
         {/* Filtreleme ve Toplu Düzenleme Kontrol Paneli */}
-        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-          <Col xs={24} sm={24} md={12} lg={8}>
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={8}>
             <Input.Search 
               placeholder="Ürün kodu veya açıklaması ile filtrele" 
               value={filterText}
@@ -1192,7 +1266,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               allowClear
             />
           </Col>
-          <Col xs={24} sm={24} md={12} lg={16} style={{ textAlign: 'right' }}>
+          <Col span={16} style={{ textAlign: 'right' }}>
             <Button 
               type="primary" 
               disabled={selectedRowKeys.length === 0}
@@ -1314,13 +1388,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           }}
           size="small"
           bordered
-          scroll={{ x: 'max-content' }} // Yatay kaydırma ekleyerek mobile uyumlu hale getirdik
+          style={{ fontSize: '0.8em' }} // Font boyutunu %20 küçült
         >
           <Table.Column 
             title="Ürün Kodu" 
             dataIndex="itemCode" 
             key="itemCode"
-            width={100} // Ürün Kodu alanı 100px
+            width="auto"
             render={(value, record, index) => (
               <Select
                 showSearch
@@ -1329,9 +1403,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 placeholder="Ürün seçin"
                 loading={loadingProducts}
                 optionFilterProp="children"
-                dropdownStyle={{ width: '200px' }}
-                dropdownMatchSelectWidth={false}
-                maxTagCount={4}
                 filterOption={(input, option) => {
                   if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
                   
@@ -1358,7 +1429,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 onChange={(value) => updateInvoiceDetail(index, 'itemCode', value)}
               >
                 {Array.isArray(products) && products.length > 0 ? (
-                  products.slice(0, 4).map(product => (
+                  products.map(product => (
                     <Option key={product.productCode} value={product.productCode}>
                       {product.productCode}
                     </Option>
@@ -1375,7 +1446,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Ürün Açıklaması" 
             dataIndex="productDescription" 
             key="productDescription"
-            width={200} // 200px olsun
+            width="auto"
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1388,7 +1459,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Renk" 
             dataIndex="colorDescription" 
             key="colorDescription"
-            width={100} // 10 hane için
+            width="auto"
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1402,7 +1473,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Beden" 
             dataIndex="itemDim1Code" 
             key="itemDim1Code"
-            width={60} // 4 hane için
+            width="auto"
             render={(value, record, index) => (
               <Input 
                 value={value} 
@@ -1416,11 +1487,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Birim" 
             dataIndex="unitOfMeasureCode" 
             key="unitOfMeasureCode"
-            width={120}
+            width={150}
             render={(value, record, index) => (
               <Select
                 value={value}
-                style={{ width: '100%' }}
+                style={{ width: '100%', minWidth: '120px' }}
+                dropdownMatchSelectWidth={false}
                 suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
                 onChange={(value) => {
                   // Birim değiştiğinde, miktarı da kontrol et ve gerekirse düzelt
@@ -1449,7 +1521,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             title="Miktar" 
             dataIndex="quantity" 
             key="quantity"
-            width={120}
+            width={150}
             render={(value, record, index) => {
               // Birim türüne göre step ve precision değerlerini belirle
               const isUnitAdet = record.unitOfMeasureCode === 'ADET' || record.unitOfMeasureCode === 'AD';
@@ -1460,7 +1532,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   step={isUnitAdet ? 1 : 0.01}
                   precision={isUnitAdet ? 0 : 2}
                   controls={false}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', minWidth: '100px' }}
                   onChange={(value) => {
                     // Eğer birim ADET ise ve küsurat girilmişse, tam sayıya yuvarla
                     if (isUnitAdet && value && !Number.isInteger(value)) {
@@ -1482,7 +1554,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 value={value} 
                 min={0} 
                 step={0.01}
-                style={{ width: '100%' }}
+                controls={false}
+                style={{ width: '100%', minWidth: '120px' }}
                 formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
                 onChange={(value) => updateInvoiceDetail(index, 'unitPrice', value)}
@@ -1521,7 +1594,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 min={0} 
                 max={100}
                 controls={false}
-                style={{ width: '100%' }}
+                style={{ width: '100%', minWidth: '80px' }}
                 onChange={(value) => updateInvoiceDetail(index, 'discountRate', value)}
               />
             )}
@@ -1548,7 +1621,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               </span>
             )}
           />
-          {/* Alt Toplam sütunu gizlendi */}
+          <Table.Column 
+            title="Alt Toplam" 
+            dataIndex="subtotalAmount"
+            key="subtotalAmount"
+            width={120}
+            render={(value, record) => (
+              <span>
+                {(value || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              </span>
+            )}
+          />
           <Table.Column 
             title="KDV Tutarı" 
             dataIndex="vatAmount"
