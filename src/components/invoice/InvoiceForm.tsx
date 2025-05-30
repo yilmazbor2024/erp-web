@@ -244,11 +244,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       
       if (variants.length === 0) {
         message.warning(`"${barcodeInput}" için ürün bulunamadı`);
-      } else if (variants.length === 1 && isBarcode) {
-        // Sadece barkod ile arama yapıldığında ve tek varyant bulunduğunda otomatik ekle
+      } else if (variants.length === 1) {
+        // Tek varyant bulunduğunda otomatik ekle (barkod veya ürün kodu/açıklaması ile arama fark etmez)
         await getProductPriceAndAddVariant(variants[0]);
       } else {
-        // Ürün kodu ile arama yapıldığında veya birden fazla varyant bulunduğunda listeyi göster
+        // Birden fazla varyant bulunduğunda listeyi göster
         setProductVariants(variants);
       }
       
@@ -1113,6 +1113,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         onSearch={searchProductVariantsByBarcode}
         loading={loadingVariants}
         productVariants={productVariants}
+        setProductVariants={setProductVariants}
         inputRef={barcodeInputRef}
         scannedItems={scannedItems}
         addAllToInvoice={addAllScannedItemsToInvoice}
@@ -1957,6 +1958,7 @@ const BarcodeModal = ({
   loading,
   inputRef,
   productVariants,
+  setProductVariants,
   scannedItems,
   addAllToInvoice,
   isPriceIncludeVat,
@@ -1976,6 +1978,7 @@ const BarcodeModal = ({
   loading: boolean;
   inputRef: React.RefObject<any>;
   productVariants: ProductVariant[];
+  setProductVariants: (variants: ProductVariant[]) => void;
   scannedItems: { variant: ProductVariant; quantity: number }[];
   addAllToInvoice: () => void;
   isPriceIncludeVat: boolean;
@@ -2066,7 +2069,16 @@ const BarcodeModal = ({
       {/* Çoklu varyant bulunduğunda gösterilecek tablo */}
       {productVariants.length > 0 && !scannedItems.length && (
         <>
-          <Divider orientation="left">Bulunan Ürünler ({productVariants.length})</Divider>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Divider orientation="left" style={{ flex: 1 }}>Bulunan Ürünler ({productVariants.length})</Divider>
+            <Button 
+              type="link" 
+              onClick={() => setProductVariants([])} 
+              icon={<DeleteOutlined />}
+            >
+              Sonuçları Temizle
+            </Button>
+          </div>
           <Table
             loading={loading}
             dataSource={productVariants}
@@ -2150,17 +2162,17 @@ const BarcodeModal = ({
       {/* Taranan ürünlerin listesi */}
       {scannedItems.length > 0 && (
         <>
-          <Divider orientation="left">
-            Taranan Ürünler ({scannedItems.length})
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Divider orientation="left" style={{ flex: 1 }}>Taranan Ürünler ({scannedItems.length})</Divider>
             <Button 
               type="link" 
               danger 
-              style={{ marginLeft: 16 }}
+              icon={<DeleteOutlined />} 
               onClick={removeAllScannedItems}
             >
-              Tümünü Temizle
+              Listeyi Temizle
             </Button>
-          </Divider>
+          </div>
           
           {/* Toplu fiyat güncelleme alanı */}
           <Card title="Toplu Fiyat Güncelleme" size="small" style={{ marginBottom: 16 }}>
