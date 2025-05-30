@@ -4,7 +4,7 @@ import { PlusOutlined, DeleteOutlined, BarcodeOutlined, ScanOutlined, InfoCircle
 import dayjs from 'dayjs';
 import invoiceApi from '../../services/invoiceApi';
 import { customerApi, warehouseApi, officeApi, vendorApi, currencyApi } from '../../services/entityApi';
-import productApi, { ProductVariant } from '../../services/productApi';
+import productApi, { ProductVariant, InventoryStockParams } from '../../services/productApi';
 import inventoryApi, { InventoryStock } from '../../services/inventoryApi';
 import { InvoiceType } from '../../types/invoice';
 
@@ -170,10 +170,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     }
   };
   
-  // Barkod ile ürün varyantlarını ara
+  // Barkod, ürün kodu veya açıklaması ile ürün varyantlarını ara
   const searchProductVariantsByBarcode = async () => {
     if (!barcodeInput) {
-      message.warning('Lütfen bir barkod girin');
+      message.warning('Lütfen bir arama terimi girin');
       return;
     }
 
@@ -181,13 +181,60 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       setLoadingVariants(true);
       setLoadingInventory(true);
       
-      // Ürün varyantlarını getir
-      const variants = await productApi.getProductVariantsByBarcode(barcodeInput);
+      let variants: ProductVariant[] = [];
+      let isBarcode = false;
+      
+      // Önce barkod ile ara
+      try {
+        console.log('Barkod ile arama yapılıyor:', barcodeInput);
+        variants = await productApi.getProductVariantsByBarcode(barcodeInput);
+        if (variants.length > 0) {
+          isBarcode = true;
+          console.log('Barkod ile varyant bulundu');
+        }
+      } catch (error) {
+        console.error('Barkod ile arama sırasında hata:', error);
+      }
+      
+      // Eğer barkod ile bulunamadıysa, ürün kodu veya açıklaması ile ara
+      if (variants.length === 0) {
+        try {
+          console.log('Ürün kodu/açıklaması ile arama yapılıyor:', barcodeInput);
+          variants = await productApi.getProductVariantsByProductCodeOrDescription(barcodeInput);
+          console.log('Ürün kodu ile bulunan varyant sayısı:', variants.length);
+        } catch (error) {
+          console.error('Ürün kodu/açıklaması ile arama sırasında hata:', error);
+        }
+      }
       
       // Envanter/stok bilgisini getir
       try {
-        const stockInfo = await inventoryApi.getInventoryStockByBarcode(barcodeInput);
-        setInventoryStock(stockInfo);
+        if (variants.length > 0) {
+          // Bulunan ürünlerin kodlarını kullanarak stok bilgisini getir
+          const productCodes = Array.from(new Set(variants.map(v => v.productCode)));
+          
+          // Stok bilgilerini toplu olarak getir
+          const allStockInfo: InventoryStock[] = [];
+          for (const code of productCodes) {
+            try {
+              const stockInfo = await inventoryApi.getInventoryStockByProductCode(code);
+              allStockInfo.push(...stockInfo);
+            } catch (e) {
+              console.error(`${code} için stok bilgisi alınırken hata:`, e);
+            }
+          }
+          
+          setInventoryStock(allStockInfo);
+        } else {
+          // Doğrudan arama terimi ile stok bilgisini getir
+          try {
+            const stockInfo = await inventoryApi.getInventoryStockByBarcode(barcodeInput);
+            setInventoryStock(stockInfo);
+          } catch (e) {
+            console.error('Barkod ile stok bilgisi alınırken hata:', e);
+            setInventoryStock([]);
+          }
+        }
       } catch (stockError) {
         console.error('Envanter/stok bilgisi alınırken hata oluştu:', stockError);
         setInventoryStock([]);
@@ -196,19 +243,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       }
       
       if (variants.length === 0) {
-        message.warning(`${barcodeInput} barkoduna sahip ürün bulunamadı`);
-      } else if (variants.length === 1) {
-        // Tek varyant bulunduğunda otomatik olarak ekle
+        message.warning(`"${barcodeInput}" için ürün bulunamadı`);
+      } else if (variants.length === 1 && isBarcode) {
+        // Sadece barkod ile arama yapıldığında ve tek varyant bulunduğunda otomatik ekle
         await getProductPriceAndAddVariant(variants[0]);
       } else {
-        // Birden fazla varyant bulunduğunda listeyi göster
+        // Ürün kodu ile arama yapıldığında veya birden fazla varyant bulunduğunda listeyi göster
         setProductVariants(variants);
       }
       
       setBarcodeInput('');
     } catch (error) {
-      console.error('Barkod ile ürün aranırken hata oluştu:', error);
-      message.error('Barkod ile ürün aranırken bir hata oluştu');
+      console.error('Ürün aranırken hata oluştu:', error);
+      message.error('Ürün aranırken bir hata oluştu');
       setLoadingInventory(false);
     } finally {
       setLoadingVariants(false);
@@ -239,6 +286,56 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
     // Başarı mesajı göster
     message.success(`${variant.productDescription} listeye eklendi`);
+  };
+  
+  // Taranan bir ürünü listeden kaldır
+  const removeScannedItem = (index: number) => {
+    setScannedItems(prevItems => {
+      const updatedItems = [...prevItems];
+      updatedItems.splice(index, 1);
+      return updatedItems;
+    });
+    message.success('Satır listeden kaldırıldı');
+  };
+  
+  // Tüm taranan ürünleri listeden kaldır
+  const removeAllScannedItems = () => {
+    setScannedItems([]);
+    message.success('Tüm satırlar listeden kaldırıldı');
+  };
+  
+  // Taranan bir ürünün miktarını güncelle
+  const updateScannedItemQuantity = (index: number, quantity: number) => {
+    if (quantity <= 0) {
+      message.warning('Miktar 0\'dan büyük olmalıdır');
+      return;
+    }
+    
+    setScannedItems(prevItems => {
+      const updatedItems = [...prevItems];
+      updatedItems[index] = {
+        ...updatedItems[index],
+        quantity
+      };
+      return updatedItems;
+    });
+  };
+  
+  // Taranan bir ürünün fiyatını güncelle
+  const updateScannedItemPrice = (index: number, price: number) => {
+    if (price <= 0) {
+      message.warning('Fiyat 0\'dan büyük olmalıdır');
+      return;
+    }
+    
+    setScannedItems(prevItems => {
+      const updatedItems = [...prevItems];
+      updatedItems[index].variant = {
+        ...updatedItems[index].variant,
+        salesPrice1: price
+      };
+      return updatedItems;
+    });
   };
 
   // Ürün varyantını faturaya ekle
@@ -1009,7 +1106,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     <Card title={getInvoiceTypeName(selectedInvoiceType)} loading={loading}>
       {/* Barkod Tarama Modalı */}
       <BarcodeModal
-        visible={barcodeModalVisible}
+        open={barcodeModalVisible}
         onClose={closeBarcodeModal}
         barcodeInput={barcodeInput}
         setBarcodeInput={setBarcodeInput}
@@ -1023,6 +1120,10 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         getProductPrice={getProductPriceAndAddVariant}
         inventoryStock={inventoryStock}
         loadingInventory={loadingInventory}
+        removeScannedItem={removeScannedItem}
+        removeAllScannedItems={removeAllScannedItems}
+        updateScannedItemQuantity={updateScannedItemQuantity}
+        updateScannedItemPrice={updateScannedItemPrice}
       />
       <Form
         form={form}
@@ -1758,7 +1859,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         {/* Peşin Ödeme Modalı */}
         <Modal
           title="Ödeme Planı"
-          visible={showCashPaymentModal}
+          open={showCashPaymentModal}
           onOk={() => {
             setShowCashPaymentModal(false);
             message.success('Peşin ödeme başarıyla kaydedildi!');
@@ -1848,7 +1949,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
 // Barkod modalı bileşeni
 const BarcodeModal = ({
-  visible,
+  open,
   onClose,
   barcodeInput,
   setBarcodeInput,
@@ -1862,8 +1963,12 @@ const BarcodeModal = ({
   getProductPrice,
   inventoryStock,
   loadingInventory,
+  removeScannedItem,
+  removeAllScannedItems,
+  updateScannedItemQuantity,
+  updateScannedItemPrice,
 }: {
-  visible: boolean;
+  open: boolean;
   onClose: () => void;
   barcodeInput: string;
   setBarcodeInput: (value: string) => void;
@@ -1877,6 +1982,10 @@ const BarcodeModal = ({
   getProductPrice: (variant: ProductVariant) => Promise<void>;
   inventoryStock: InventoryStock[];
   loadingInventory: boolean;
+  removeScannedItem: (index: number) => void;
+  removeAllScannedItems: () => void;
+  updateScannedItemQuantity: (index: number, quantity: number) => void;
+  updateScannedItemPrice: (index: number, price: number) => void;
 }) => {
   const [bulkPrice, setBulkPrice] = useState<number | null>(null);
   const [bulkVatRate, setBulkVatRate] = useState<number>(18); // Varsayılan KDV oranı
@@ -1904,7 +2013,7 @@ const BarcodeModal = ({
   return (
     <Modal
       title="Satır Ekle"
-      open={visible}
+      open={open}
       onCancel={onClose}
       footer={[
         <Button key="cancel" onClick={onClose}>
@@ -1954,59 +2063,8 @@ const BarcodeModal = ({
         </Col>
       </Row>
 
-      {/* Toplu fiyat güncelleme alanı */}
-      {scannedItems.length > 0 && (
-        <Card title="Toplu Fiyat Güncelleme" size="small" style={{ marginBottom: 16 }}>
-          <Row gutter={16} align="middle">
-            <Col span={8}>
-              <Form.Item label="Birim Fiyat" style={{ marginBottom: 0 }}>
-                <InputNumber
-                  placeholder="Fiyat girin"
-                  value={bulkPrice}
-                  onChange={(value) => setBulkPrice(value)}
-                  min={0}
-                  step={0.01}
-                  style={{ width: '100%' }}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label="KDV (%)" style={{ marginBottom: 0 }}>
-                <Select
-                  value={bulkVatRate}
-                  onChange={(value) => setBulkVatRate(value)}
-                  style={{ width: '100%' }}
-                >
-                  <Option value={0}>%0</Option>
-                  <Option value={1}>%1</Option>
-                  <Option value={8}>%8</Option>
-                  <Option value={10}>%10</Option>
-                  <Option value={18}>%18</Option>
-                  <Option value={20}>%20</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item label=" " style={{ marginBottom: 0 }}>
-                <Switch
-                  checked={isPriceIncludeVat}
-                  disabled={true}
-                  checkedChildren="KDV Dahil"
-                  unCheckedChildren="KDV Hariç"
-                />
-              </Form.Item>
-            </Col>
-            <Col span={4}>
-              <Button type="primary" onClick={updateAllPrices}>
-                Uygula
-              </Button>
-            </Col>
-          </Row>
-        </Card>
-      )}
-
       {/* Çoklu varyant bulunduğunda gösterilecek tablo */}
-      {productVariants.length > 0 && (
+      {productVariants.length > 0 && !scannedItems.length && (
         <>
           <Divider orientation="left">Bulunan Ürünler ({productVariants.length})</Divider>
           <Table
@@ -2048,45 +2106,208 @@ const BarcodeModal = ({
               {
                 title: 'Stok',
                 key: 'stock',
-                width: 60,
+                width: 80,
                 render: (_, record) => {
-                  // Envanter stok bilgisini bul
-                  const stockItem = inventoryStock.find(s => 
-                    s.itemCode === record.productCode && 
-                    s.colorCode === record.colorCode && 
-                    s.itemDim1Code === record.itemDim1Code
-                  );
-                  return stockItem ? stockItem.qty : '-';
+                  const stock = inventoryStock.find(s => s.itemCode === record.productCode && 
+                                                      s.colorCode === record.colorCode && 
+                                                      s.itemDim1Code === record.itemDim1Code);
+                  return loadingInventory ? <Spin size="small" /> : (stock ? stock.qty : 0);
                 }
               },
               {
-                title: 'Satış Fiyat',
+                title: 'Birim Fiyat',
                 dataIndex: 'salesPrice1',
                 key: 'salesPrice1',
-                width: 100,
+                width: 120,
                 render: (price) => `${price.toFixed(2)} TL`
+              },
+              {
+                title: 'KDV',
+                dataIndex: 'vatRate',
+                key: 'vatRate',
+                width: 60,
+                render: (vatRate) => `%${vatRate}`
               },
               {
                 title: 'İşlem',
                 key: 'action',
-                width: 80,
+                width: 100,
                 render: (_, record) => (
-                  <Button 
-                    type="link" 
-                    onClick={async () => {
-                      // Ürün fiyatını fiyat listesinden getir ve ekle
-                      await getProductPrice(record);
-                    }}
+                  <Button
+                    type="primary"
+                    size="small"
+                    onClick={() => getProductPrice(record)}
                   >
                     Ekle
                   </Button>
                 )
               }
             ]}
-            locale={{ emptyText: 'Ürün bulunamadı' }}
           />
         </>
       )}
+      
+      {/* Taranan ürünlerin listesi */}
+      {scannedItems.length > 0 && (
+        <>
+          <Divider orientation="left">
+            Taranan Ürünler ({scannedItems.length})
+            <Button 
+              type="link" 
+              danger 
+              style={{ marginLeft: 16 }}
+              onClick={removeAllScannedItems}
+            >
+              Tümünü Temizle
+            </Button>
+          </Divider>
+          
+          {/* Toplu fiyat güncelleme alanı */}
+          <Card title="Toplu Fiyat Güncelleme" size="small" style={{ marginBottom: 16 }}>
+            <Row gutter={16} align="middle">
+              <Col span={8}>
+                <Form.Item label="Birim Fiyat" style={{ marginBottom: 0 }}>
+                  <InputNumber
+                    placeholder="Fiyat girin"
+                    value={bulkPrice}
+                    onChange={(value) => setBulkPrice(value)}
+                    min={0}
+                    step={0.01}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item label="KDV (%)" style={{ marginBottom: 0 }}>
+                  <Select
+                    value={bulkVatRate}
+                    onChange={(value) => setBulkVatRate(value)}
+                    style={{ width: '100%' }}
+                  >
+                    <Option value={0}>%0</Option>
+                    <Option value={1}>%1</Option>
+                    <Option value={8}>%8</Option>
+                    <Option value={10}>%10</Option>
+                    <Option value={18}>%18</Option>
+                    <Option value={20}>%20</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item label=" " style={{ marginBottom: 0 }}>
+                  <Switch
+                    checked={isPriceIncludeVat}
+                    disabled={true}
+                    checkedChildren="KDV Dahil"
+                    unCheckedChildren="KDV Hariç"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={4}>
+                <Button type="primary" onClick={updateAllPrices}>
+                  Uygula
+                </Button>
+              </Col>
+            </Row>
+          </Card>
+          
+          <Table
+            dataSource={scannedItems}
+            rowKey={(item) => item.variant.barcode || item.variant.productCode + item.variant.colorCode + item.variant.itemDim1Code}
+            size="small"
+            pagination={false}
+            className="compact-table"
+            scroll={{ y: 200 }}
+            columns={[
+              {
+                title: 'Ürün Kodu',
+                dataIndex: ['variant', 'productCode'],
+                key: 'productCode',
+                width: 100
+              },
+              {
+                title: 'Ürün Açıklaması',
+                dataIndex: ['variant', 'productDescription'],
+                key: 'productDescription',
+                width: 200,
+                ellipsis: true
+              },
+              {
+                title: 'Renk',
+                dataIndex: ['variant', 'colorDescription'],
+                key: 'colorDescription',
+                width: 80,
+                render: (text) => text || '-'
+              },
+              {
+                title: 'Beden',
+                dataIndex: ['variant', 'itemDim1Code'],
+                key: 'itemDim1Code',
+                width: 60,
+                render: (text) => text || '-'
+              },
+              {
+                title: 'Miktar',
+                dataIndex: 'quantity',
+                key: 'quantity',
+                width: 80,
+                render: (quantity, record, index) => (
+                  <InputNumber
+                    value={quantity}
+                    min={1}
+                    max={9999}
+                    step={1}
+                    precision={0}
+                    style={{ width: '100%' }}
+                    onChange={(value) => updateScannedItemQuantity(index, value as number)}
+                  />
+                )
+              },
+              {
+                title: 'Birim Fiyat',
+                dataIndex: ['variant', 'salesPrice1'],
+                key: 'salesPrice1',
+                width: 100,
+                render: (price, record, index) => (
+                  <InputNumber
+                    value={price}
+                    min={0.01}
+                    max={999999}
+                    step={0.01}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                    parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
+                    onChange={(value) => updateScannedItemPrice(index, value as number)}
+                  />
+                )
+              },
+              {
+                title: 'KDV (%)',
+                dataIndex: ['variant', 'vatRate'],
+                key: 'vatRate',
+                width: 80,
+                render: (vatRate) => `%${vatRate}`
+              },
+              {
+                title: 'İşlem',
+                key: 'action',
+                width: 60,
+                render: (_, record, index) => (
+                  <Button 
+                    type="link" 
+                    danger 
+                    icon={<DeleteOutlined />}
+                    onClick={() => removeScannedItem(index)}
+                  />
+                )
+              }
+            ]}
+          />
+        </>
+      )}
+
+
 
       {/* Envanter/Stok Bilgisi */}
       {inventoryStock.length > 0 && (
@@ -2159,54 +2380,6 @@ const BarcodeModal = ({
           </Spin>
         </>
       )}
-
-      {/* Taranan ürünlerin listesi */}
-      <Divider orientation="left">Taranan Ürünler ({scannedItems.length})</Divider>
-      <Table
-        dataSource={scannedItems.map((item, index) => ({
-          key: index,
-          ...item
-        }))}
-        columns={[
-          {
-            title: 'Ürün Kodu',
-            dataIndex: ['variant', 'productCode'],
-            key: 'productCode',
-          },
-          {
-            title: 'Ürün Adı',
-            dataIndex: ['variant', 'productDescription'],
-            key: 'productDescription',
-            ellipsis: true,
-          },
-          {
-            title: 'Renk',
-            dataIndex: ['variant', 'colorDescription'],
-            key: 'colorDescription',
-            render: (text) => text || '-'
-          },
-          {
-            title: 'Beden',
-            dataIndex: ['variant', 'itemDim1Code'],
-            key: 'itemDim1Code',
-            render: (text) => text || '-'
-          },
-          {
-            title: 'Miktar',
-            dataIndex: 'quantity',
-            key: 'quantity',
-          },
-          {
-            title: 'Birim Fiyat',
-            dataIndex: ['variant', 'salesPrice1'],
-            key: 'salesPrice1',
-            render: (price) => `${price.toFixed(2)} TL`
-          },
-        ]}
-        pagination={false}
-        size="small"
-        locale={{ emptyText: 'Henüz ürün taranmadı' }}
-      />
     </Modal>
   );
 };
