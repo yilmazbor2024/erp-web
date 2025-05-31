@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin, Modal, List, Badge, Tag, Checkbox, Radio } from 'antd';
-import { PlusOutlined, DeleteOutlined, BarcodeOutlined, ScanOutlined, InfoCircleOutlined, SearchOutlined } from '@ant-design/icons';
+import { Form, Input, Select, DatePicker, Button, Table, InputNumber, Switch, Card, Row, Col, Divider, Typography, message, Spin, Modal, List, Badge, Tag, Checkbox, Radio, Space } from 'antd';
+import { DeleteOutlined, BarcodeOutlined, ScanOutlined, InfoCircleOutlined, SearchOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import invoiceApi from '../../services/invoiceApi';
 import { customerApi, warehouseApi, officeApi, vendorApi, currencyApi } from '../../services/entityApi';
@@ -133,6 +133,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   // Ürün fiyatını fiyat listesinden getir ve varyantı ekle
   const getProductPriceAndAddVariant = async (variant: ProductVariant) => {
     try {
+      console.log('Ürün fiyatı getiriliyor ve varyant ekleniyor:', variant.productCode);
+      
       // Ürün koduna göre fiyat listesini getir
       const priceList = await productApi.getProductPriceList(variant.productCode);
       
@@ -141,33 +143,28 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         const firstPrice = priceList[0];
         
         // Varyantın fiyat ve KDV bilgilerini güncelle
-        // BirimFiyat alanını kullan
-        variant.salesPrice1 = firstPrice.birimFiyat || 0; // Varsayılan olarak 0 kullan
+        variant.salesPrice1 = firstPrice.birimFiyat || 0;
         variant.vatRate = firstPrice.vatRate || 10;
-        
-        console.log(`Ürün fiyatı fiyat listesinden güncellendi: ${variant.productCode}, Fiyat: ${variant.salesPrice1}, KDV: ${variant.vatRate}`);
-        console.log('Fiyat detayları:', {
-          birimFiyat: firstPrice.birimFiyat,
-          itemTypeCode: firstPrice.itemTypeCode || variant.productTypeCode
-        });
+        console.log('Fiyat bilgisi güncellendi:', variant.salesPrice1, 'KDV:', variant.vatRate);
       } else {
-        console.log(`Ürün için fiyat listesi bulunamadı: ${variant.productCode}`);
+        console.log('Fiyat listesi bulunamadı, varsayılan değerler kullanılacak');
       }
       
-      // Varyantı taranan listeye ekle
+      // Varyantı taranan ürünler listesine ekle
       addVariantToScannedList(variant);
       
-      // Varyant listesini temizle ve barkod alanını sıfırla
-      setProductVariants([]);
-      setBarcodeInput('');
+      // NOT: Barkod input'unu temizlemiyoruz ve odaklanmayı BarcodeModal bileşeninde yönetiyoruz
+      // Böylece kullanıcı hızlıca yeni barkod tarayabilir
+      
+      // Kullanıcı yeni arama yapana veya listeyi temizleyene kadar liste açık kalacak
+      
     } catch (error) {
       console.error('Ürün fiyatı getirilirken hata oluştu:', error);
       // Hata olsa bile varyantı ekle
       addVariantToScannedList(variant);
       
-      // Varyant listesini temizle ve barkod alanını sıfırla
-      setProductVariants([]);
-      setBarcodeInput('');
+      // Hata durumunda da kullanıcı hızlıca yeni barkod girebilsin
+      message.error('Ürün fiyatı alınırken bir hata oluştu, varsayılan fiyat kullanıldı.');
     }
   };
   
@@ -235,13 +232,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           for (const code of productCodes) {
             // Stok bilgisini getir
             try {
-              // Güncellenmiş API çağrısı - sadece ürün kodu ile çağrı yapılıyor
+              console.log(`${code} için stok bilgisi getiriliyor...`);
               const stockInfo = await inventoryApi.getInventoryStockByProductCode(code);
+              console.log(`${code} için stok bilgisi alındı:`, stockInfo);
               allStockInfo.push(...stockInfo);
             } catch (e: any) {
               // 404 hatalarını sessizce yönet
               if (e?.response?.status !== 404) {
                 console.error(`${code} için stok bilgisi alınırken hata:`, e);
+              } else {
+                console.log(`${code} için stok bilgisi bulunamadı (404)`);
               }
             }
             
@@ -271,7 +271,23 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             }
           }
           
-          setInventoryStock(allStockInfo);
+          // Stok bilgilerini state'e kaydet ve konsola yazdır
+        console.log('Tüm stok bilgileri:', allStockInfo);
+        setInventoryStock(allStockInfo);
+        
+        // Stok bilgilerini varyantlara ekle
+        variants = variants.map(variant => {
+          const stock = allStockInfo.find(s => 
+            s.itemCode === variant.productCode && 
+            s.colorCode === variant.colorCode && 
+            s.itemDim1Code === variant.itemDim1Code
+          );
+          
+          return {
+            ...variant,
+            stockQty: stock ? stock.qty : 0
+          };
+        });
         } catch (error) {
           console.error('Stok ve fiyat bilgisi alınırken hata:', error);
           setInventoryStock([]);
@@ -283,7 +299,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       }
       
       setProductVariants(variants);
-      return variants;
+    
+    // Eğer sadece 1 varyant bulunduysa, otomatik olarak listeye ekle
+    if (variants.length === 1) {
+      console.log('Tek varyant bulundu, otomatik olarak listeye ekleniyor:', variants[0]);
+      await getProductPriceAndAddVariant(variants[0]);
+    }
+    
+    return variants;
     } catch (error) {
       console.error('Ürün arama sırasında hata:', error);
       message.error('Ürün arama sırasında bir hata oluştu.');
@@ -2075,6 +2098,8 @@ const BarcodeModal = ({
               // En az 3 karakter kontrolü
               if (barcodeInput.trim().length >= 3) {
                 onSearch();
+                // Arama yapıldıktan sonra input'u temizle
+                setBarcodeInput('');
               } else if (barcodeInput.trim().length > 0) {
                 message.warning('Lütfen en az 3 karakter girin');
               }
@@ -2091,6 +2116,8 @@ const BarcodeModal = ({
               // En az 3 karakter kontrolü
               if (barcodeInput.trim().length >= 3) {
                 onSearch();
+                // Arama yapıldıktan sonra input'u temizle
+                setBarcodeInput('');
               } else if (barcodeInput.trim().length > 0) {
                 message.warning('Lütfen en az 3 karakter girin');
               }
@@ -2104,17 +2131,37 @@ const BarcodeModal = ({
       </Row>
 
       {/* Çoklu varyant bulunduğunda gösterilecek tablo */}
-      {productVariants.length > 0 && !scannedItems.length && (
+      {productVariants.length > 0 && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Divider orientation="left" style={{ flex: 1 }}>Bulunan Ürünler ({productVariants.length})</Divider>
-            <Button 
-              type="link" 
-              onClick={() => setProductVariants([])} 
-              icon={<DeleteOutlined />}
-            >
-              Sonuçları Temizle
-            </Button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', overflow: 'hidden' }}>
+            <Divider orientation="left" style={{ flex: 1, minWidth: 0 }}>Bulunan Ürünler ({productVariants.length})</Divider>
+            <Space size="small" style={{ flexShrink: 0 }}>
+              <Button 
+                type="primary" 
+                size="small"
+                onClick={() => {
+                  // Tüm varyantları sırayla ekle
+                  const addAllVariants = async () => {
+                    for (const variant of productVariants) {
+                      await getProductPrice(variant);
+                    }
+                    message.success(`${productVariants.length} ürün varyantı listeye eklendi`);
+                  };
+                  addAllVariants();
+                }}
+                icon={<PlusOutlined />}
+              >
+                Tüm Varyantları Ekle
+              </Button>
+              <Button 
+                type="link" 
+                size="small"
+                onClick={() => setProductVariants([])} 
+                icon={<DeleteOutlined />}
+              >
+                Temizle
+              </Button>
+            </Space>
           </div>
           <Table
             loading={loading}
@@ -2126,6 +2173,21 @@ const BarcodeModal = ({
             scroll={{ y: 300 }}
             columns={[
               {
+                title: 'İşlem',
+                key: 'action',
+                width: 100,
+                fixed: 'left',
+                render: (_, record) => (
+                  <Button
+                    type="primary"
+                    size="small"
+                    onClick={() => getProductPrice(record)}
+                  >
+                    Ekle
+                  </Button>
+                )
+              },
+              {
                 title: 'Ürün Kodu',
                 dataIndex: 'productCode',
                 key: 'productCode',
@@ -2135,7 +2197,7 @@ const BarcodeModal = ({
                 title: 'Ürün Açıklaması',
                 dataIndex: 'productDescription',
                 key: 'productDescription',
-                width: 250,
+                width: 200, // %20 daraltıldı (250'den 200'e)
                 ellipsis: true
               },
               {
@@ -2157,10 +2219,19 @@ const BarcodeModal = ({
                 key: 'stock',
                 width: 80,
                 render: (_, record) => {
-                  const stock = inventoryStock.find(s => s.itemCode === record.productCode && 
-                                                      s.colorCode === record.colorCode && 
-                                                      s.itemDim1Code === record.itemDim1Code);
-                  return loadingInventory ? <Spin size="small" /> : (stock ? stock.qty : 0);
+                  // Envanter/Stok Bilgisi tablosundan doğru stok miktarını bul
+                  const stock = inventoryStock.find(s => 
+                    s.itemCode === record.productCode && 
+                    s.colorCode === record.colorCode && 
+                    s.itemDim1Code === record.itemDim1Code
+                  );
+                  
+                  // Stok miktarını göster - eğer varsa stok.qty değerini, yoksa 0 göster
+                  return loadingInventory ? 
+                    <Spin size="small" /> : 
+                    <Tag color={stock && stock.qty > 0 ? 'green' : 'red'}>
+                      {stock ? stock.qty.toFixed(2) : '0.00'}
+                    </Tag>;
                 }
               },
               {
@@ -2176,20 +2247,6 @@ const BarcodeModal = ({
                 key: 'vatRate',
                 width: 60,
                 render: (vatRate) => `%${vatRate}`
-              },
-              {
-                title: 'İşlem',
-                key: 'action',
-                width: 100,
-                render: (_, record) => (
-                  <Button
-                    type="primary"
-                    size="small"
-                    onClick={() => getProductPrice(record)}
-                  >
-                    Ekle
-                  </Button>
-                )
               }
             ]}
           />
@@ -2213,7 +2270,7 @@ const BarcodeModal = ({
           
           {/* Toplu fiyat güncelleme alanı */}
           <Card title="Toplu Fiyat Güncelleme" size="small" style={{ marginBottom: 16 }}>
-            <Form form={barcodeForm} layout="vertical" style={{ marginBottom: 0 }}>
+            <Form layout="vertical" style={{ marginBottom: 0 }}>
             <Row gutter={16} align="middle">
               <Col span={8}>
                 <Form.Item label="Birim Fiyat" style={{ marginBottom: 0 }}>
@@ -2360,77 +2417,7 @@ const BarcodeModal = ({
 
 
 
-      {/* Envanter/Stok Bilgisi */}
-      {inventoryStock.length > 0 && (
-        <>
-          <Divider orientation="left">
-            <InfoCircleOutlined /> Envanter/Stok Bilgisi
-          </Divider>
-          <Spin spinning={loadingInventory}>
-            <Card size="small">
-              <Table
-                dataSource={inventoryStock}
-                rowKey="usedBarcode"
-                columns={[
-                  {
-                    title: 'Ürün Açıklaması',
-                    dataIndex: 'itemDescription',
-                    key: 'itemDescription',
-                    ellipsis: true,
-                  },
-                  {
-                    title: 'Renk',
-                    dataIndex: 'colorDescription',
-                    key: 'colorDescription',
-                    render: (text: string) => text || '-'
-                  },
-                  {
-                    title: 'Beden',
-                    dataIndex: 'itemDim1Code',
-                    key: 'itemDim1Code',
-                    render: (text: string) => text || '-'
-                  },
-                  {
-                    title: 'Stok Miktarı',
-                    dataIndex: 'qty',
-                    key: 'qty',
-                    render: (qty: number) => (
-                      <Tag color={qty > 0 ? 'green' : 'red'}>
-                        {qty.toFixed(2)}
-                      </Tag>
-                    )
-                  },
-                  {
-                    title: 'Birim',
-                    dataIndex: 'unitOfMeasureCode',
-                    key: 'unitOfMeasureCode',
-                  },
-                  {
-                    title: 'Durum',
-                    key: 'status',
-                    render: (_: any, record: InventoryStock) => (
-                      <>
-                        {record.variantIsBlocked && (
-                          <Tag color="red">Bloke</Tag>
-                        )}
-                        {record.qty <= 0 && (
-                          <Tag color="orange">Stok Yok</Tag>
-                        )}
-                        {!record.variantIsBlocked && record.qty > 0 && (
-                          <Tag color="green">Satılabilir</Tag>
-                        )}
-                      </>
-                    )
-                  },
-                ]}
-                pagination={false}
-                size="small"
-                locale={{ emptyText: 'Stok bilgisi bulunamadı' }}
-              />
-            </Card>
-          </Spin>
-        </>
-      )}
+      {/* Envanter/Stok Bilgisi tablosu kaldırıldı - stok bilgileri artık Bulunan Ürünler tablosunda gösteriliyor */}
     </Modal>
   );
 };
