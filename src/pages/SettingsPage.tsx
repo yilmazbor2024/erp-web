@@ -1,5 +1,6 @@
 import React from 'react';
 import { Card, Tabs, Typography, Form, Input, Button, Switch, Divider, message } from 'antd';
+import { API_BASE_URL } from '../config/constants';
 
 const { Title } = Typography;
 const { TabPane } = Tabs;
@@ -119,7 +120,7 @@ const SettingsPage: React.FC = () => {
             <Form
               layout="vertical"
               initialValues={{
-                apiUrl: 'http://localhost:5180',
+                apiUrl: API_BASE_URL,
                 apiKey: '************************'
               }}
             >

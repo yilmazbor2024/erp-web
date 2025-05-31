@@ -15,3 +15,18 @@ code {
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Tablo başlıkları için kompakt stil */
+.compact-table .ant-table-thead > tr > th {
+  padding: 6px 8px !important;
+  height: 32px !important;
+  line-height: 1.2 !important;
+  white-space: nowrap;
+}
+
+/* Tablo hücrelerini de kompakt hale getir */
+.compact-table .ant-table-tbody > tr > td {
+  padding: 4px 8px !important;
+  height: 28px !important;
+  line-height: 1.2 !important;
+}

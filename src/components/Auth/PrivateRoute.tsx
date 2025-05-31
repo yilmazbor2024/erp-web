@@ -12,12 +12,13 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, roles }) => {
   const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to="/giris" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (roles && user && !roles.some(role => user.roles.includes(role))) {
-    return <Navigate to="/" />;
-  }
+  // Rol kontrolünü geçici olarak devre dışı bırakıyoruz
+  // if (roles && user && !roles.some(role => user.roles.includes(role))) {
+  //   return <Navigate to="/" />;
+  // }
 
   return <>{children}</>;
 };

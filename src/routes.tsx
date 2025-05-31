@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Route, Routes, Navigate, useLocation } from 'react-router-dom';
+import { Route, Routes, Navigate, useLocation, Outlet } from 'react-router-dom';
 
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
@@ -24,6 +24,7 @@ import InvoiceDetailPage from './pages/invoice/InvoiceDetailPage';
 import InvoiceEditPage from './pages/invoice/InvoiceEditPage';
 import ProductPriceList from './pages/Products/ProductPriceList';
 import ProductDetail from './pages/Products/ProductDetail';
+import InventoryStockPage from './pages/inventory/InventoryStockPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Rota değişikliklerini izlemek için bileşen
@@ -73,20 +74,14 @@ const AppRoutes: React.FC = () => {
           <Route path="customers/:customerCode" element={<CustomerDetail />} />
           <Route path="siparisler" element={<Siparisler />} />
           <Route path="urunler" element={<Urunler />} />
-          {/* Fiyat listesi sayfası - Tamamen farklı bir path kullanıyoruz */}
-          <Route path="price-lists/products" element={<ProductPriceList />} />
-          
-          {/* Eski URL'den yeni URL'ye yönlendirme */}
-          <Route path="products/price-list" element={<Navigate to="/price-lists/products" replace />} />
-          
-          {/* Ürün detay sayfası */}
-          <Route path="products/:productCode" element={<ProductDetail />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="roles" element={<RolesPage />} />
           <Route path="profile" element={<Profile />} />
           <Route path="settings" element={<SettingsPage />} />
-          
-          {/* Fatura Sayfaları */}
+          {/* Envanter ana sayfası */}
+          <Route path="price-lists/products" element={<ProductPriceList />} />
+          <Route path="products/price-list" element={<Navigate to="/price-lists/products" replace />} />
+          <Route path="products/:productCode" element={<ProductDetail />} />
           <Route path="invoices/wholesale" element={<WholesaleInvoices />} />
           <Route path="invoices/wholesale/new" element={<CreateWholesaleInvoice />} />
           
@@ -95,6 +90,9 @@ const AppRoutes: React.FC = () => {
           <Route path="invoice/list" element={<InvoiceListPage />} />
           <Route path="invoice/:id" element={<InvoiceDetailPage />} />
           <Route path="invoice/edit/:id" element={<InvoiceEditPage />} />
+          
+          {/* Envanter/Stok Sayfaları */}
+          <Route path="inventory/count" element={<div>Sayım Sayfası (Geliştirme Aşamasında)</div>} />
         </Route>
         
         <Route path="*" element={<Navigate to="/" />} />

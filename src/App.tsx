@@ -72,6 +72,10 @@ import ProductPriceList from './pages/Products/ProductPriceList';
 // Material pages
 import MaterialList from './pages/Materials/MaterialList';
 
+ 
+// Inventory pages
+import InventoryStockPage from './pages/inventory/InventoryStockPage';
+
 // Create a theme with Turkish locale
 const theme = createTheme({
   palette: {
@@ -207,6 +211,8 @@ function App() {
                 
                 {/* Inventory Routes */}
                 <Route path="inventory">
+                  <Route index element={<Navigate to="/inventory/stock" replace />} />
+                  <Route path="stock" element={<AuthGuard><InventoryStockPage /></AuthGuard>} />
                   <Route path="count" element={<Navigate to="/dashboard" replace />} />
                   <Route path="management" element={<Navigate to="/dashboard" replace />} />
                   <Route path="warehouse" element={<Navigate to="/dashboard" replace />} />

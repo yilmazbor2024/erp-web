@@ -377,13 +377,13 @@ export const mobileCardMenu: MenuItem[] = [
       {
         id: 'inventory-stock',
         title: 'Envanter/Stok',
-        path: '/inventory/stock',
+        path: '/test',
         icon: 'ArchiveBoxIcon'
       },
       {
         id: 'inventory-count',
         title: 'Sayımlar',
-        path: '/inventory/count',
+        path: 'inventory/count',
         icon: 'ArchiveBoxIcon'
       },
       {

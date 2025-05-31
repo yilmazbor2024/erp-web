@@ -22,6 +22,30 @@ export interface ProductVariant {
   salesPrice1: number;
   vatRate: number | null;
   isBlocked: boolean;
+  // Eski kodla uyumluluk için eklenen alanlar
+  color?: string; // colorDescription ile aynı değere sahip olacak
+  size?: string; // itemDim1Code ile aynı değere sahip olacak
+}
+
+export interface InventoryStock {
+  itemTypeCode: string;
+  itemCode: string;
+  usedBarcode: string;
+  itemDescription: string;
+  colorDescription: string;
+  colorCode: string;
+  itemDim1Code: string; // Beden
+  itemDim2TypeCode: string;
+  itemDim2Code: string;
+  itemDim3Code: string;
+  binCode: string;
+  unitOfMeasureCode: string;
+  barcodeTypeCode: string;
+  qty: number;
+  warehouseCode: string;
+  warehouseName: string;
+  variantIsBlocked: boolean;
+  isNotExist: boolean;
 }
 
 export interface ProductPriceList {
@@ -120,8 +144,135 @@ export interface UpdateProductRequest {
   isBlocked?: boolean;
 }
 
+// Envanter stok sorgulama parametreleri
+export interface InventoryStockParams {
+  barcode?: string;
+  productCode?: string;
+  productDescription?: string;
+  colorCode?: string;
+  itemDim1Code?: string;
+  warehouseCode?: string;
+  showOnlyPositiveStock?: boolean;
+}
+
 // API fonksiyonları
 const productApi = {
+  // Ürün adı veya kodu ile arama yap
+  async searchProducts(searchText: string): Promise<ProductVariant[]> {
+    try {
+      console.log('Ürün araması yapılıyor:', searchText);
+      
+      // Ürün varyantlarını getirmek için getProductVariantsByProductCodeOrDescription fonksiyonunu kullan
+      return await this.getProductVariantsByProductCodeOrDescription(searchText);
+    } catch (error) {
+      console.error('Ürün araması sırasında hata oluştu:', error);
+      return [];
+    }
+  },
+  
+  // Ürün varyantlarını ürün kodu veya açıklamasına göre getir
+  async getProductVariantsByProductCodeOrDescription(searchText: string): Promise<ProductVariant[]> {
+    try {
+      // Backend'de doğrulanmış ve test edilmiş endpoint'i kullan
+      console.log('Ürün kodu/açıklaması ile arama yapılıyor:', searchText);
+      
+      // Test edilmiş ve doğrulanmış endpoint'i kullan
+      const response = await axiosInstance.get(`/api/Product/variants/by-product-code-or-description`, {
+        params: { searchText }
+      });
+      
+      if (response.data && response.data.success) {
+        console.log('Ürün kodu/açıklaması ile bulunan varyantlar:', response.data.data);
+        
+        return response.data.data.map((item: any) => ({
+          productCode: item.productCode || item.itemCode || '',
+          productDescription: item.productDescription || item.itemDescription || '',
+          colorCode: item.colorCode || '',
+          colorDescription: item.colorDescription || '',
+          manufacturerColorCode: item.manufacturerColorCode || '',
+          itemDim1Code: item.itemDim1Code || '',
+          itemDim2Code: item.itemDim2Code || '',
+          itemDim3Code: item.itemDim3Code || '',
+          barcodeTypeCode: item.barcodeTypeCode || '',
+          barcode: item.barcode || item.usedBarcode || '',
+          notHaveBarcodes: Boolean(item.notHaveBarcodes),
+          qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
+          productTypeCode: item.productTypeCode || item.itemTypeCode || '',
+          productTypeDescription: item.productTypeDescription || '',
+          unitOfMeasureCode1: item.unitOfMeasureCode1 || item.unitOfMeasureCode || '',
+          unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
+          salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
+          vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
+          isBlocked: Boolean(item.isBlocked || item.variantIsBlocked)
+        }));
+      }
+      
+      // Eğer veri bulunamazsa boş dizi döndür
+      console.log('Ürün kodu/açıklaması ile varyant bulunamadı');
+      return [];
+    } catch (error) {
+      console.error('Ürün kodu veya açıklamasına göre ürün varyantları alınırken hata oluştu:', error);
+      return [];
+    }
+  },
+  // Çok amaçlı envanter/stok sorgulama
+  async getInventoryStockMultiPurpose(params: InventoryStockParams): Promise<InventoryStock[]> {
+    try {
+      console.log('Envanter/stok bilgileri getiriliyor... Parametreler:', params);
+      
+      const queryParams = new URLSearchParams();
+      
+      // Parametreleri ekle
+      if (params.barcode) queryParams.append('barcode', params.barcode);
+      if (params.productCode) queryParams.append('productCode', params.productCode);
+      if (params.productDescription) queryParams.append('productDescription', params.productDescription);
+      if (params.colorCode) queryParams.append('colorCode', params.colorCode);
+      if (params.itemDim1Code) queryParams.append('itemDim1Code', params.itemDim1Code);
+      if (params.warehouseCode) queryParams.append('warehouseCode', params.warehouseCode);
+      if (params.showOnlyPositiveStock !== undefined) queryParams.append('showOnlyPositiveStock', params.showOnlyPositiveStock.toString());
+      
+      console.log('Envanter API çağrısı yapılıyor:', `/api/Inventory/stock/multi-purpose?${queryParams.toString()}`);
+      const response = await axiosInstance.get<ApiResponse<InventoryStock[]>>(`/api/Inventory/stock/multi-purpose?${queryParams.toString()}`);
+      console.log('Envanter API yanıtı alındı:', response.data);
+      
+      if (response.data && response.data.success) {
+        return response.data.data.map((item: any) => ({
+          itemTypeCode: item.itemTypeCode,
+          itemCode: item.itemCode,
+          usedBarcode: item.usedBarcode,
+          itemDescription: item.itemDescription,
+          colorDescription: item.colorDescription,
+          colorCode: item.colorCode,
+          itemDim1Code: item.itemDim1Code,
+          itemDim2TypeCode: item.itemDim2TypeCode,
+          itemDim2Code: item.itemDim2Code,
+          itemDim3Code: item.itemDim3Code,
+          binCode: item.binCode,
+          unitOfMeasureCode: item.unitOfMeasureCode,
+          barcodeTypeCode: item.barcodeTypeCode,
+          qty: item.qty,
+          warehouseCode: item.warehouseCode,
+          warehouseName: item.warehouseName,
+          variantIsBlocked: item.variantIsBlocked,
+          isNotExist: item.isNotExist
+        }));
+      }
+      return [];
+    } catch (error: any) {
+      console.error('Envanter/stok bilgileri alınırken hata oluştu:', error);
+      console.error('Hata detayları:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+        method: error.config?.method,
+        headers: error.config?.headers,
+        data: error.response?.data
+      });
+      return [];
+    }
+  },
+
   // Ürün listesini getir
   async getProducts(params?: ProductListParams): Promise<ProductListResponse> {
     try {
@@ -131,8 +282,19 @@ const productApi = {
       const queryParams = new URLSearchParams();
       
       // Sayfalama parametrelerini ekleyelim - tüm ürünleri almak için pageSize'i büyük bir değer yapalım
-      queryParams.append('pageSize', '2500'); // Büyük bir değer kullan
+      queryParams.append('pageSize', '10000'); // Daha büyük bir değer kullan
       queryParams.append('pageNumber', '1');
+      
+      // Eğer searchTerm varsa, doğrudan ürün kodu üzerinden arama yapalım
+      if (params?.searchTerm) {
+        // Arama terimini temizle ve URL-safe hale getir
+        const searchTerm = params.searchTerm.trim();
+        queryParams.append('searchTerm', searchTerm);
+        
+        // Ürün kodu araması için özel parametre ekleyelim
+        queryParams.append('searchField', 'itemCode'); // Ürün kodu alanında ara
+        console.log(`Ürün kodu araması: "${searchTerm}"`);
+      }
       
       // Diğer parametreleri ekle
       if (params) {
@@ -465,23 +627,44 @@ const productApi = {
     ];
   },
   
-  // Barkod ile ürün varyantlarını ara
-  async getProductVariantsByBarcode(barcode: string): Promise<ProductVariant[]> {
+  // Sadece barkod ile ürün varyantlarını ara
+  async getProductVariantsByBarcode(searchText: string): Promise<ProductVariant[]> {
     try {
-      if (!barcode) {
-        throw new Error('Barkod boş olamaz');
+      if (!searchText) {
+        throw new Error('Arama metni boş olamaz');
       }
       
-      console.log(`Barkod ile ürün varyantları aranıyor: ${barcode}`);
-      const response = await axiosInstance.get(`/api/Product/variants/by-barcode/${barcode}`);
+      console.log(`Sadece barkod ile ürün varyantı aranıyor: ${searchText}`);
       
-      if (response.data && response.data.success && Array.isArray(response.data.data)) {
-        console.log('Barkod ile ürün varyantları bulundu:', response.data.data);
+      // Backend'de doğrulanmış endpoint'i kullan
+      let response;
+      
+      try {
+        // İlk olarak doğrulanmış endpoint'i dene
+        response = await axiosInstance.get(`/api/Product/variants/by-barcode/${searchText}`);
+      } catch (error: any) {
+        if (error.response && error.response.status === 404) {
+          // Alternatif doğrulanmış endpoint
+          console.log('Doğrulanmış alternatif endpoint kullanılıyor: /api/Item/search-by-barcode');
+          response = await axiosInstance.get(`/api/Item/search-by-barcode`, {
+            params: { barcode: searchText }
+          });
+        } else {
+          throw error;
+        }
+      }
+      
+      if (response.data && (response.data.success || response.data.isSuccess) && 
+          ((Array.isArray(response.data.data) && response.data.data.length > 0) || 
+           (Array.isArray(response.data.items) && response.data.items.length > 0))) {
+        
+        const responseData = response.data.data || response.data.items;
+        console.log('Barkod ile ürün varyantları bulundu:', responseData);
         
         // API'den gelen verileri ProductVariant formatına dönüştür
-        const variants: ProductVariant[] = response.data.data.map((item: any) => ({
-          productCode: item.productCode || '',
-          productDescription: item.productDescription || '',
+        const variants: ProductVariant[] = responseData.map((item: any) => ({
+          productCode: item.productCode || item.itemCode || '',
+          productDescription: item.productDescription || item.itemDescription || '',
           colorCode: item.colorCode || '',
           colorDescription: item.colorDescription || '',
           manufacturerColorCode: item.manufacturerColorCode || '',
@@ -489,29 +672,123 @@ const productApi = {
           itemDim2Code: item.itemDim2Code || '',
           itemDim3Code: item.itemDim3Code || '',
           barcodeTypeCode: item.barcodeTypeCode || '',
-          barcode: item.barcode || '',
+          barcode: item.barcode || item.usedBarcode || '',
           notHaveBarcodes: Boolean(item.notHaveBarcodes),
           qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
-          productTypeCode: item.productTypeCode || '',
+          productTypeCode: item.productTypeCode || item.itemTypeCode || '',
           productTypeDescription: item.productTypeDescription || '',
-          unitOfMeasureCode1: item.unitOfMeasureCode1 || '',
+          unitOfMeasureCode1: item.unitOfMeasureCode1 || item.unitOfMeasureCode || '',
           unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
           salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
           vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
-          isBlocked: Boolean(item.isBlocked)
+          isBlocked: Boolean(item.isBlocked || item.variantIsBlocked)
         }));
         
         return variants;
       }
       
-      console.warn('Barkod ile ürün varyantı bulunamadı:', response.data);
+      // Bulunamadıysa boş dizi döndür
       return [];
     } catch (error) {
       console.error('Barkod ile ürün varyantları aranırken hata oluştu:', error);
-      throw error;
+      return [];
     }
   },
-
+  
+  // Ürün koduna göre varyantları getir
+  async getProductVariantsByCode(productCode: string): Promise<ProductVariant[]> {
+    try {
+      if (!productCode) {
+        throw new Error('Ürün kodu boş olamaz');
+      }
+      
+      console.log(`Ürün koduna göre varyantlar aranıyor: ${productCode}`);
+      
+      // Önce API'den varyantları getirmeyi dene
+      try {
+        const response = await axiosInstance.get(`/api/Product/variants/by-code/${productCode}`);
+        
+        if (response.data && response.data.success && Array.isArray(response.data.data) && response.data.data.length > 0) {
+          console.log('Ürün koduna göre varyantlar bulundu:', response.data.data);
+          
+          // API'den gelen verileri ProductVariant formatına dönüştür
+          const variants: ProductVariant[] = response.data.data.map((item: any) => ({
+            productCode: item.productCode || '',
+            productDescription: item.productDescription || '',
+            colorCode: item.colorCode || '',
+            colorDescription: item.colorDescription || '',
+            manufacturerColorCode: item.manufacturerColorCode || '',
+            itemDim1Code: item.itemDim1Code || '',
+            itemDim2Code: item.itemDim2Code || '',
+            itemDim3Code: item.itemDim3Code || '',
+            barcodeTypeCode: item.barcodeTypeCode || '',
+            barcode: item.barcode || '',
+            notHaveBarcodes: Boolean(item.notHaveBarcodes),
+            qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
+            productTypeCode: item.productTypeCode || '',
+            productTypeDescription: item.productTypeDescription || '',
+            unitOfMeasureCode1: item.unitOfMeasureCode1 || '',
+            unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
+            salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
+            vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
+            isBlocked: Boolean(item.isBlocked)
+          }));
+          
+          return variants;
+        }
+      } catch (variantError) {
+        console.log('Ürün varyantları bulunamadı, ürün detayı deneniyor:', variantError);
+      }
+      
+      // Varyantlar bulunamadıysa, ürün detayını getir
+      try {
+        // Ürün detayını getir
+        const productResponse = await axiosInstance.get(`/api/Item?searchTerm=${productCode}&searchField=itemCode&pageSize=1`);
+        
+        if (productResponse.data && productResponse.data.success && productResponse.data.data && 
+            Array.isArray(productResponse.data.data.items) && productResponse.data.data.items.length > 0) {
+          
+          const item = productResponse.data.data.items[0];
+          console.log('Ürün detayı bulundu:', item);
+          
+          // Ürün detayını ProductVariant formatına dönüştür
+          const variant: ProductVariant = {
+            productCode: item.itemCode || item.productCode || '',
+            productDescription: item.itemDescription || item.productDescription || '',
+            colorCode: item.colorCode || '',
+            colorDescription: item.colorDescription || item.color || '',
+            manufacturerColorCode: '',
+            itemDim1Code: item.itemDim1Code || item.size || '',
+            itemDim2Code: '',
+            itemDim3Code: '',
+            barcodeTypeCode: '',
+            barcode: '',
+            notHaveBarcodes: false,
+            qty: null,
+            productTypeCode: item.productTypeCode || '',
+            productTypeDescription: item.productTypeDescription || '',
+            unitOfMeasureCode1: item.unitOfMeasureCode1 || 'ADET',
+            unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
+            salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
+            vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
+            isBlocked: Boolean(item.isBlocked)
+          };
+          
+          return [variant];
+        }
+      } catch (productError) {
+        console.error('Ürün detayı alınırken hata oluştu:', productError);
+      }
+      
+      console.warn('Ürün koduna göre hiçbir ürün bulunamadı:', productCode);
+      return [];
+    } catch (error) {
+      console.error('Ürün koduna göre varyantlar aranırken hata oluştu:', error);
+      // Hata durumunda boş dizi döndür
+      return [];
+    }
+  },
+  
   // Ürün koduna göre fiyat listesini getir
   async getProductPriceList(productCode: string): Promise<ProductPriceList[]> {
     try {
@@ -520,20 +797,20 @@ const productApi = {
         return [];
       }
       
-      console.log(`Ürün koduna göre fiyat listesi aranıyor: ${productCode}`);
-      
-      // API endpoint'i çağır
-      const endpoint = `/api/v1/Product/${productCode}/price-list`;
-      console.log('Fiyat Listesi API - Endpoint:', endpoint);
+      // API dokümanında belirtilen kesin doğru endpoint
+      const endpoint = `/api/Product/${productCode}/price-list`;
+      console.log(`Ürün fiyat listesi endpoint: ${endpoint}`);
       
       const response = await axiosInstance.get(endpoint);
-      console.log('Fiyat Listesi API - Response:', response);
       
-      if (response.data && response.data.success && Array.isArray(response.data.data)) {
-        console.log('Ürün fiyat listesi bulundu:', response.data.data);
+      if (response.data && (response.data.success || response.data.isSuccess) && 
+          (Array.isArray(response.data.data) || Array.isArray(response.data.items))) {
+        
+        const items = response.data.data || response.data.items || [];
+        console.log('Ürün fiyat listesi bulundu:', items.length, 'adet');
         
         // API'den gelen verileri ProductPriceList formatına dönüştür
-        const priceList: ProductPriceList[] = response.data.data.map((item: any) => {
+        const priceList: ProductPriceList[] = items.map((item: any) => {
           return {
             priceListNumber: item.priceListNumber || '',
             priceGroupCode: item.priceGroupCode || '',
@@ -551,7 +828,7 @@ const productApi = {
             lastUpdatedUserName: item.lastUpdatedUserName || '',
             birimFiyat: item.birimFiyat || 0,
             itemTypeCode: item.itemTypeCode || '',
-            vatRate: item.vatRate || 18,
+            vatRate: item.vatRate === 18 ? 10 : (item.vatRate || 10), // 18 ise 10'a çevir, yoksa 10 kullan
             productCode: item.productCode || productCode
           };
         });
@@ -559,11 +836,17 @@ const productApi = {
         return priceList;
       }
       
+      // Veri bulunamadıysa boş dizi döndür
       console.warn('Ürün fiyat listesi bulunamadı');
       return [];
-    } catch (error) {
-      console.error('Ürün fiyat listesi aranırken hata oluştu:', error);
-      throw error;
+    } catch (error: any) {
+      // Hata durumunda log yazdır ve boş dizi döndür
+      if (error.response && error.response.status === 404) {
+        console.warn(`Ürün kodu ${productCode} için fiyat listesi bulunamadı (404)`);
+      } else {
+        console.error('Ürün fiyat listesi aranırken hata oluştu:', error);
+      }
+      return [];
     }
   }
 };

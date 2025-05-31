@@ -58,13 +58,39 @@ const ProductDetail: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Spin size="large" tip="Ürün detayı yükleniyor..." />
+        <Spin size="large">
+          <div style={{ padding: '30px', textAlign: 'center' }}>
+            <p>Ürün detayı yükleniyor...</p>
+          </div>
+        </Spin>
       </div>
     );
   }
 
   // Hata durumu
   if (error || !product) {
+    // Hata mesajını belirle
+    let errorMessage = 'Ürün detayı yüklenirken bir hata oluştu veya ürün bulunamadı.';
+    let errorTitle = 'Ürün Bulunamadı';
+    let errorAction = null;
+    
+    // Özel route parametreleri için özel mesajlar
+    if (productCode === 'price-list') {
+      errorTitle = 'Yanlış Sayfa';
+      errorMessage = 'Bu URL bir ürün detayı sayfası değil, fiyat listesi sayfasıdır. Lütfen doğru sayfaya yönlendirilmek için aşağıdaki butona tıklayın.';
+      errorAction = (
+        <Button 
+          type="primary" 
+          onClick={() => navigate('/products/price-list')}
+          style={{ marginTop: '16px' }}
+        >
+          Fiyat Listesi Sayfasına Git
+        </Button>
+      );
+    } else if (error instanceof Error) {
+      errorMessage = `Hata: ${error.message}`;
+    }
+    
     return (
       <div className="p-6">
         <div className="flex items-center mb-6">
@@ -75,11 +101,14 @@ const ProductDetail: React.FC = () => {
           >
             Geri
           </Button>
-          <h1 className="text-2xl font-semibold">Ürün Bulunamadı</h1>
+          <h1 className="text-2xl font-semibold">{errorTitle}</h1>
         </div>
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
-          Ürün detayı yüklenirken bir hata oluştu veya ürün bulunamadı.
-        </div>
+        <Card>
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
+            {errorMessage}
+          </div>
+          {errorAction}
+        </Card>
       </div>
     );
   }

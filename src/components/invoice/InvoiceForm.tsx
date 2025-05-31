@@ -107,6 +107,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   // Ödeme şekli için state
   const [paymentType, setPaymentType] = useState<'cash' | 'credit'>('credit'); // Varsayılan olarak vadeli
   const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
+  const [cashPaymentForm] = Form.useForm(); // Nakit ödeme modalı için form instance
   // KDV dahil/hariç seçeneği için state
   const [isPriceIncludeVat, setIsPriceIncludeVat] = useState<boolean>(false);
   const [barcodeInput, setBarcodeInput] = useState<string>('');
@@ -116,7 +117,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [inventoryStock, setInventoryStock] = useState<InventoryStock[]>([]);
   const [loadingInventory, setLoadingInventory] = useState<boolean>(false);
   const [bulkPrice, setBulkPrice] = useState<number>(0);
-  const [bulkVatRate, setBulkVatRate] = useState<number>(18);
+  const [bulkVatRate, setBulkVatRate] = useState<number>(10); // Varsayılan KDV oranı %10
   const barcodeInputRef = useRef<any>(null);
   // Taranan barkodları ve miktarlarını tutacak state
   const [scannedItems, setScannedItems] = useState<{
@@ -142,7 +143,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         // Varyantın fiyat ve KDV bilgilerini güncelle
         // BirimFiyat alanını kullan
         variant.salesPrice1 = firstPrice.birimFiyat || 0; // Varsayılan olarak 0 kullan
-        variant.vatRate = firstPrice.vatRate || 18;
+        variant.vatRate = firstPrice.vatRate || 10;
         
         console.log(`Ürün fiyatı fiyat listesinden güncellendi: ${variant.productCode}, Fiyat: ${variant.salesPrice1}, KDV: ${variant.vatRate}`);
         console.log('Fiyat detayları:', {
@@ -174,26 +175,32 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const searchProductVariantsByBarcode = async () => {
     if (!barcodeInput) {
       message.warning('Lütfen bir arama terimi girin');
-      return;
+      return [];
     }
-
     try {
       setLoadingVariants(true);
       setLoadingInventory(true);
       
       let variants: ProductVariant[] = [];
-      let isBarcode = false;
       
       // Önce barkod ile ara
       try {
         console.log('Barkod ile arama yapılıyor:', barcodeInput);
         variants = await productApi.getProductVariantsByBarcode(barcodeInput);
         if (variants.length > 0) {
-          isBarcode = true;
           console.log('Barkod ile varyant bulundu');
+          // KDV oranını kontrol et ve %18 ise %10'a değiştir
+          variants = variants.map(variant => ({
+            ...variant,
+            vatRate: variant.vatRate === 18 ? 10 : variant.vatRate
+          }));
         }
-      } catch (error) {
-        console.error('Barkod ile arama sırasında hata:', error);
+      } catch (error: any) {
+        // 404 hatası alınırsa sessizce devam et, diğer hataları göster
+        if (error?.response?.status !== 404) {
+          console.error('Barkod ile arama sırasında hata:', error);
+          message.warning(`Barkod ile arama sırasında bir sorun oluştu. Ürün kodu ile arama yapılacak.`);
+        }
       }
       
       // Eğer barkod ile bulunamadıysa, ürün kodu veya açıklaması ile ara
@@ -202,63 +209,91 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           console.log('Ürün kodu/açıklaması ile arama yapılıyor:', barcodeInput);
           variants = await productApi.getProductVariantsByProductCodeOrDescription(barcodeInput);
           console.log('Ürün kodu ile bulunan varyant sayısı:', variants.length);
-        } catch (error) {
+          // KDV oranını kontrol et ve %18 ise %10'a değiştir
+          variants = variants.map(variant => ({
+            ...variant,
+            vatRate: variant.vatRate === 18 ? 10 : variant.vatRate
+          }));
+        } catch (error: any) {
           console.error('Ürün kodu/açıklaması ile arama sırasında hata:', error);
+          // Sadece ciddi hataları kullanıcıya göster
+          if (error?.response?.status === 500) {
+            message.error(`Sunucu hatası: Ürün araması yapılamadı.`);
+          }
         }
       }
       
-      // Envanter/stok bilgisini getir
-      try {
-        if (variants.length > 0) {
+      // Envanter/stok bilgisini ve fiyat listesini getir
+      if (variants.length > 0) {
+        try {
           // Bulunan ürünlerin kodlarını kullanarak stok bilgisini getir
           const productCodes = Array.from(new Set(variants.map(v => v.productCode)));
           
-          // Stok bilgilerini toplu olarak getir
+          // Stok bilgilerini ve fiyat listelerini toplu olarak getir
           const allStockInfo: InventoryStock[] = [];
+          
           for (const code of productCodes) {
+            // Stok bilgisini getir
             try {
+              // Güncellenmiş API çağrısı - sadece ürün kodu ile çağrı yapılıyor
               const stockInfo = await inventoryApi.getInventoryStockByProductCode(code);
               allStockInfo.push(...stockInfo);
+            } catch (e: any) {
+              // 404 hatalarını sessizce yönet
+              if (e?.response?.status !== 404) {
+                console.error(`${code} için stok bilgisi alınırken hata:`, e);
+              }
+            }
+            
+            // Fiyat listesi bilgisini getir
+            try {
+              const priceList = await productApi.getProductPriceList(code);
+              console.log(`${code} için fiyat listesi:`, priceList);
+              
+              // Fiyat listesi bilgisini varyantlara ekle
+              if (priceList.length > 0) {
+                variants = variants.map(variant => {
+                  if (variant.productCode === code) {
+                    // Fiyat listesinden ilk fiyatı al
+                    const price = priceList[0];
+                    return {
+                      ...variant,
+                      salesPrice1: price.birimFiyat || variant.salesPrice1,
+                      vatRate: price.vatRate !== null ? price.vatRate : (variant.vatRate === 18 ? 10 : variant.vatRate)
+                    };
+                  }
+                  return variant;
+                });
+              }
             } catch (e) {
-              console.error(`${code} için stok bilgisi alınırken hata:`, e);
+              console.warn(`${code} için fiyat listesi alınırken hata:`, e);
+              // Fiyat listesi alınamazsa sessizce devam et
             }
           }
           
           setInventoryStock(allStockInfo);
-        } else {
-          // Doğrudan arama terimi ile stok bilgisini getir
-          try {
-            const stockInfo = await inventoryApi.getInventoryStockByBarcode(barcodeInput);
-            setInventoryStock(stockInfo);
-          } catch (e) {
-            console.error('Barkod ile stok bilgisi alınırken hata:', e);
-            setInventoryStock([]);
-          }
+        } catch (error) {
+          console.error('Stok ve fiyat bilgisi alınırken hata:', error);
+          setInventoryStock([]);
         }
-      } catch (stockError) {
-        console.error('Envanter/stok bilgisi alınırken hata oluştu:', stockError);
-        setInventoryStock([]);
-      } finally {
-        setLoadingInventory(false);
-      }
-      
-      if (variants.length === 0) {
-        message.warning(`"${barcodeInput}" için ürün bulunamadı`);
-      } else if (variants.length === 1) {
-        // Tek varyant bulunduğunda otomatik ekle (barkod veya ürün kodu/açıklaması ile arama fark etmez)
-        await getProductPriceAndAddVariant(variants[0]);
       } else {
-        // Birden fazla varyant bulunduğunda listeyi göster
-        setProductVariants(variants);
+        // Ürün bulunamadıysa stok bilgisini boşalt
+        setInventoryStock([]);
+        message.warning(`"${barcodeInput}" için ürün bulunamadı.`);
       }
       
-      setBarcodeInput('');
+      setProductVariants(variants);
+      return variants;
     } catch (error) {
-      console.error('Ürün aranırken hata oluştu:', error);
-      message.error('Ürün aranırken bir hata oluştu');
+      console.error('Ürün arama sırasında hata:', error);
+      message.error('Ürün arama sırasında bir hata oluştu.');
+      setProductVariants([]);
+      setInventoryStock([]);
       setLoadingInventory(false);
+      return [];
     } finally {
       setLoadingVariants(false);
+      setLoadingInventory(false);
     }
   };
 
@@ -346,7 +381,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       
       // Fiyat bilgilerini güncelle
       let unitPrice = variant.salesPrice1;
-      let vatRate = variant.vatRate || 18;
+      let vatRate = variant.vatRate || 10;
       
       if (priceList.length > 0) {
         // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
@@ -390,7 +425,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         quantity: quantity,
         unitOfMeasureCode: variant.unitOfMeasureCode1,
         unitPrice: variant.salesPrice1,
-        vatRate: variant.vatRate || 18,
+        vatRate: variant.vatRate || 10,
         description: variant.productDescription,
         productDescription: variant.productDescription,
         discountRate: 0,
@@ -413,7 +448,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     setScannedItems([]);
     setInventoryStock([]);
     setBulkPrice(0);
-    setBulkVatRate(18);
+    setBulkVatRate(10);
   };
 
   // Toplu fiyat güncelleme fonksiyonu
@@ -447,7 +482,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     const newDetails: InvoiceDetail[] = scannedItems.map(item => {
       // Birim fiyat ve KDV oranı al
       const unitPrice = item.variant.salesPrice1;
-      const vatRate = item.variant.vatRate || 18;
+      const vatRate = item.variant.vatRate || 10;
       
       // Yeni detay oluştur
       const detail: InvoiceDetail = {
@@ -853,7 +888,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         quantity: 1,
         unitOfMeasureCode: 'ADET',
         unitPrice: 0,
-        vatRate: 18,
+        vatRate: 10,
         discountRate: 0,
         productDescription: '',
         color: '',
@@ -894,7 +929,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           itemCode: value,
           productDescription: selectedProduct.productDescription || '',
           unitOfMeasureCode: selectedProduct.unitOfMeasureCode1 || 'ADET',
-          vatRate: selectedProduct.vatRate || 18
+          vatRate: selectedProduct.vatRate || 10
         };
         
         try {
@@ -907,7 +942,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             
             // Birim fiyatı güncelle
             updatedDetails[index].unitPrice = firstPrice.birimFiyat || 0;
-            updatedDetails[index].vatRate = firstPrice.vatRate || 18;
+            updatedDetails[index].vatRate = firstPrice.vatRate || 10;
             
             console.log(`Ürün fiyatı fiyat listesinden getirildi: ${value}, Fiyat: ${updatedDetails[index].unitPrice}, KDV: ${updatedDetails[index].vatRate}`);
           } else {
@@ -1166,7 +1201,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 showSearch
                 placeholder="Para birimi seçiniz"
                 optionFilterProp="children"
-                suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
+                // showArrow prop'u kaldırıldı
                 filterOption={(input, option) => {
                   if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
                   
@@ -1192,7 +1227,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   const searchText = String(option.label || childText);
                   return searchText.toLowerCase().includes(input.toLowerCase());
                 }}
-                showArrow={true}
+                // showArrow prop'u kaldırıldı
                 style={{ width: '100%' }}
               >
                 {Array.isArray(currencies) && currencies.length > 0 ? currencies.map(currency => {
@@ -1253,7 +1288,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                   const searchText = String(option.label || childText);
                   return searchText.toLowerCase().includes(input.toLowerCase());
                 }}
-                showArrow={true}
+                // showArrow prop'u kaldırıldı
                 style={{ width: '100%' }}
               >
                 {Array.isArray(currAccType === CurrAccType.CUSTOMER ? customers : vendors) && 
@@ -1527,7 +1562,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                     </Option>
                   ))
                 ) : (
-                  <Option value="" disabled>
+                  <Option key="empty-disabled" value="" disabled>
                     Ürün bulunamadı
                   </Option>
                 )}
@@ -1585,7 +1620,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 value={value}
                 style={{ width: '100%', minWidth: '60px' }} // 4 hane için 60px yeterli
                 dropdownMatchSelectWidth={false}
-                suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
+                // showArrow prop'u kaldırıldı
                 onChange={(value) => {
                   // Birim değiştiğinde, miktarı da kontrol et ve gerekirse düzelt
                   const updatedDetails = [...invoiceDetails];
@@ -1666,15 +1701,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               <Select
                 value={value}
                 style={{ width: '100%' }}
-                suffixIcon={undefined} // showArrow yerine suffixIcon kullanılıyor
+                // showArrow prop'u kaldırıldı
                 onChange={(value) => updateInvoiceDetail(index, 'vatRate', value)}
               >
-                <Option value={0}>%0</Option>
-                <Option value={1}>%1</Option>
-                <Option value={8}>%8</Option>
-                <Option value={10}>%10</Option>
-                <Option value={18}>%18</Option>
-                <Option value={20}>%20</Option>
+                <Option key="0" value={0}>%0</Option>
+                <Option key="1" value={1}>%1</Option>
+                <Option key="8" value={8}>%8</Option>
+                <Option key="10" value={10}>%10</Option>
+                <Option key="18" value={18}>%18</Option>
+                <Option key="20" value={20}>%20</Option>
               </Select>
             )}
           />
@@ -1889,15 +1924,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             {/* Form Alanları */}
             <div style={{ display: 'flex', marginBottom: 16 }}>
               <div style={{ flex: 1, marginRight: 16 }}>
-                <Form layout="vertical">
+                <Form form={cashPaymentForm} layout="vertical">
                   <Form.Item label="Nakit Kasa Hesap Kodu">
                     <Select style={{ width: '100%' }} defaultValue="">
-                      <Select.Option value="">Seçiniz</Select.Option>
+                      <Select.Option key="empty" value="">Seçiniz</Select.Option>
                     </Select>
                   </Form.Item>
                   <Form.Item label="Para Birimi">
                     <Select style={{ width: '100%' }} defaultValue="TRY">
-                      <Select.Option value="TRY">TRY</Select.Option>
+                      <Select.Option key="TRY" value="TRY">TRY</Select.Option>
                     </Select>
                   </Form.Item>
                   <Form.Item label="Döviz Kuru">
@@ -1950,6 +1985,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
 // Barkod modalı bileşeni
 const BarcodeModal = ({
+
   open,
   onClose,
   barcodeInput,
@@ -1990,8 +2026,9 @@ const BarcodeModal = ({
   updateScannedItemQuantity: (index: number, quantity: number) => void;
   updateScannedItemPrice: (index: number, price: number) => void;
 }) => {
+  const [barcodeForm] = Form.useForm();
   const [bulkPrice, setBulkPrice] = useState<number | null>(null);
-  const [bulkVatRate, setBulkVatRate] = useState<number>(18); // Varsayılan KDV oranı
+  const [bulkVatRate, setBulkVatRate] = useState<number>(10); // Varsayılan KDV oranı
   // Toplu fiyat güncelleme fonksiyonu
   const updateAllPrices = () => {
     if (bulkPrice === null) {
@@ -2176,6 +2213,7 @@ const BarcodeModal = ({
           
           {/* Toplu fiyat güncelleme alanı */}
           <Card title="Toplu Fiyat Güncelleme" size="small" style={{ marginBottom: 16 }}>
+            <Form form={barcodeForm} layout="vertical" style={{ marginBottom: 0 }}>
             <Row gutter={16} align="middle">
               <Col span={8}>
                 <Form.Item label="Birim Fiyat" style={{ marginBottom: 0 }}>
@@ -2196,12 +2234,12 @@ const BarcodeModal = ({
                     onChange={(value) => setBulkVatRate(value)}
                     style={{ width: '100%' }}
                   >
-                    <Option value={0}>%0</Option>
-                    <Option value={1}>%1</Option>
-                    <Option value={8}>%8</Option>
-                    <Option value={10}>%10</Option>
-                    <Option value={18}>%18</Option>
-                    <Option value={20}>%20</Option>
+                    <Option key="0" value={0}>%0</Option>
+                    <Option key="1" value={1}>%1</Option>
+                    <Option key="8" value={8}>%8</Option>
+                    <Option key="10" value={10}>%10</Option>
+                    <Option key="18" value={18}>%18</Option>
+                    <Option key="20" value={20}>%20</Option>
                   </Select>
                 </Form.Item>
               </Col>
@@ -2221,6 +2259,7 @@ const BarcodeModal = ({
                 </Button>
               </Col>
             </Row>
+            </Form>
           </Card>
           
           <Table

@@ -279,13 +279,13 @@ const InvoiceListPage: React.FC = () => {
       render: (text: string, record: any) => (
         <Space>
           {record.isCompleted && (
-            <Tag color="green">Tamamlandı</Tag>
+            <Tag key="completed" color="green">Tamamlandı</Tag>
           )}
           {record.isSuspended && (
-            <Tag color="red">Askıda</Tag>
+            <Tag key="suspended" color="red">Askıda</Tag>
           )}
           {!record.isCompleted && !record.isSuspended && (
-            <Tag color="blue">Bekliyor</Tag>
+            <Tag key="waiting" color="blue">Bekliyor</Tag>
           )}
         </Space>
       )
@@ -295,21 +295,21 @@ const InvoiceListPage: React.FC = () => {
       key: 'actions',
       render: (text: string, record: any) => (
         <Space>
-          <Tooltip title="Görüntüle">
+          <Tooltip key="view" title="Görüntüle">
             <Button
               type="text"
               icon={<EyeOutlined />}
               onClick={() => viewInvoiceDetails(record.invoiceHeaderID || record.invoiceHeaderId, record.invoiceTypeCode)}
             />
           </Tooltip>
-          <Tooltip title="Düzenle">
+          <Tooltip key="edit" title="Düzenle">
             <Button
               type="text"
               icon={<EditOutlined />}
               onClick={() => editInvoice(record.invoiceHeaderID || record.invoiceHeaderId, record.invoiceTypeCode)}
             />
           </Tooltip>
-          <Tooltip title="Yazdır">
+          <Tooltip key="print" title="Yazdır">
             <Button
               type="text"
               icon={<FileTextOutlined />}

@@ -19,6 +19,7 @@
     "@types/jest": "^27.5.2",
     "@types/node": "^16.18.126",
     "@types/react": "^18.2.0",
+    "@types/react-csv": "^1.1.10",
     "@types/react-dom": "^18.2.0",
     "@types/styled-components": "^5.1.34",
     "antd": "^5.24.5",
@@ -28,6 +29,7 @@
     "formik": "^2.4.6",
     "moment": "^2.30.1",
     "react": "^18.2.0",
+    "react-csv": "^2.2.2",
     "react-dom": "^18.2.0",
     "react-query": "^3.39.3",
     "react-router-dom": "^6.30.0",
@@ -42,7 +44,7 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "build:dev": "env-cmd -f .env.development react-scripts build",
-    "build:prod": "env-cmd -f .env.production react-scripts build",
+    "build:prod": "cross-env REACT_APP_API_URL=http://b2b.edikravat.tr react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -65,7 +67,9 @@
     ]
   },
   "devDependencies": {
+    "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^7.0.3",
     "env-cmd": "^10.1.0",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17"
