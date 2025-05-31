@@ -6,6 +6,7 @@ import invoiceApi from '../../services/invoiceApi';
 import { customerApi, warehouseApi, officeApi, vendorApi, currencyApi } from '../../services/entityApi';
 import productApi, { ProductVariant, InventoryStockParams } from '../../services/productApi';
 import inventoryApi, { InventoryStock } from '../../services/inventoryApi';
+import productPriceListApi from '../../services/productPriceListApi';
 import { InvoiceType } from '../../types/invoice';
 
 const { Option } = Select;
@@ -135,7 +136,48 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     try {
       console.log('Ürün fiyatı getiriliyor ve varyant ekleniyor:', variant.productCode);
       
-      // Ürün koduna göre fiyat listesini getir
+      // Önce /api/v1/Product/all-price-lists endpoint'ini kullanarak fiyat bilgisini almayı dene
+      try {
+        // Fiyat listesi API'sini çağır
+        const priceListResponse = await productPriceListApi.getPriceList({
+          page: 1,
+          pageSize: 10,
+          itemCode: variant.productCode,
+          companyCode: 1
+        });
+        
+        console.log('Fiyat listesi API yanıtı:', priceListResponse);
+        
+        // API yanıtında veri varsa ve başarılıysa
+        if (priceListResponse.success && priceListResponse.data && priceListResponse.data.length > 0) {
+          // Ürün koduna göre filtreleme yap
+          const matchingItems = priceListResponse.data.filter(item => 
+            item.itemCode === variant.productCode
+          );
+          
+          if (matchingItems.length > 0) {
+            // Eşleşen ilk öğeyi al
+            const priceItem = matchingItems[0];
+            
+            // Varyantın fiyat ve KDV bilgilerini güncelle
+            variant.salesPrice1 = priceItem.birimFiyat || 0;
+            variant.vatRate = 10; // Varsayılan KDV oranı 10
+            
+            console.log('Fiyat listesinden fiyat bilgisi güncellendi:', variant.salesPrice1);
+            // Varyantı taranan ürünler listesine ekle
+            addVariantToScannedList(variant);
+            return; // Başarılı olduğu için fonksiyondan çık
+          }
+        }
+        
+        // Fiyat listesinde bulunamadıysa, eski yöntemi dene
+        console.log('Fiyat listesinde bulunamadı, eski yöntemi deniyoruz...');
+      } catch (apiError) {
+        console.error('Fiyat listesi API hatası:', apiError);
+        // Hata durumunda eski yöntemi dene
+      }
+      
+      // Eski yöntem: Ürün koduna göre fiyat listesini getir
       const priceList = await productApi.getProductPriceList(variant.productCode);
       
       if (priceList.length > 0) {
@@ -145,18 +187,13 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         // Varyantın fiyat ve KDV bilgilerini güncelle
         variant.salesPrice1 = firstPrice.birimFiyat || 0;
         variant.vatRate = firstPrice.vatRate || 10;
-        console.log('Fiyat bilgisi güncellendi:', variant.salesPrice1, 'KDV:', variant.vatRate);
+        console.log('Eski yöntemle fiyat bilgisi güncellendi:', variant.salesPrice1, 'KDV:', variant.vatRate);
       } else {
         console.log('Fiyat listesi bulunamadı, varsayılan değerler kullanılacak');
       }
       
       // Varyantı taranan ürünler listesine ekle
       addVariantToScannedList(variant);
-      
-      // NOT: Barkod input'unu temizlemiyoruz ve odaklanmayı BarcodeModal bileşeninde yönetiyoruz
-      // Böylece kullanıcı hızlıca yeni barkod tarayabilir
-      
-      // Kullanıcı yeni arama yapana veya listeyi temizleyene kadar liste açık kalacak
       
     } catch (error) {
       console.error('Ürün fiyatı getirilirken hata oluştu:', error);
