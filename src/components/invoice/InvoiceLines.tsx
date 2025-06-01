@@ -222,7 +222,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
           precision={2}
           style={{ width: '100%' }}
           formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-          parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+          parser={(value) => parseFloat(value!.replace(/\$\s?|(,*)/g, ''))}
           onChange={(value) => {
             if (value !== null) {
               const updatedDetail = {
@@ -250,7 +250,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
           precision={0}
           style={{ width: '100%' }}
           formatter={value => `${value}%`}
-          parser={value => value!.replace('%', '')}
+          parser={(value) => parseFloat(value!.replace('%', ''))}
           onChange={(value) => {
             if (value !== null) {
               const updatedDetail = {
@@ -278,7 +278,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
           precision={0}
           style={{ width: '100%' }}
           formatter={value => `${value}%`}
-          parser={value => value!.replace('%', '')}
+          parser={(value) => parseFloat(value!.replace('%', ''))}
           onChange={(value) => {
             if (value !== null) {
               const updatedDetail = {
