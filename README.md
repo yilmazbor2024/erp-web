@@ -45,9 +45,36 @@ src/
 - Offline çalışabilme
 - Ürün yönetimi ve fiyat listesi görüntüleme
 - Fatura oluşturma ve yönetimi
+- Gelişmiş döviz kuru entegrasyonu
+  - TCMB ve SPYS kaynaklarından döviz kuru çekme
+  - Tarih ve para birimine göre otomatik kur güncelleme
+  - TL karşılığı hesaplama
 - Barkod tarama ve ürün arama
+  - Barkod modalı ile hızlı ürün ekleme
+  - Stok bilgisi görüntüleme
+  - Toplu fiyat güncelleme
 
 ## Son Güncellemeler
+
+### 1 Haziran 2025
+- **Fatura Formu Döviz Kuru İyileştirmeleri:**
+  - Para birimi TRY olduğunda TL karşılığı otomatik olarak 1 olarak ayarlanıyor
+  - Para birimi boş veya null olduğunda TL karşılığı 0 olarak ayarlanıyor
+  - Döviz kuru kaynağı (TCMB/SPYS) seçimi için UI butonları kaldırıldı, arka planda mantık korundu
+  - Kur değişikliklerini izleyen useEffect hookları eklendi ve optimize edildi
+  - API hataları ve null/undefined yanıtlar için güvenli kontroller eklendi
+
+- **Barkod Modal Entegrasyonu:**
+  - Barkod Modal'dan faturaya satır eklerken güncel para birimi kontrolü eklendi
+  - Satırlar eklendiğinde güncel döviz kuru kullanılarak TL karşılığı hesaplanıyor
+  - Barkod Modal kapatıldığında tüm ilgili state'ler sıfırlanarak temiz bir başlangıç sağlanıyor
+  - Toplamlar güncel para birimine göre doğru şekilde güncelleniyor
+
+- **UI İyileştirmeleri:**
+  - Para Birimi (Currency) seçici genişliği %100 olarak ayarlandı
+  - Kur Kaynağı ve TL Karşılığı girdileri yan yana %50-%50 genişlikte yerleştirildi
+  - TL Karşılığı giriş alanı genişliği %20 artırıldı ve metin sola hizalandı
+  - Responsive tasarım için Ant Design grid sistemi kullanıldı
 
 ### 31 Mayıs 2025
 - Barkod arama input alanı arama yapıldıktan sonra otomatik olarak temizleniyor
