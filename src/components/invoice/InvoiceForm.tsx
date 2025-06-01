@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Form, Button, Tabs, message, Row, Col, Input, InputRef, Radio } from 'antd';
+import { Card, Form, Button, Tabs, message, Row, Col, Input, InputRef, Radio, InputNumber, Select } from 'antd';
 import type { RadioChangeEvent } from 'antd';
 import { PlusOutlined, ArrowLeftOutlined, ArrowRightOutlined, SaveOutlined, InfoCircleOutlined, BarcodeOutlined, CheckOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -103,11 +103,23 @@ const InvoiceFormNew = ({
   const [form] = Form.useForm();
   const [loading, setLoading] = useState<boolean>(false);
   const [exchangeRate, setExchangeRate] = useState<number>(1);
+  
+  // Form instance'ının doğru şekilde bağlanmasını sağla
+  useEffect(() => {
+    // Form instance'ını başlangıç değerleriyle ayarla
+    form.setFieldsValue({
+      invoiceDate: dayjs(),
+      docCurrencyCode: 'TRY',
+      currencyCode: 'TRY',
+      exchangeRate: 1,
+      exchangeRateSource: 'TCMB'
+    });
+  }, [form]);
   // Zaten mevcut olan değişkeni tekrar tanımlamaya gerek yok
   
   // Sekme kontrolü için state
-  const [activeTab, setActiveTab] = useState<string>('1'); // 1: BAŞLIK, 2: SATIR, 3: TOPLAM
-  const [headerFormValid, setHeaderFormValid] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>('1'); // 1: BAŞLIK, 
+  const [headerFormValid, setHeaderFormValid] = useState<boolean>(false); // Form validasyonu için state - başlangıçta kesinlikle false olarak ayarla
   
   // Veri state'leri
   const [customers, setCustomers] = useState<any[]>([]);
@@ -153,6 +165,12 @@ const InvoiceFormNew = ({
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   const [loadingRates, setLoadingRates] = useState<boolean>(false);
   const [exchangeRateSource, setExchangeRateSource] = useState<ExchangeRateSource>(ExchangeRateSource.CENTRAL_BANK);
+  
+  // KDV dahil/hariç seçeneği için state
+  const [isPriceIncludeVat, setIsPriceIncludeVat] = useState<boolean>(false);
+  
+  // Toplam tutar state'leri için tryEquivalentTotal ekleyelim
+  const [tryEquivalentTotal, setTryEquivalentTotal] = useState<number>(0);
   
   // Döviz kurlarını yükle
   const loadExchangeRates = async () => {
@@ -225,10 +243,13 @@ const InvoiceFormNew = ({
   // Para birimi değiştiğinde çalışacak fonksiyon
   const handleCurrencyChange = (currencyCode: string) => {
     setCurrentCurrencyCode(currencyCode);
-    form.setFieldsValue({ currencyCode });
+    form.setFieldsValue({ 
+      currencyCode,
+      docCurrencyCode: currencyCode // docCurrencyCode'u da güncelle
+    });
     
-    // TRY dışında bir para birimi seçildiğinde ve döviz kurları yüklenmemişse
-    if (currencyCode !== 'TRY' && Object.keys(exchangeRates).length > 0) {
+    // Para birimi değiştiğinde her zaman tüm satırların para birimini güncelle
+    if (Object.keys(exchangeRates).length > 0 || currencyCode === 'TRY') {
       updatePricesWithExchangeRate(currencyCode);
     }
   };
@@ -237,20 +258,39 @@ const InvoiceFormNew = ({
   const handleExchangeRateChange = (rate: number) => {
     setExchangeRate(rate);
     form.setFieldsValue({ exchangeRate: rate });
+    
+    // Döviz kuru değiştiğinde tüm satırların TL karşılığını güncelle
+    if (invoiceDetails.length > 0) {
+      const currencyCode = form.getFieldValue('docCurrencyCode') || 'TRY';
+      
+      // Eğer TRY dışında bir para birimi kullanılıyorsa
+      if (currencyCode !== 'TRY') {
+        const updatedDetails = invoiceDetails.map(detail => {
+          // Satırın TL karşılığını güncelle
+          const netAmount = detail.netAmount || 0;
+          return {
+            ...detail,
+            exchangeRate: rate,
+            tryEquivalent: netAmount * rate
+          };
+        });
+        
+        setInvoiceDetails(updatedDetails);
+        updateTotals(updatedDetails);
+      }
+    }
   };
   
   // Döviz kuru kaynağı değiştiğinde çalışacak fonksiyon
   const handleExchangeRateSourceChange = (e: RadioChangeEvent) => {
-    const source = e.target.value;
+    const source = e.target.value as ExchangeRateSource;
     setExchangeRateSource(source);
     form.setFieldsValue({ exchangeRateSource: source });
     
-    // Seçilen para birimi ve tarihe göre kur bilgisini yeni kaynaktan al
-    const currencyCode = form.getFieldValue('docCurrencyCode');
-    if (currencyCode && currencyCode !== 'TRY') {
+    // Döviz kuru kaynağı değiştiğinde güncel kurları yükle
+    if (currentCurrencyCode !== 'TRY') {
       const invoiceDate = form.getFieldValue('invoiceDate');
       if (invoiceDate) {
-        // Döviz kurlarını yeniden yükle
         loadExchangeRates();
       }
     }
@@ -258,29 +298,56 @@ const InvoiceFormNew = ({
   
   // Döviz kuru ile fiyatları güncelle
   const updatePricesWithExchangeRate = (currencyCode: string) => {
-    if (currencyCode === 'TRY' || !exchangeRates[currencyCode]) {
-      return;
-    }
+    // TRY için kur her zaman 1'dir
+    let rate = 1;
     
-    // Seçilen para biriminin TL karşılığı
-    const rate = exchangeRates[currencyCode];
+    // TRY dışında bir para birimi için kur bilgisini al
+    if (currencyCode !== 'TRY') {
+      if (!exchangeRates[currencyCode]) {
+        // Kur bilgisi yoksa işlem yapma
+        message.error(`${currencyCode} için döviz kuru bilgisi bulunamadı!`);
+        return;
+      }
+      rate = exchangeRates[currencyCode];
+    }
     
     if (invoiceDetails.length > 0) {
       const updatedDetails = invoiceDetails.map(detail => {
-        // Eğer birim fiyat TL ise, seçilen para birimine çevir
+        // Mevcut satırın para birimi
+        const detailCurrency = detail.currencyCode || 'TRY';
         let newUnitPrice = detail.unitPrice;
-        if (detail.currencyCode === 'TRY' || !detail.currencyCode) {
-          newUnitPrice = detail.unitPrice / rate;
+        
+        if (detailCurrency !== currencyCode) {
+          if (detailCurrency === 'TRY' && currencyCode !== 'TRY') {
+            // TL'den yabancı para birimine çevirme
+            newUnitPrice = detail.unitPrice / rate;
+          } else if (detailCurrency !== 'TRY' && currencyCode === 'TRY') {
+            // Yabancı para biriminden TL'ye çevirme
+            const detailRate = exchangeRates[detailCurrency] || 1;
+            newUnitPrice = detail.unitPrice * detailRate;
+          } else if (detailCurrency !== 'TRY' && currencyCode !== 'TRY') {
+            // Yabancı para biriminden başka bir yabancı para birimine çevirme
+            const detailRate = exchangeRates[detailCurrency] || 1;
+            // Önce TL'ye çevir, sonra hedef para birimine çevir
+            newUnitPrice = (detail.unitPrice * detailRate) / rate;
+          }
         }
+        
+        // Yeni değerleri hesapla
+        const totalAmount = detail.quantity * newUnitPrice;
+        const discountAmount = (totalAmount * (detail.discountRate || 0)) / 100;
+        const subtotalAmount = totalAmount - discountAmount;
+        const vatAmount = subtotalAmount * (detail.vatRate / 100);
+        const netAmount = subtotalAmount + vatAmount;
         
         return {
           ...detail,
           unitPrice: newUnitPrice,
-          totalAmount: detail.quantity * newUnitPrice,
-          discountAmount: (detail.quantity * newUnitPrice * (detail.discountRate || 0)) / 100,
-          subtotalAmount: (detail.quantity * newUnitPrice) - ((detail.quantity * newUnitPrice * (detail.discountRate || 0)) / 100),
-          vatAmount: ((detail.quantity * newUnitPrice) - ((detail.quantity * newUnitPrice * (detail.discountRate || 0)) / 100)) * (detail.vatRate / 100),
-          netAmount: ((detail.quantity * newUnitPrice) - ((detail.quantity * newUnitPrice * (detail.discountRate || 0)) / 100)) * (1 + (detail.vatRate / 100)),
+          totalAmount,
+          discountAmount,
+          subtotalAmount,
+          vatAmount,
+          netAmount,
           currencyCode: currencyCode,
           exchangeRate: rate
         };
@@ -288,7 +355,7 @@ const InvoiceFormNew = ({
       
       setInvoiceDetails(updatedDetails);
       updateTotals(updatedDetails);
-    }
+    }  
   };
   
   // Para birimi değiştiğinde fiyatları güncelle
@@ -314,22 +381,55 @@ const InvoiceFormNew = ({
     
     setLoadingVariants(true);
     try {
+      console.log('Barkod araması başlatılıyor:', barcode);
+      
       // Önce barkod ile ara
       const response = await productApi.getProductVariantsByBarcode(barcode);
+      console.log('Barkod araması sonucu:', response);
       
       if (response && response.length > 0) {
+        console.log('Barkod ile varyantlar bulundu:', response);
         setProductVariants(response);
         // İlk varyantı otomatik olarak listeye ekle
-        if (response[0]) addVariantToScannedList(response[0]);
+        if (response[0]) {
+          console.log('İlk varyant listeye ekleniyor:', response[0]);
+          addVariantToScannedList(response[0]);
+        }
       } else {
+        console.log('Barkod ile varyant bulunamadı, ürün kodu ile aranıyor');
         // Barkod ile bulunamazsa ürün kodu veya açıklama ile ara
-        const altResponse = await productApi.getProductVariantsByProductCodeOrDescription(barcode);
-        setProductVariants(altResponse);
-        message.info(`Barkod ile ürün bulunamadı, '${barcode}' için ${altResponse.length} sonuç bulundu`);
+        try {
+          const altResponse = await productApi.getProductVariantsByProductCodeOrDescription(barcode);
+          console.log('Ürün kodu araması sonucu:', altResponse);
+          
+          if (altResponse && altResponse.length > 0) {
+            setProductVariants(altResponse);
+            message.info(`Barkod ile ürün bulunamadı, '${barcode}' için ${altResponse.length} sonuç bulundu`);
+          } else {
+            // Ürün kodu ile de bulunamazsa, ürün kodu ile varyantları ara
+            console.log('Ürün kodu/açıklaması ile de bulunamadı, doğrudan ürün kodu olarak deneniyor');
+            const codeResponse = await productApi.getProductVariantsByCode(barcode);
+            
+            if (codeResponse && codeResponse.length > 0) {
+              console.log('Ürün kodu ile varyantlar bulundu:', codeResponse);
+              setProductVariants(codeResponse);
+              // İlk varyantı otomatik olarak listeye ekle
+              if (codeResponse[0]) addVariantToScannedList(codeResponse[0]);
+            } else {
+              message.warning(`'${barcode}' için hiçbir ürün bulunamadı`);
+              setProductVariants([]);
+            }
+          }
+        } catch (altError) {
+          console.error('Alternatif arama hatası:', altError);
+          message.error('Ürün arama sırasında bir hata oluştu');
+          setProductVariants([]);
+        }
       }
     } catch (error) {
       console.error('Ürün arama hatası:', error);
       message.error('Ürün arama sırasında bir hata oluştu');
+      setProductVariants([]);
     } finally {
       setLoadingVariants(false);
     }
@@ -362,9 +462,15 @@ const InvoiceFormNew = ({
   // Satır tutarlarını hesapla
   const calculateLineAmounts = (detail: InvoiceDetail, currencyCode?: string): InvoiceDetail => {
     const quantity = parseFloat(detail.quantity?.toString() || '0');
-    const unitPrice = parseFloat(detail.unitPrice?.toString() || '0');
     const vatRate = parseFloat(detail.vatRate?.toString() || '0');
     const discountRate = parseFloat(detail.discountRate?.toString() || '0');
+    let unitPrice = parseFloat(detail.unitPrice?.toString() || '0');
+    
+    // KDV dahil/hariç durumuna göre birim fiyatı ayarla
+    if (isPriceIncludeVat && unitPrice > 0) {
+      // Eğer KDV dahil ise, birim fiyatı KDV'siz hale getir
+      unitPrice = unitPrice / (1 + (vatRate / 100));
+    }
     
     // Toplam tutar (miktar * birim fiyat)
     const totalAmount = quantity * unitPrice;
@@ -389,9 +495,11 @@ const InvoiceFormNew = ({
     const currentExchangeRate = useCurrencyCode === 'TRY' ? 1 : exchangeRate;
     
     // TL karşılığını hesapla (eğer farklı bir para birimi seçilmişse ve kur bilgisi varsa)
-    let tryEquivalent = unitPrice;
+    let tryEquivalent = netAmount;
     if (useCurrencyCode !== 'TRY' && currentExchangeRate > 0) {
-      tryEquivalent = unitPrice * currentExchangeRate;
+      tryEquivalent = netAmount * currentExchangeRate;
+    } else {
+      tryEquivalent = netAmount;
     }
     
     return {
@@ -983,7 +1091,46 @@ const loadCurrencies = async () => {
   }
 };
 
-// Bu kısım loadData fonksiyonuna taşındı
+// Yeni satır ekle
+const addInvoiceDetail = () => {
+  const newDetail: InvoiceDetail = {
+    id: uuidv4(),
+    itemCode: '',
+    quantity: 1,
+    unitOfMeasureCode: 'AD',// Ürün varyant detayından gelmeli
+    unitPrice: 0, //Eğer varsa barkod modaldan fiyat listesinden gelmeli
+    vatRate: 10, //Eğer varsa barkod modaldan fiyat listesinden gelmeli
+    discountRate: 0,
+    totalAmount: 0,
+    discountAmount: 0,
+    subtotalAmount: 0,
+    vatAmount: 0,
+    netAmount: 0
+  };
+
+  const updatedDetails = [...invoiceDetails, newDetail];
+  setInvoiceDetails(updatedDetails);
+  
+  // Başlık zorunlu alanları tamamsa ve en az bir satır varsa TOPLAM sekmesini aktif et
+  if (headerFormValid && updatedDetails.length > 0) {
+    // Eğer SATIRLAR sekmesindeyse ve başlık geçerliyse, otomatik olarak TOPLAM sekmesine geç
+    if (activeTab === '2') {
+      handleTabChange('3');
+    }
+  }
+};
+
+// Satır silme fonksiyonu
+const removeInvoiceDetail = (id: string) => {
+  const updatedDetails = invoiceDetails.filter(detail => detail.id !== id);
+  setInvoiceDetails(updatedDetails);
+  updateTotals(updatedDetails);
+  
+  // Eğer satır kalmadıysa ve TOPLAM sekmesindeyse, SATIRLAR sekmesine geri dön
+  if (updatedDetails.length === 0 && activeTab === '3') {
+    handleTabChange('2');
+  }
+};
 
 // Form yüklenince verileri yükle
 useEffect(() => {
@@ -1004,57 +1151,94 @@ useEffect(() => {
       values.officeCode && 
       values.warehouseCode);
     
+    console.log('Form validation check:', { 
+      invoiceDate: !!values.invoiceDate, 
+      currencyCode: !!values.currencyCode, 
+      currAccCode: !!values.currAccCode, 
+      officeCode: !!values.officeCode, 
+      warehouseCode: !!values.warehouseCode,
+      isValid: isValid
+    });
+    
     setHeaderFormValid(isValid);
+    
+    // Tarih değiştiğinde güncel kur bilgisini al
+    const prevInvoiceDate = form.getFieldValue('_prevInvoiceDate');
+    const currentInvoiceDate = values.invoiceDate;
+    
+    if (currentInvoiceDate && (!prevInvoiceDate || !currentInvoiceDate.isSame(prevInvoiceDate))) {
+      // Önceki tarihi sakla
+      form.setFieldsValue({ _prevInvoiceDate: currentInvoiceDate });
+      
+      // Mevcut para birimini al
+      const currentCurrency = form.getFieldValue('docCurrencyCode') || 'TRY';
+      
+      if (currentCurrency !== 'TRY') {
+        // Seçili döviz kuru kaynağını al
+        const rateSourceStr = form.getFieldValue('exchangeRateSource') || 'TCMB';
+        const rateSource = rateSourceStr === 'TCMB' ? ExchangeRateSource.CENTRAL_BANK : ExchangeRateSource.FREE_MARKET;
+        
+        // Yeni tarih için döviz kurlarını getir
+        const formattedDate = currentInvoiceDate.format('YYYY-MM-DD');
+        
+        // API'den döviz kurlarını getir
+        exchangeRateApi.getExchangeRatesByDate(formattedDate, rateSource)
+          .then((rates) => {
+            // Seçili para birimi için kur bilgisini bul
+            const currencyRate = rates.find(r => r.currencyCode === currentCurrency);
+            
+            if (currencyRate) {
+              // Kur değerini belirle (satış kuru)
+              const newRate = rateSource === ExchangeRateSource.CENTRAL_BANK
+                ? currencyRate.banknoteSellingRate 
+                : currencyRate.freeMarketSellingRate;
+              
+              // Yeni kur değerini ayarla
+              setExchangeRate(newRate);
+              form.setFieldsValue({ exchangeRate: newRate });
+              
+              // Tüm satırların TL karşılığını güncelle
+              if (invoiceDetails.length > 0) {
+                const updatedDetails = invoiceDetails.map(detail => {
+                  const netAmount = detail.netAmount || 0;
+                  return {
+                    ...detail,
+                    exchangeRate: newRate,
+                    tryEquivalent: netAmount * newRate
+                  };
+                });
+                
+                setInvoiceDetails(updatedDetails);
+                updateTotals(updatedDetails);
+                console.log('Tarih değişti: Döviz kuru güncellendi ve TL karşılıkları yeniden hesaplandı');
+              }
+            }
+          })
+          .catch((error) => {
+            console.error('Tarih değişikliğinde döviz kuru getirme hatası:', error);
+            message.error('Döviz kuru bilgisi alınamadı!');
+          });
+      } else {
+        console.log('Tarih değişti: Para birimi TRY, kur 1 olarak ayarlandı');
+      }
+    }
   };
   
   // Form değişikliklerini hemen kontrol et
   handleFormChange();
   
-  // Form alanlarını izlemek için useEffect içinde form'un değerlerini izliyoruz
-  // Bu, form değerleri değiştiğinde useEffect'in yeniden çalışmasını sağlar
-  const formValues = form.getFieldsValue();
-  
-  // Form.Item onChange event'leri form'un değerlerini değiştirecek ve bu useEffect'i tetikleyecek
+  // Form değişikliklerini izlemek için form'un değerlerini izliyoruz
+  // Ant Design Form'da subscribe metodu olmadığı için onValuesChange kullanılacak
 }, [form]);
-
-// Fatura detayları değiştiğinde toplamları güncelle
-useEffect(() => {
-if (invoiceDetails.length > 0) {
-  updateTotals(invoiceDetails);
-}
-}, [invoiceDetails]);
-
-// Fatura tipinin adını döndüren yardımcı fonksiyon
-const getInvoiceTypeName = (invoiceType: InvoiceType): string => {
-return invoiceTypeDescriptions[invoiceType] || 'Fatura';
-};
-
-// Yeni satır ekle
-const addInvoiceDetail = () => {
-const newDetail: InvoiceDetail = {
-  id: uuidv4(),
-  itemCode: '',
-  quantity: 1,
-  unitOfMeasureCode: 'AD',// Ürün varyant detayından gelmeli
-  unitPrice: 0, //Eğer varsa barkod modaldan fiyat listesinden gelmeli
-  vatRate: 10, //Eğer varsa barkod modaldan fiyat listesinden gelmeli
-  discountRate: 0,
-  totalAmount: 0,
-  discountAmount: 0,
-  subtotalAmount: 0,
-  vatAmount: 0,
-  netAmount: 0
-};
-
-setInvoiceDetails([...invoiceDetails, newDetail]);
-};
-
-// Not: calculateLineAmounts fonksiyonu zaten yukarıda tanımlandığı için burada kaldırıldı
 
 // Satır güncelleme fonksiyonu
 const updateInvoiceDetail = (id: string, field: string, value: any) => {
   // isPriceIncludeVat değiştiğinde tüm satırları güncelle
   if (field === 'isPriceIncludeVat') {
+    // KDV dahil/hariç değerini güncelle
+    setIsPriceIncludeVat(value);
+    form.setFieldsValue({ isPriceIncludeVat: value });
+    
     const updatedDetails = invoiceDetails.map(detail => {
       // Döviz kuru bilgisini ekle
       const detailWithExchangeRate = {
@@ -1064,13 +1248,11 @@ const updateInvoiceDetail = (id: string, field: string, value: any) => {
       };
       return calculateLineAmounts(detailWithExchangeRate, currentCurrencyCode);
     });
+    
     setInvoiceDetails(updatedDetails);
     updateTotals(updatedDetails);
-    return;
-  }
-  
-  // Belirli bir satırı güncelle
-  if (id) {
+  } else {
+    // Diğer alanlar için normal güncelleme
     const updatedDetails = invoiceDetails.map(detail => {
       if (detail.id === id) {
         // Güncellenmiş detay
@@ -1092,123 +1274,119 @@ const updateInvoiceDetail = (id: string, field: string, value: any) => {
   }
 };
 
-// Satır silme fonksiyonu
-const removeInvoiceDetail = (id: string) => {
-const updatedDetails = invoiceDetails.filter(detail => detail.id !== id);
-setInvoiceDetails(updatedDetails);
-updateTotals(updatedDetails);
-};
-
 // Sekme değiştirme işleyicisi
 const handleTabChange = (activeKey: string) => {
-setActiveTab(activeKey);
+  setActiveTab(activeKey);
 };
 
 // Kaydetme işleyicisi
 const handleSave = () => {
-form.submit();
-};
-
-// Barkod modal açma işlevi
-const openBarcodeModal = () => {
-setBarcodeModalVisible(true);
+  console.log('Kaydet butonu tıklandı');
+  message.info('Form gönderiliyor...');
+  setLoading(true); // Yükleme durumunu başlat
+  
+  // Form validasyonunu kontrol et
+  form.validateFields()
+    .then(() => {
+      console.log('Form doğrulandı, gönderiliyor...');
+      form.submit(); // Form gönderme işlemini başlat
+    })
+    .catch(errorInfo => {
+      console.error('Form doğrulama hatası:', errorInfo);
+      message.error('Lütfen tüm zorunlu alanları doldurunuz!');
+      setLoading(false); // Yükleme durumunu sıfırla
+    });
 };
 
 // Form gönderme işleyicisi
-const navigate = useNavigate();
 const onFinish = async (values: any) => {
   try {
-    setLoading(true);
+    // Yükleme durumu handleSave'de başlatıldığı için burada tekrar ayarlamaya gerek yok
+    console.log('onFinish çağrıldı, form verileri:', values);
+    message.loading({ content: 'Fatura kaydediliyor...', key: 'invoiceSave', duration: 0 });
     
-    // Güncel döviz kuru ve para birimi bilgilerini al
-    const currencyCode = values.currencyCode || 'TRY';
-    const currentExchangeRate = currencyCode === 'TRY' ? 1 : (form.getFieldValue('exchangeRate') || 1);
+    // Fatura tipi ve cari hesap tipi kodlarını belirle
+    const invoiceTypeCode = type === InvoiceType.WHOLESALE_SALES ? 'WS' : 
+                           type === InvoiceType.WHOLESALE_PURCHASE ? 'WP' : 
+                           type === InvoiceType.EXPENSE_SALES ? 'EXS' : 'EXP';
+    
+    const currAccTypeCode = type === InvoiceType.WHOLESALE_SALES || type === InvoiceType.EXPENSE_SALES ? 
+                           CurrAccType.CUSTOMER : CurrAccType.VENDOR;
     
     // Fatura detaylarını hazırla
-    const details = invoiceDetails.map(detail => {
-      // Her satır için TL karşılığı tutarını hesapla
-      const tryEquivalentAmount = currencyCode === 'TRY' ? 
-        (detail.netAmount || 0) : // TRY ise aynı tutarı kullan
-        (detail.netAmount || 0) * currentExchangeRate; // Diğer para birimleri için döviz kurunu kullan
-      
-      return {
-        itemCode: detail.itemCode,
-        quantity: detail.quantity,
-        unitOfMeasureCode: detail.unitOfMeasureCode,
-        unitPrice: detail.unitPrice,
-        vatRate: detail.vatRate,
-        description: detail.description || detail.productDescription,
-        discountRate: detail.discountRate || 0,
-        totalAmount: detail.totalAmount,
-        discountAmount: detail.discountAmount,
-        subtotalAmount: detail.subtotalAmount,
-        vatAmount: detail.vatAmount,
-        netAmount: detail.netAmount,
-        colorCode: detail.colorCode || '',
-        colorDescription: detail.colorDescription || '',
-        itemDim1Code: detail.itemDim1Code || '',
-        exchangeRate: currentExchangeRate, // Güncel döviz kurunu kullan
-        tryEquivalent: parseFloat(tryEquivalentAmount.toFixed(2)) // TL karşılığı tutarı (2 ondalık basamakla)
-      };
-    });
-    
-    // Toplam TL karşılığını hesapla
-    const tryEquivalentTotal = currencyCode === 'TRY' ?
-      netAmount : // TRY ise aynı tutarı kullan
-      netAmount * currentExchangeRate; // Diğer para birimleri için döviz kurunu kullan
+    const details = invoiceDetails.map(detail => ({
+      itemCode: detail.itemCode,
+      quantity: detail.quantity,
+      unitOfMeasureCode: detail.unitOfMeasureCode,
+      unitPrice: detail.unitPrice,
+      vatRate: detail.vatRate,
+      discountRate: detail.discountRate || 0,
+      description: detail.description || '',
+      currencyCode: detail.currencyCode || values.docCurrencyCode,
+      exchangeRate: detail.exchangeRate || values.exchangeRate
+    }));
     
     // API isteği için veri hazırla
-    const request: CreateInvoiceRequest = {
-      invoiceNumber: values.invoiceNumber,
-      invoiceTypeCode: type.toString(),
+    const requestData: CreateInvoiceRequest = {
+      invoiceNumber: values.invoiceNumber || 'Otomatik',
+      invoiceTypeCode: values.invoiceTypeCode || invoiceTypeCode,
       invoiceDate: values.invoiceDate.format('YYYY-MM-DD'),
-      invoiceTime: dayjs().format('HH:mm:ss'),
+      invoiceTime: values.invoiceDate.format('HH:mm:ss'),
       currAccCode: values.currAccCode,
-      currAccTypeCode: currAccType,
-      docCurrencyCode: currencyCode,
-      companyCode: '001', // Şirket kodu varsayılan olarak 001
+      currAccTypeCode: currAccTypeCode,
+      docCurrencyCode: values.docCurrencyCode || 'TRY',
+      companyCode: values.companyCode || '1',
       officeCode: values.officeCode,
       warehouseCode: values.warehouseCode,
-      customerCode: currAccType === CurrAccType.CUSTOMER ? values.currAccCode : undefined,
-      vendorCode: currAccType === CurrAccType.VENDOR ? values.currAccCode : undefined,
-      isReturn: isReturn,
-      isEInvoice: isEInvoice,
-      notes: values.notes,
-      processCode: values.processCode,
+      isReturn: values.isReturn || false,
+      isEInvoice: values.isEInvoice || false,
+      notes: values.notes || '',
+      processCode: invoiceTypeCode,
       totalAmount: totalAmount,
       discountAmount: discountAmount,
       subtotalAmount: subtotalAmount,
       vatAmount: vatAmount,
       netAmount: netAmount,
-      exchangeRate: currentExchangeRate, // Güncel döviz kurunu kullan
-      tryEquivalentTotal: parseFloat(tryEquivalentTotal.toFixed(2)), // Toplam TL karşılığı (2 ondalık basamakla)
+      exchangeRate: values.exchangeRate || 1,
+      tryEquivalentTotal: values.tryEquivalentTotal,
       details: details
     };
     
-    // API'ye gönder - Fatura tipine göre doğru API metodunu seçiyoruz
+    // Müşteri veya tedarikçi kodunu ekle
+    if (currAccTypeCode === CurrAccType.CUSTOMER) {
+      requestData.customerCode = values.currAccCode;
+    } else {
+      requestData.vendorCode = values.currAccCode;
+    }
+    
+    console.log('API isteği hazırlandı:', requestData);
+    
+    // API'ye gönder
     let response;
     try {
       if (type === InvoiceType.WHOLESALE_SALES) {
-        response = await invoiceApi.createWholesaleInvoice(request);
+        response = await invoiceApi.createWholesaleInvoice(requestData);
       } else if (type === InvoiceType.WHOLESALE_PURCHASE) {
-        response = await invoiceApi.createWholesalePurchaseInvoice(request);
+        response = await invoiceApi.createWholesalePurchaseInvoice(requestData);
       } else if (type === InvoiceType.EXPENSE_SALES || type === InvoiceType.EXPENSE_PURCHASE) {
-        // Masraf faturaları için aynı API metodu kullanılıyor
-        response = await invoiceApi.createExpenseInvoice(request);
+        response = await invoiceApi.createExpenseInvoice(requestData);
+      } else {
+        throw new Error('Geçersiz fatura tipi');
       }
       
-      if (!response) {
-        throw new Error('API yanıt vermedi');
-      }
-    } catch (error) {
-      console.error('API çağrısı hatası:', error);
-      throw error; // Üst catch bloğunda yakalanacak
+      console.log('API yanıtı:', response);
+    } catch (apiError: any) {
+      console.error('API çağrısı sırasında hata:', apiError);
+      message.error({ content: `API hatası: ${apiError.message || 'Bilinmeyen hata'}`, key: 'invoiceSave' });
+      setLoading(false);
+      return;
     }
     
+    // Başarılı yanıt kontrolü
     if (response && response.success) {
-      message.success('Fatura başarıyla oluşturuldu');
+      message.success({ content: 'Fatura başarıyla kaydedildi!', key: 'invoiceSave', duration: 3 });
       
-      // Başarılı callback'i çağır
+      // Başarı callback'ini çağır
       if (onSuccess) {
         onSuccess(response.data);
       }
@@ -1216,21 +1394,36 @@ const onFinish = async (values: any) => {
       // Formu sıfırla
       form.resetFields();
       setInvoiceDetails([]);
-      setScannedItems([]);
+      updateTotals([]);
       setActiveTab('1');
       
-      // Başarılı olursa fatura listesine yönlendir
-      navigate('/invoices');
+      // Yeni fatura için başlangıç değerlerini ayarla
+      form.setFieldsValue({
+        invoiceDate: dayjs(),
+        docCurrencyCode: 'TRY',
+        currencyCode: 'TRY',
+        exchangeRate: 1,
+        exchangeRateSource: 'TCMB'
+      });
     } else {
-      const errorMessage = response?.message || 'Fatura oluşturulurken bir hata oluştu';
-      message.error(errorMessage);
+      // Hata mesajını göster
+      const errorMessage = response?.message || 'Fatura kaydedilirken bir hata oluştu';
+      message.error({ content: errorMessage, key: 'invoiceSave', duration: 3 });
+      console.error('Fatura kaydetme hatası:', response);
     }
-  } catch (err) {
-    console.error('Fatura oluşturma hatası:', err);
-    message.error('Fatura oluşturulurken bir hata oluştu');
+  } catch (error: any) {
+    console.error('Fatura kaydetme hatası:', error);
+    message.error({ content: `Fatura kaydedilirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`, key: 'invoiceSave', duration: 3 });
   } finally {
-    setLoading(false);
+    setLoading(false); // İşlem tamamlandığında yükleme durumunu sıfırla
   }
+};
+
+// Bu fonksiyon zaten tanımlandığı için kaldırıldı
+
+// Barkod modal açma işlevi
+const openBarcodeModal = () => {
+  setBarcodeModalVisible(true);
 };
 
 // Bileşen render
@@ -1240,11 +1433,51 @@ return (
       form={form}
       layout="vertical"
       onFinish={onFinish}
+      onValuesChange={(changedValues, allValues) => {
+        // Eğer değişen değerler arasında exchangeRate varsa ve 0 ise, uyarı göster
+        if ('exchangeRate' in changedValues) {
+          const rate = parseFloat(changedValues.exchangeRate);
+          if (rate === 0) {
+            message.error('TL karşılığı 0 olamaz!');
+            form.setFieldsValue({ exchangeRate: 1 }); // Varsayılan olarak 1 yap
+          }
+        }
+        
+        // Zorunlu alanları kontrol et - Para Birimi zorunlu değil
+        const isValid = !!(allValues.invoiceDate && 
+          allValues.currAccCode && 
+          allValues.officeCode && 
+          allValues.warehouseCode);
+        
+        // TL karşılığı kontrol et
+        const exchangeRate = parseFloat(allValues.exchangeRate || '0');
+        const validExchangeRate = exchangeRate > 0;
+        
+        if (!validExchangeRate && allValues.exchangeRate !== undefined) {
+          message.warning('TL karşılığı 0\'dan büyük olmalıdır');
+        }
+        
+        console.log('Form validation check (onValuesChange):', { 
+          invoiceDate: !!allValues.invoiceDate, 
+          currAccCode: !!allValues.currAccCode, 
+          officeCode: !!allValues.officeCode, 
+          warehouseCode: !!allValues.warehouseCode,
+          exchangeRate: exchangeRate,
+          validExchangeRate: validExchangeRate,
+          isValid: isValid && validExchangeRate
+        });
+        
+        setHeaderFormValid(isValid && validExchangeRate);
+      }}
       initialValues={{
+        invoiceDate: dayjs(), // Fatura tarihi için bugünün tarihi
         invoiceType: '1',
         paymentType: '1',
         currency: 'TRY',
+        currencyCode: 'TRY',  // Para birimi için defaultValue yerine initialValues kullanıldı
+        docCurrencyCode: 'TRY',  // Para birimi için defaultValue yerine initialValues kullanıldı
         exchangeRate: 1,
+        exchangeRateSource: 'TCMB',  // Döviz kuru kaynağı için defaultValue yerine initialValues kullanıldı
         discountType: '1',
         discountRate: 0,
         vatRate: 18,
@@ -1257,7 +1490,29 @@ return (
 
       <Tabs
         activeKey={activeTab}
-        onChange={handleTabChange}
+        onChange={(key) => {
+          // Sekme değişiminde zorunlu alanları kontrol et - Para Birimi zorunlu değil
+          if (key === '2' || key === '3') {
+            const values = form.getFieldsValue(['invoiceDate', 'currAccCode', 'officeCode', 'warehouseCode']);
+            const isValid = !!(values.invoiceDate && 
+              values.currAccCode && 
+              values.officeCode && 
+              values.warehouseCode);
+            
+            if (!isValid) {
+              message.error('Lütfen tüm zorunlu alanları doldurunuz!');
+              return;
+            }
+            
+            if (key === '3' && invoiceDetails.length === 0) {
+              message.error('Lütfen en az bir fatura satırı ekleyiniz!');
+              return;
+            }
+          }
+          
+          handleTabChange(key);
+        }}
+        // forceRender özelliği Ant Design Tabs bileşeninde bulunmuyor
         items={[
           {
             key: '1',
@@ -1281,64 +1536,75 @@ return (
                   onExchangeRateChange={handleExchangeRateChange}
                   onExchangeRateSourceChange={handleExchangeRateSourceChange}
                 />
-                
-                <Row justify="end" style={{ marginTop: 16 }}>
+                <div style={{ marginTop: '20px', textAlign: 'right' }}>
                   <Button 
                     type="primary" 
-                    onClick={() => handleTabChange('2')}
-                    disabled={!headerFormValid}
-                    icon={<ArrowRightOutlined />}
+                    onClick={() => {
+                      // Zorunlu alanları kontrol et - Para Birimi zorunlu değil
+                      const values = form.getFieldsValue(['invoiceDate', 'currAccCode', 'officeCode', 'warehouseCode', 'exchangeRate']);
+                      
+                      const isValid = !!(values.invoiceDate && 
+                        values.currAccCode && 
+                        values.officeCode && 
+                        values.warehouseCode);
+                      
+                      // TL karşılığı kontrol et
+                      const exchangeRate = parseFloat(values.exchangeRate || '0');
+                      const validExchangeRate = exchangeRate > 0;
+                      
+                      if (isValid && validExchangeRate) {
+                        setHeaderFormValid(true);
+                        handleTabChange('2');
+                      } else {
+                        setHeaderFormValid(false);
+                        
+                        if (!isValid) {
+                          message.error('Lütfen tüm zorunlu alanları doldurunuz!');
+                        }
+                        
+                        if (!validExchangeRate) {
+                          message.error('TL karşılığı 0\'dan büyük olmalıdır!');
+                        }
+                        
+                        // Hangi alanların eksik olduğunu göster - Para Birimi zorunlu değil
+                        if (!values.invoiceDate) message.warning('Fatura Tarihi boş olamaz');
+                        if (!values.currAccCode) message.warning('Müşteri/Tedarikçi boş olamaz');
+                        if (!values.officeCode) message.warning('Ofis boş olamaz');
+                        if (!values.warehouseCode) message.warning('Depo boş olamaz');
+                      }
+                    }} 
                   >
-                    İleri
+                    İLERİ
                   </Button>
-                </Row>
+                </div>
               </>
             )
           },
           {
             key: '2',
             label: 'SATIRLAR',
-            disabled: !headerFormValid,
+            disabled: true, // Her zaman devre dışı bırak, programatik olarak kontrol edeceğiz
             children: (
-              <>
-                <InvoiceLines 
-                  invoiceDetails={invoiceDetails}
-                  addInvoiceDetail={addInvoiceDetail}
-                  updateInvoiceDetail={updateInvoiceDetail}
-                  removeInvoiceDetail={removeInvoiceDetail}
-                  showBarcodeModal={openBarcodeModal}
-                  currencyCode={form.getFieldValue('currencyCode') || 'TRY'}
-                  loadingProducts={loadingProducts}
-                  calculateLineAmounts={calculateLineAmounts}
-                  isPriceIncludeVat={false}
-                  units={units}
-                  products={products}
-                  form={form}
-                />
-                
-                <Row justify="space-between" style={{ marginTop: 16 }}>
-                  <Button 
-                    onClick={() => handleTabChange('1')}
-                    icon={<ArrowLeftOutlined />}
-                  >
-                    Geri
-                  </Button>
-                  <Button 
-                    type="primary" 
-                    onClick={() => handleTabChange('3')}
-                    disabled={invoiceDetails.length === 0}
-                    icon={<ArrowRightOutlined />}
-                  >
-                    İleri
-                  </Button>
-                </Row>
-              </>
+              <InvoiceLines 
+                invoiceDetails={invoiceDetails}
+                addInvoiceDetail={addInvoiceDetail}
+                updateInvoiceDetail={updateInvoiceDetail}
+                removeInvoiceDetail={removeInvoiceDetail}
+                showBarcodeModal={openBarcodeModal}
+                currencyCode={form.getFieldValue('currencyCode') || 'TRY'}
+                loadingProducts={loadingProducts}
+                calculateLineAmounts={calculateLineAmounts}
+                isPriceIncludeVat={isPriceIncludeVat}
+                units={units}
+                products={products}
+                form={form}
+              />
             )
           },
           {
             key: '3',
             label: 'TOPLAM',
-            disabled: !headerFormValid || invoiceDetails.length === 0,
+            disabled: !(headerFormValid && invoiceDetails.length > 0), // Başlık geçerli ve en az bir satır varsa aktif olsun
             children: (
               <>
                 <InvoiceSummary 
@@ -1354,21 +1620,19 @@ return (
                   exchangeRate={exchangeRate}
                 />
                 
-                <Row justify="space-between" style={{ marginTop: 16 }}>
-                  <Button 
-                    onClick={() => handleTabChange('2')}
-                    icon={<ArrowLeftOutlined />}
-                  >
-                    Geri
-                  </Button>
-                  <Button 
-                    type="primary" 
-                    htmlType="submit"
-                    loading={loading}
-                    icon={<SaveOutlined />}
-                  >
-                    Kaydet
-                  </Button>
+                {/* TOPLAM sekmesine kaydet butonu eklendi */}
+                <Row justify="end" style={{ marginTop: '20px' }}>
+                  <Col>
+                    <Button 
+                      type="primary" 
+                      icon={<SaveOutlined />} 
+                      onClick={handleSave} 
+                      loading={loading}
+                      size="large"
+                    >
+                      K A Y D E T
+                    </Button>
+                  </Col>
                 </Row>
               </>
             )
@@ -1397,7 +1661,7 @@ return (
       setProductVariants={setProductVariants}
       inputRef={barcodeInputRef}
       scannedItems={scannedItems}
-      isPriceIncludeVat={false}
+      isPriceIncludeVat={isPriceIncludeVat}
       getProductPrice={getProductPriceAndAddVariant}
       inventoryStock={inventoryStock}
       loadingInventory={loadingInventory}
@@ -1441,7 +1705,8 @@ return (
             productDescription: variant.productDescription,
             colorCode: variant.colorCode,
             colorDescription: variant.colorDescription || '',
-            itemDim1Code: variant.itemDim1Code || ''
+            itemDim1Code: variant.itemDim1Code || '',
+            currencyCode: currentCurrencyCode || 'TRY' // Güncel para birimini ekle
           };
           
           return calculateLineAmounts(detail);

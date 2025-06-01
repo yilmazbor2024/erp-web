@@ -24,7 +24,8 @@ import {
   ImportOutlined,
   ExportOutlined,
   SwapOutlined,
-  SearchOutlined
+  SearchOutlined,
+  DownloadOutlined
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -76,6 +77,8 @@ const getIcon = (iconName: string | undefined) => {
       return <ExportOutlined className="text-xl" />;
     case 'SwapOutlined':
       return <SwapOutlined className="text-xl" />;
+    case 'DownloadOutlined':
+      return <DownloadOutlined className="text-xl" />;
     default:
       return <HomeOutlined className="text-xl" />;
   }

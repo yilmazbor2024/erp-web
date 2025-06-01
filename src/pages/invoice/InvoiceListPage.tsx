@@ -293,24 +293,27 @@ const InvoiceListPage: React.FC = () => {
     {
       title: 'İşlemler',
       key: 'actions',
-      render: (text: string, record: any) => (
+      render: (_: any, record: any) => (
         <Space>
-          <Tooltip key="view" title="Görüntüle">
+          <Tooltip title="Görüntüle">
             <Button
+              key={`view-${record.invoiceHeaderID || record.invoiceHeaderId}`}
               type="text"
               icon={<EyeOutlined />}
               onClick={() => viewInvoiceDetails(record.invoiceHeaderID || record.invoiceHeaderId, record.invoiceTypeCode)}
             />
           </Tooltip>
-          <Tooltip key="edit" title="Düzenle">
+          <Tooltip title="Düzenle">
             <Button
+              key={`edit-${record.invoiceHeaderID || record.invoiceHeaderId}`}
               type="text"
               icon={<EditOutlined />}
               onClick={() => editInvoice(record.invoiceHeaderID || record.invoiceHeaderId, record.invoiceTypeCode)}
             />
           </Tooltip>
-          <Tooltip key="print" title="Yazdır">
+          <Tooltip title="Yazdır">
             <Button
+              key={`print-${record.invoiceHeaderID || record.invoiceHeaderId}`}
               type="text"
               icon={<FileTextOutlined />}
               onClick={() => message.info('Yazdırma özelliği yakında eklenecek.')}

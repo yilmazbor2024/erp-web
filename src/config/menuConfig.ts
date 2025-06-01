@@ -164,6 +164,18 @@ export const mainMenuItems: MenuItem[] = [
         title: 'Döviz Kurları',
         path: '/finance/exchange-rates',
         icon: 'DollarOutlined'
+      },
+      {
+        id: 'cross-rates',
+        title: 'Çapraz Kurlar',
+        path: '/finance/cross-rates',
+        icon: 'SwapOutlined'
+      },
+      {
+        id: 'historical-rates',
+        title: 'Tarihsel Döviz Kurları',
+        path: '/finance/historical-rates',
+        icon: 'RiseOutlined'
       }
     ]
   },

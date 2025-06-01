@@ -76,6 +76,12 @@ import MaterialList from './pages/Materials/MaterialList';
 // Inventory pages
 import InventoryStockPage from './pages/inventory/InventoryStockPage';
 
+// Exchange Rate pages
+import ExchangeRatesPage from './pages/finance/ExchangeRatesPage';
+import CrossRatesPage from './pages/finance/CrossRatesPage';
+import HistoricalRatesPage from './pages/finance/HistoricalRatesPage';
+import ExchangeRateManagementPage from './pages/admin/ExchangeRateManagementPage';
+
 // Create a theme with Turkish locale
 const theme = createTheme({
   palette: {
@@ -217,6 +223,18 @@ function App() {
                   <Route path="management" element={<Navigate to="/dashboard" replace />} />
                   <Route path="warehouse" element={<Navigate to="/dashboard" replace />} />
                   <Route path="branch" element={<Navigate to="/dashboard" replace />} />
+                </Route>
+                
+                {/* Finance Routes */}
+                <Route path="finance">
+                  <Route path="exchange-rates" element={<AuthGuard><ExchangeRatesPage /></AuthGuard>} />
+                  <Route path="cross-rates" element={<AuthGuard><CrossRatesPage /></AuthGuard>} />
+                  <Route path="historical-rates" element={<AuthGuard><HistoricalRatesPage /></AuthGuard>} />
+                </Route>
+                
+                {/* Admin Routes */}
+                <Route path="admin">
+                  <Route path="exchange-rates-management" element={<AuthGuard><ExchangeRateManagementPage /></AuthGuard>} />
                 </Route>
                 
                 {/* Settings Routes */}

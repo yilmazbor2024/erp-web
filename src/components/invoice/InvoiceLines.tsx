@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Input, Space, Row, Col, InputNumber, Popconfirm, Select } from 'antd';
+import { Table, Button, Input, Space, Row, Col, InputNumber, Popconfirm, Select, Form } from 'antd';
 import { DeleteOutlined, BarcodeOutlined, SearchOutlined } from '@ant-design/icons';
 import { ProductVariant } from '../../services/productApi';
 
@@ -49,13 +49,13 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
   products,
   loadingProducts,
   showBarcodeModal,
+  form,
   addInvoiceDetail,
   updateInvoiceDetail,
   removeInvoiceDetail,
   calculateLineAmounts,
   isPriceIncludeVat,
-  currencyCode,
-  form
+  currencyCode
 }) => {
   // Para birimi state'i
   const [currency, setCurrency] = useState<string>(currencyCode || 'TRY');
@@ -146,7 +146,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       title: 'Ürn',
       dataIndex: 'itemCode',
       key: 'itemCode',
-      width: 60,
+      width: 125,
       render: (text: string, record: InvoiceDetail) => (
         <Select
           showSearch
@@ -178,7 +178,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       title: 'Açk',
       dataIndex: 'productDescription',
       key: 'productDescription',
-      width: 60,
+      width: 170,
       render: (text: string, record: InvoiceDetail) => (
         <Input
           value={text}
@@ -210,7 +210,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
         <Input
           value={text || ''}
           onChange={e => updateInvoiceDetail(record.id, 'itemDim1Code', e.target.value)}
-          placeholder="Beden"
+          placeholder=""
           disabled={true}
         />
       )
@@ -371,8 +371,8 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
           return <span>-</span>;
         }
         
-        // TL karşılığını hesapla (birim fiyat * kur)
-        const tryValue = (record.unitPrice || 0) * (record.exchangeRate || 1);
+        // TL karşılığını hesapla (net tutar * kur)
+        const tryValue = (record.netAmount || 0) * (record.exchangeRate || 1);
         
         return (
           <span style={{ color: '#1890ff' }}>
@@ -396,10 +396,11 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
         </Popconfirm>
       )
     }
-  ];
+];
 
-  return (
-    <div className="invoice-lines">
+return (
+  <div className="invoice-lines">
+    <Form form={form} component={false}>
       <Row gutter={[8, 8]} style={{ marginBottom: 8 }}>
         <Col span={24}>
           <div style={mobileStyles.buttonContainer}>
@@ -496,7 +497,8 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
           }}
         />
       </div>
-    </div>
+    </Form>
+  </div>
   );
 };
 

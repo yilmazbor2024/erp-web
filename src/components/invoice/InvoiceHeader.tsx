@@ -261,7 +261,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                     placeholder="Para birimi seçiniz"
                     optionFilterProp="children"
                     loading={loadingCurrencies}
-                    defaultValue="TRY"
+                    // defaultValue kaldırıldı - Form initialValues kullanılacak
                     onChange={handleCurrencyChange}
                     style={{ width: '100%' }}
                     filterOption={(input, option: any) => {
@@ -323,12 +323,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 <Form.Item
                   name="exchangeRateSource"
                   label="Kur Kaynağı"
-                  initialValue="TCMB"
+                  // initialValue kaldırıldı - Form initialValues kullanılacak
                   style={{ marginBottom: '8px' }}
                 >
                   <Radio.Group 
                     onChange={handleExchangeRateSourceChange} 
-                    defaultValue="TCMB"
+                    // defaultValue kaldırıldı - Form initialValues kullanılacak
                     optionType="button"
                     buttonStyle="solid"
                     size="small"
@@ -345,7 +345,6 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                   name="exchangeRate"
                   label="TL Karşılığı"
                   tooltip="Seçilen para biriminin TL karşılığı. Otomatik hesaplanır, gerekirse düzenlenebilir."
-                  initialValue={1}
                   style={{ marginBottom: '8px' }}
                 >
                   <Input 

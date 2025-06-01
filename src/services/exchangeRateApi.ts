@@ -39,6 +39,15 @@ export interface ExchangeRateFilter {
   pageSize?: number;
 }
 
+export interface CrossRate {
+  fromCurrency: string;
+  toCurrency: string;
+  currencyDescription: string;
+  rate: number;
+  inverseRate: number;
+  date: string;
+}
+
 export const exchangeRateApi = {
   // Döviz kurlarını getir (tarih aralığı ve sayfalama ile)
   getExchangeRates: async (filter: ExchangeRateFilter): Promise<ExchangeRateResponse> => {
@@ -81,5 +90,50 @@ export const exchangeRateApi = {
     
     const response = await api.get('/api/exchange-rates/conversion', { params });
     return response.data.rate;
+  },
+
+  // Çapraz kurları getir
+  getCrossRates: async (
+    baseCurrency: string = 'USD',
+    date?: string,
+    source: ExchangeRateSource = ExchangeRateSource.CENTRAL_BANK
+  ): Promise<CrossRate[]> => {
+    const params: any = {
+      baseCurrency,
+      source
+    };
+    
+    if (date) {
+      params.date = date;
+    }
+    
+    const response = await api.get('/api/exchange-rates/cross-rates', { params });
+    return response.data;
+  },
+
+  // Tarihsel döviz kurlarını getir
+  getHistoricalRates: async (
+    currency: string,
+    relationCurrency: string = 'TRY',
+    startDate?: string,
+    endDate?: string,
+    source: ExchangeRateSource = ExchangeRateSource.CENTRAL_BANK
+  ): Promise<ExchangeRate[]> => {
+    const params: any = {
+      currency,
+      relationCurrency,
+      source
+    };
+    
+    if (startDate) {
+      params.startDate = startDate;
+    }
+    
+    if (endDate) {
+      params.endDate = endDate;
+    }
+    
+    const response = await api.get('/api/exchange-rates/historical', { params });
+    return response.data;
   }
 };
