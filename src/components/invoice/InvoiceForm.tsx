@@ -83,6 +83,7 @@ interface CreateInvoiceRequest {
   vatAmount?: number;
   netAmount?: number;
   exchangeRate?: number; // TL karşılığı (kur) değeri
+  tryEquivalentTotal?: number; // Toplam tutarın TL karşılığı
   details: any[];
 }
 
@@ -1119,26 +1120,42 @@ const onFinish = async (values: any) => {
   try {
     setLoading(true);
     
+    // Güncel döviz kuru ve para birimi bilgilerini al
+    const currencyCode = values.currencyCode || 'TRY';
+    const currentExchangeRate = currencyCode === 'TRY' ? 1 : (form.getFieldValue('exchangeRate') || 1);
+    
     // Fatura detaylarını hazırla
-    const details = invoiceDetails.map(detail => ({
-      itemCode: detail.itemCode,
-      quantity: detail.quantity,
-      unitOfMeasureCode: detail.unitOfMeasureCode,
-      unitPrice: detail.unitPrice,
-      vatRate: detail.vatRate,
-      description: detail.description || detail.productDescription,
-      discountRate: detail.discountRate || 0,
-      totalAmount: detail.totalAmount,
-      discountAmount: detail.discountAmount,
-      subtotalAmount: detail.subtotalAmount,
-      vatAmount: detail.vatAmount,
-      netAmount: detail.netAmount,
-      colorCode: detail.colorCode,
-      colorDescription: detail.colorDescription,
-      itemDim1Code: detail.itemDim1Code,
-      exchangeRate: form.getFieldValue('exchangeRate') || 1, // Satır bazında TL karşılığı
-      tryEquivalent: (detail.netAmount || 0) * (form.getFieldValue('exchangeRate') || 1) // TL karşılığı tutarı
-    }));
+    const details = invoiceDetails.map(detail => {
+      // Her satır için TL karşılığı tutarını hesapla
+      const tryEquivalentAmount = currencyCode === 'TRY' ? 
+        (detail.netAmount || 0) : // TRY ise aynı tutarı kullan
+        (detail.netAmount || 0) * currentExchangeRate; // Diğer para birimleri için döviz kurunu kullan
+      
+      return {
+        itemCode: detail.itemCode,
+        quantity: detail.quantity,
+        unitOfMeasureCode: detail.unitOfMeasureCode,
+        unitPrice: detail.unitPrice,
+        vatRate: detail.vatRate,
+        description: detail.description || detail.productDescription,
+        discountRate: detail.discountRate || 0,
+        totalAmount: detail.totalAmount,
+        discountAmount: detail.discountAmount,
+        subtotalAmount: detail.subtotalAmount,
+        vatAmount: detail.vatAmount,
+        netAmount: detail.netAmount,
+        colorCode: detail.colorCode,
+        colorDescription: detail.colorDescription,
+        itemDim1Code: detail.itemDim1Code,
+        exchangeRate: currentExchangeRate, // Güncel döviz kurunu kullan
+        tryEquivalent: parseFloat(tryEquivalentAmount.toFixed(2)) // TL karşılığı tutarı (2 ondalık basamakla)
+      };
+    });
+    
+    // Toplam TL karşılığını hesapla
+    const tryEquivalentTotal = currencyCode === 'TRY' ?
+      netAmount : // TRY ise aynı tutarı kullan
+      netAmount * currentExchangeRate; // Diğer para birimleri için döviz kurunu kullan
     
     // API isteği için veri hazırla
     const request: CreateInvoiceRequest = {
@@ -1148,7 +1165,7 @@ const onFinish = async (values: any) => {
       invoiceTime: dayjs().format('HH:mm:ss'),
       currAccCode: values.currAccCode,
       currAccTypeCode: currAccType,
-      docCurrencyCode: values.currencyCode,
+      docCurrencyCode: currencyCode,
       companyCode: '001', // Şirket kodu varsayılan olarak 001
       officeCode: values.officeCode,
       warehouseCode: values.warehouseCode,
@@ -1163,7 +1180,8 @@ const onFinish = async (values: any) => {
       subtotalAmount: subtotalAmount,
       vatAmount: vatAmount,
       netAmount: netAmount,
-      exchangeRate: form.getFieldValue('exchangeRate') || 1, // TL karşılığı (kur) değeri
+      exchangeRate: currentExchangeRate, // Güncel döviz kurunu kullan
+      tryEquivalentTotal: parseFloat(tryEquivalentTotal.toFixed(2)), // Toplam TL karşılığı (2 ondalık basamakla)
       details: details
     };
     
