@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Table, Button, Input, Space, Row, Col, InputNumber, Popconfirm, Select, Badge } from 'antd';
-import { DeleteOutlined, BarcodeOutlined, SearchOutlined, PlusOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Table, Button, Input, Space, Row, Col, InputNumber, Popconfirm, Select } from 'antd';
+import { DeleteOutlined, BarcodeOutlined, SearchOutlined } from '@ant-design/icons';
 import { ProductVariant } from '../../services/productApi';
 
 const { Option } = Select;
@@ -71,6 +71,25 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
   const currencySymbol = getCurrencySymbol(currency);
   const [filterText, setFilterText] = useState<string>('');
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+
+  // Ekran boyutunu kontrol et
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    // İlk yükleme kontrolü
+    checkMobile();
+    
+    // Ekran boyutu değiştiğinde kontrol et
+    window.addEventListener('resize', checkMobile);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
 
   // Satırları filtrele
   const filteredDetails = filterText
@@ -86,13 +105,31 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
     setSelectedRowKeys([]);
   };
 
+  // Mobil için stil tanımları
+  const mobileStyles = {
+    button: {
+      fontSize: isMobile ? '12px' : '14px',
+      padding: isMobile ? '0 8px' : undefined,
+      height: isMobile ? '32px' : undefined
+    },
+    buttonContainer: {
+      display: 'flex' as const,
+      gap: '8px',
+      marginBottom: '8px',
+      flexWrap: 'wrap' as const
+    },
+    tableContainer: {
+      overflowX: 'auto' as const
+    }
+  };
+
   // Tablo sütunları
   const columns = [
     {
-      title: 'Ürün',
+      title: 'Ürn',
       dataIndex: 'itemCode',
       key: 'itemCode',
-      width: 80,
+      width: 60,
       render: (text: string, record: InvoiceDetail) => (
         <Select
           showSearch
@@ -124,12 +161,11 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       title: 'Açk',
       dataIndex: 'productDescription',
       key: 'productDescription',
-      width: 80,
+      width: 60,
       render: (text: string, record: InvoiceDetail) => (
         <Input
           value={text}
           onChange={(e) => updateInvoiceDetail(record.id, 'productDescription', e.target.value)}
-          placeholder="Ürün açıklaması"
         />
       )
     },
@@ -137,24 +173,22 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       title: 'Mik',
       dataIndex: 'quantity',
       key: 'quantity',
-      width: 60,
+      width: 50,
       render: (text: number, record: InvoiceDetail) => (
         <InputNumber
           value={text}
-          min={0.01}
-          step={1}
+          min={0}
+          step={0.01}
           precision={2}
           style={{ width: '100%' }}
           onChange={(value) => {
             if (value !== null) {
-              const updatedDetail = { ...record, quantity: value };
+              const updatedDetail = {
+                ...record,
+                quantity: value
+              };
               const calculatedDetail = calculateLineAmounts(updatedDetail);
               updateInvoiceDetail(record.id, 'quantity', value);
-              updateInvoiceDetail(record.id, 'totalAmount', calculatedDetail.totalAmount);
-              updateInvoiceDetail(record.id, 'discountAmount', calculatedDetail.discountAmount);
-              updateInvoiceDetail(record.id, 'subtotalAmount', calculatedDetail.subtotalAmount);
-              updateInvoiceDetail(record.id, 'vatAmount', calculatedDetail.vatAmount);
-              updateInvoiceDetail(record.id, 'netAmount', calculatedDetail.netAmount);
             }
           }}
         />
@@ -164,24 +198,22 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       title: 'Brm',
       dataIndex: 'unitOfMeasureCode',
       key: 'unitOfMeasureCode',
-      width: 60,
+      width: 50,
       render: (text: string, record: InvoiceDetail) => (
         <Select
           value={text}
           style={{ width: '100%' }}
           onChange={(value) => updateInvoiceDetail(record.id, 'unitOfMeasureCode', value)}
         >
-          {units.map((unit, index) => (
-            <Option key={unit.code || `unit-${index}`} value={unit.code || ''}>{unit.code}</Option>
-          ))}
+          {units.map(unit => <Option key={unit.code} value={unit.code}>{unit.code}</Option>)}
         </Select>
       )
     },
     {
-      title: `B.Fiyat`,
+      title: `Fiyat`,
       dataIndex: 'unitPrice',
       key: 'unitPrice',
-      width: 80,
+      width: 60,
       render: (text: number, record: InvoiceDetail) => (
         <InputNumber
           value={text}
@@ -189,57 +221,54 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
           step={0.01}
           precision={2}
           style={{ width: '100%' }}
-          formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-          parser={(value) => value ? parseFloat(value.replace(/\$\s?|(,*)/g, '')) : 0}
+          formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+          parser={value => value!.replace(/\$\s?|(,*)/g, '')}
           onChange={(value) => {
             if (value !== null) {
-              const updatedDetail = { ...record, unitPrice: value };
+              const updatedDetail = {
+                ...record,
+                unitPrice: value
+              };
               const calculatedDetail = calculateLineAmounts(updatedDetail);
               updateInvoiceDetail(record.id, 'unitPrice', value);
-              updateInvoiceDetail(record.id, 'totalAmount', calculatedDetail.totalAmount);
-              updateInvoiceDetail(record.id, 'discountAmount', calculatedDetail.discountAmount);
-              updateInvoiceDetail(record.id, 'subtotalAmount', calculatedDetail.subtotalAmount);
-              updateInvoiceDetail(record.id, 'vatAmount', calculatedDetail.vatAmount);
-              updateInvoiceDetail(record.id, 'netAmount', calculatedDetail.netAmount);
             }
           }}
         />
       )
     },
     {
-      title: 'İsk%',
+      title: 'İsk',
       dataIndex: 'discountRate',
       key: 'discountRate',
-      width: 60,
+      width: 40,
       render: (text: number, record: InvoiceDetail) => (
         <InputNumber
           value={text || 0}
           min={0}
           max={100}
           step={1}
-          precision={2}
+          precision={0}
           style={{ width: '100%' }}
-          formatter={(value) => `${value}%`}
-          parser={(value) => Number(value!.replace('%', ''))}
+          formatter={value => `${value}%`}
+          parser={value => value!.replace('%', '')}
           onChange={(value) => {
             if (value !== null) {
-              const updatedDetail = { ...record, discountRate: value };
+              const updatedDetail = {
+                ...record,
+                discountRate: value
+              };
               const calculatedDetail = calculateLineAmounts(updatedDetail);
               updateInvoiceDetail(record.id, 'discountRate', value);
-              updateInvoiceDetail(record.id, 'discountAmount', calculatedDetail.discountAmount);
-              updateInvoiceDetail(record.id, 'subtotalAmount', calculatedDetail.subtotalAmount);
-              updateInvoiceDetail(record.id, 'vatAmount', calculatedDetail.vatAmount);
-              updateInvoiceDetail(record.id, 'netAmount', calculatedDetail.netAmount);
             }
           }}
         />
       )
     },
     {
-      title: 'KDV%',
+      title: 'KDV',
       dataIndex: 'vatRate',
       key: 'vatRate',
-      width: 60,
+      width: 40,
       render: (text: number, record: InvoiceDetail) => (
         <InputNumber
           value={text}
@@ -248,25 +277,26 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
           step={1}
           precision={0}
           style={{ width: '100%' }}
-          formatter={(value) => `${value}%`}
-          parser={(value) => Number(value!.replace('%', ''))}
+          formatter={value => `${value}%`}
+          parser={value => value!.replace('%', '')}
           onChange={(value) => {
             if (value !== null) {
-              const updatedDetail = { ...record, vatRate: value };
+              const updatedDetail = {
+                ...record,
+                vatRate: value
+              };
               const calculatedDetail = calculateLineAmounts(updatedDetail);
               updateInvoiceDetail(record.id, 'vatRate', value);
-              updateInvoiceDetail(record.id, 'vatAmount', calculatedDetail.vatAmount);
-              updateInvoiceDetail(record.id, 'netAmount', calculatedDetail.netAmount);
             }
           }}
         />
       )
     },
     {
-      title: `Toplam`,
+      title: `Top`,
       dataIndex: 'totalAmount',
       key: 'totalAmount',
-      width: 80,
+      width: 60,
       render: (text: number) => (
         <span style={{ fontWeight: 'bold' }}>
           {text?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -277,7 +307,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       title: `Net`,
       dataIndex: 'netAmount',
       key: 'netAmount',
-      width: 80,
+      width: 60,
       render: (text: number) => (
         <span style={{ fontWeight: 'bold' }}>
           {text?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -285,9 +315,9 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       )
     },
     {
-      title: 'İşlem',
+      title: '',
       key: 'action',
-      width: 80,
+      width: 40,
       render: (_: any, record: InvoiceDetail) => (
         <Popconfirm
           title="Bu satırı silmek istediğinize emin misiniz?"
@@ -303,19 +333,23 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
 
   return (
     <div className="invoice-lines">
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12}>
-          <Space>
+      <Row gutter={[8, 8]} style={{ marginBottom: 8 }}>
+        <Col span={24}>
+          <div style={mobileStyles.buttonContainer}>
             <Button 
               type="primary" 
               icon={<BarcodeOutlined />} 
               onClick={showBarcodeModal}
+              style={mobileStyles.button}
             >
               Satır Ekle
             </Button>
             <Button 
               type="primary"
-              style={{ backgroundColor: isPriceIncludeVat ? '#52c41a' : '#1890ff' }}
+              style={{ 
+                ...mobileStyles.button,
+                backgroundColor: isPriceIncludeVat ? '#52c41a' : '#1890ff' 
+              }}
               onClick={() => updateInvoiceDetail('', 'isPriceIncludeVat', !isPriceIncludeVat)}
             >
               {isPriceIncludeVat ? "KDV Dahil" : "KDV Hariç"}
@@ -330,14 +364,15 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
                 <Button 
                   danger 
                   icon={<DeleteOutlined />}
+                  style={mobileStyles.button}
                 >
                   Seçilenleri Sil ({selectedRowKeys.length})
                 </Button>
               </Popconfirm>
             )}
-          </Space>
+          </div>
         </Col>
-        <Col xs={24} sm={12}>
+        <Col span={24}>
           <Input
             placeholder="Ürün kodu veya açıklaması ile filtrele"
             prefix={<SearchOutlined />}
@@ -348,13 +383,13 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
         </Col>
       </Row>
 
-      <div className="invoice-lines-table">
+      <div style={mobileStyles.tableContainer}>
         <Table
           dataSource={filteredDetails}
           columns={columns}
           rowKey="id"
           size="small"
-          scroll={{ x: 'max-content', y: 400 }}
+          scroll={{ x: '100%', y: 300 }}
           pagination={false}
           rowSelection={{
             selectedRowKeys,
