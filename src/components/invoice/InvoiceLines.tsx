@@ -89,10 +89,10 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
   // Tablo sütunları
   const columns = [
     {
-      title: 'Ürün Kodu',
+      title: 'Ürün',
       dataIndex: 'itemCode',
       key: 'itemCode',
-      width: 120,
+      width: 80,
       render: (text: string, record: InvoiceDetail) => (
         <Select
           showSearch
@@ -121,10 +121,10 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       )
     },
     {
-      title: 'Açıklama',
+      title: 'Açk',
       dataIndex: 'productDescription',
       key: 'productDescription',
-      width: 200,
+      width: 80,
       render: (text: string, record: InvoiceDetail) => (
         <Input
           value={text}
@@ -134,10 +134,10 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       )
     },
     {
-      title: 'Miktar',
+      title: 'Mik',
       dataIndex: 'quantity',
       key: 'quantity',
-      width: 100,
+      width: 60,
       render: (text: number, record: InvoiceDetail) => (
         <InputNumber
           value={text}
@@ -161,10 +161,10 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       )
     },
     {
-      title: 'Birim',
+      title: 'Brm',
       dataIndex: 'unitOfMeasureCode',
       key: 'unitOfMeasureCode',
-      width: 100,
+      width: 60,
       render: (text: string, record: InvoiceDetail) => (
         <Select
           value={text}
@@ -178,10 +178,10 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       )
     },
     {
-      title: `Birim Fiyat (${currencySymbol})`,
+      title: `B.Fiyat`,
       dataIndex: 'unitPrice',
       key: 'unitPrice',
-      width: 120,
+      width: 80,
       render: (text: number, record: InvoiceDetail) => (
         <InputNumber
           value={text}
@@ -207,10 +207,10 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       )
     },
     {
-      title: 'İskonto %',
+      title: 'İsk%',
       dataIndex: 'discountRate',
       key: 'discountRate',
-      width: 100,
+      width: 60,
       render: (text: number, record: InvoiceDetail) => (
         <InputNumber
           value={text || 0}
@@ -236,10 +236,10 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       )
     },
     {
-      title: 'KDV %',
+      title: 'KDV%',
       dataIndex: 'vatRate',
       key: 'vatRate',
-      width: 100,
+      width: 60,
       render: (text: number, record: InvoiceDetail) => (
         <InputNumber
           value={text}
@@ -263,10 +263,10 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       )
     },
     {
-      title: `Toplam (${currencySymbol})`,
+      title: `Toplam`,
       dataIndex: 'totalAmount',
       key: 'totalAmount',
-      width: 120,
+      width: 80,
       render: (text: number) => (
         <span style={{ fontWeight: 'bold' }}>
           {text?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -274,10 +274,10 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       )
     },
     {
-      title: `Net Toplam (${currencySymbol})`,
+      title: `Net`,
       dataIndex: 'netAmount',
       key: 'netAmount',
-      width: 120,
+      width: 80,
       render: (text: number) => (
         <span style={{ fontWeight: 'bold' }}>
           {text?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -313,6 +313,13 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
             >
               Satır Ekle
             </Button>
+            <Button 
+              type="primary"
+              style={{ backgroundColor: isPriceIncludeVat ? '#52c41a' : '#1890ff' }}
+              onClick={() => updateInvoiceDetail('', 'isPriceIncludeVat', !isPriceIncludeVat)}
+            >
+              {isPriceIncludeVat ? "KDV Dahil" : "KDV Hariç"}
+            </Button>
             {selectedRowKeys.length > 0 && (
               <Popconfirm
                 title={`${selectedRowKeys.length} satırı silmek istediğinize emin misiniz?`}
@@ -341,10 +348,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
         </Col>
       </Row>
 
-      <Badge.Ribbon 
-        text={isPriceIncludeVat ? "KDV Dahil" : "KDV Hariç"} 
-        color={isPriceIncludeVat ? "green" : "blue"}
-      >
+      <div className="invoice-lines-table">
         <Table
           dataSource={filteredDetails}
           columns={columns}
@@ -389,7 +393,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
             );
           }}
         />
-      </Badge.Ribbon>
+      </div>
     </div>
   );
 };
