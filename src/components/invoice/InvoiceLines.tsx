@@ -311,7 +311,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
               icon={<BarcodeOutlined />} 
               onClick={showBarcodeModal}
             >
-              Barkod Tara
+              Satır Ekle
             </Button>
             {selectedRowKeys.length > 0 && (
               <Popconfirm
