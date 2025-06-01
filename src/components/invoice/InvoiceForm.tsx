@@ -1036,7 +1036,7 @@ return (
           },
           {
             key: '2',
-            label: 'DETAYLAR',
+            label: 'SATIRLAR',
             disabled: !headerFormValid,
             children: (
               <>
