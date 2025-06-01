@@ -308,13 +308,6 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
           <Space>
             <Button 
               type="primary" 
-              icon={<PlusOutlined />} 
-              onClick={addInvoiceDetail}
-            >
-              Satır Ekle
-            </Button>
-            <Button 
-              type="primary" 
               icon={<BarcodeOutlined />} 
               onClick={showBarcodeModal}
             >
