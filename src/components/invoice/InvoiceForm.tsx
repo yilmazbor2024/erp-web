@@ -88,17 +88,17 @@ interface CreateInvoiceRequest {
 }
 
 // Bileşen props
-interface InvoiceFormNewProps {
+interface InvoiceFormProps {
   type?: InvoiceType;
   onSuccess?: (data: any) => void;
 }
 
 // const { TabPane } = Tabs; // Artık kullanılmıyor
 
-const InvoiceFormNew = ({ 
+const InvoiceForm = ({ 
   type = InvoiceType.WHOLESALE_SALES, 
   onSuccess 
-}: InvoiceFormNewProps) => {
+}: InvoiceFormProps) => {
   // Form ve yükleme durumu
   const [form] = Form.useForm();
   const [loading, setLoading] = useState<boolean>(false);
@@ -372,19 +372,26 @@ const InvoiceFormNew = ({
     }
   }, [currentCurrencyCode, exchangeRates]);
 
+  // Bir metnin barkod olup olmadığını kontrol et
+  const isBarcodeFormat = (text: string): boolean => {
+    // Barkodlar genellikle 8 veya 2 ile başlar, en az 12, en fazla 13 hanedir
+    const barcodeRegex = /^(8|2)\d{11,12}$/;
+    return barcodeRegex.test(text) && text.length >= 12 && text.length <= 13;
+  };
+
   // Ürün varyantlarını barkod ile arama
-  const searchProductVariantsByBarcode = async (barcode: string) => {
-    if (!barcode || barcode.trim() === '') {
+  const searchProductVariantsByBarcode = async (searchText: string) => {
+    if (!searchText || searchText.trim() === '') {
       message.warning('Lütfen bir barkod girin');
       return;
     }
     
     setLoadingVariants(true);
     try {
-      console.log('Barkod araması başlatılıyor:', barcode);
+      console.log('Barkod araması başlatılıyor:', searchText);
       
-      // Önce barkod ile ara
-      const response = await productApi.getProductVariantsByBarcode(barcode);
+      // Barkod ile ara
+      const response = await productApi.getProductVariantsByBarcode(searchText);
       console.log('Barkod araması sonucu:', response);
       
       if (response && response.length > 0) {
@@ -396,39 +403,14 @@ const InvoiceFormNew = ({
           addVariantToScannedList(response[0]);
         }
       } else {
-        console.log('Barkod ile varyant bulunamadı, ürün kodu ile aranıyor');
-        // Barkod ile bulunamazsa ürün kodu veya açıklama ile ara
-        try {
-          const altResponse = await productApi.getProductVariantsByProductCodeOrDescription(barcode);
-          console.log('Ürün kodu araması sonucu:', altResponse);
-          
-          if (altResponse && altResponse.length > 0) {
-            setProductVariants(altResponse);
-            message.info(`Barkod ile ürün bulunamadı, '${barcode}' için ${altResponse.length} sonuç bulundu`);
-          } else {
-            // Ürün kodu ile de bulunamazsa, ürün kodu ile varyantları ara
-            console.log('Ürün kodu/açıklaması ile de bulunamadı, doğrudan ürün kodu olarak deneniyor');
-            const codeResponse = await productApi.getProductVariantsByCode(barcode);
-            
-            if (codeResponse && codeResponse.length > 0) {
-              console.log('Ürün kodu ile varyantlar bulundu:', codeResponse);
-              setProductVariants(codeResponse);
-              // İlk varyantı otomatik olarak listeye ekle
-              if (codeResponse[0]) addVariantToScannedList(codeResponse[0]);
-            } else {
-              message.warning(`'${barcode}' için hiçbir ürün bulunamadı`);
-              setProductVariants([]);
-            }
-          }
-        } catch (altError) {
-          console.error('Alternatif arama hatası:', altError);
-          message.error('Ürün arama sırasında bir hata oluştu');
-          setProductVariants([]);
-        }
+        // Barkod ile bulunamadıysa uyarı göster
+        console.log('Barkod ile varyant bulunamadı');
+        message.warning(`'${searchText}' için hiçbir ürün bulunamadı`);
+        setProductVariants([]);
       }
     } catch (error) {
-      console.error('Ürün arama hatası:', error);
-      message.error('Ürün arama sırasında bir hata oluştu');
+      console.error('Barkod araması hatası:', error);
+      message.error('Barkod arama sırasında bir hata oluştu');
       setProductVariants([]);
     } finally {
       setLoadingVariants(false);
@@ -437,6 +419,10 @@ const InvoiceFormNew = ({
   
   // Varyantı taranan ürünler listesine ekle
   const addVariantToScannedList = (variant: ProductVariant) => {
+    if (!variant) {
+      console.error('Eklenecek varyant bulunamadı');
+      return;
+    }
     // Aynı barkoda sahip ürün var mı kontrol et
     const existingItemIndex = scannedItems.findIndex(item => 
       item.variant.barcode === variant.barcode
@@ -972,7 +958,7 @@ const InvoiceFormNew = ({
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      console.log('Form Bileşeni Yüklendi:', invoiceTypeDescriptions[type]);
+      console.log('Form Bileşeni Yüklendi:', invoiceTypeDescriptions[type as keyof typeof invoiceTypeDescriptions]);
       
       // Veri yükleme işlemi
       await loadData();
@@ -1233,6 +1219,11 @@ useEffect(() => {
 
 // Satır güncelleme fonksiyonu
 const updateInvoiceDetail = (id: string, field: string, value: any) => {
+  if (!id || !field) {
+    console.error('Geçersiz id veya alan adı');
+    return;
+  }
+  
   // isPriceIncludeVat değiştiğinde tüm satırları güncelle
   if (field === 'isPriceIncludeVat') {
     // KDV dahil/hariç değerini güncelle
@@ -1656,6 +1647,31 @@ return (
       barcodeInput={barcodeInput}
       setBarcodeInput={setBarcodeInput}
       onSearch={searchProductVariantsByBarcode}
+      onSearchByProductCodeOrDescription={(searchText) => {
+        // Ürün kodu veya açıklaması ile arama - doğrudan ProductCodeOrDescription API'sini çağır
+        console.log('Ürün kodu/açıklaması ile arama yapılıyor (Switch ile):', searchText);
+        productApi.getProductVariantsByProductCodeOrDescription(searchText)
+          .then(response => {
+            console.log('Ürün kodu/açıklaması araması sonucu:', response);
+            setProductVariants(response || []);
+            if (response && response.length === 1) {
+              // Tek sonuç varsa otomatik ekle
+              addVariantToScannedList(response[0]);
+            } else if (response && response.length > 1) {
+              message.info(`'${searchText}' için ${response.length} sonuç bulundu`);
+            } else {
+              message.warning(`'${searchText}' için hiçbir ürün bulunamadı`);
+            }
+          })
+          .catch(error => {
+            console.error('Ürün kodu/açıklaması ile arama hatası:', error);
+            message.error('Ürün arama sırasında bir hata oluştu');
+            setProductVariants([]);
+          })
+          .finally(() => {
+            setLoadingVariants(false);
+          });
+      }}
       loading={loadingVariants}
       productVariants={productVariants}
       setProductVariants={setProductVariants}
@@ -1729,4 +1745,4 @@ return (
 );
 };
 
-export default InvoiceFormNew;
+export default InvoiceForm;

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, ReactNode, useState } from 'react';
-import { Modal, Input, Button, Table, InputNumber, Row, Col, Space, Typography, Spin, Empty, message, Tag } from 'antd';
+import { Modal, Input, Button, Table, InputNumber, Row, Col, Space, Typography, Spin, Empty, message, Tag, Switch } from 'antd';
 import { ScanOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { ProductVariant } from '../../services/productApi';
 import { InventoryStock } from '../../services/inventoryApi';
@@ -19,6 +19,7 @@ interface BarcodeModalProps {
   barcodeInput: string;
   setBarcodeInput: (value: string) => void;
   onSearch: (barcode: string) => void;
+  onSearchByProductCodeOrDescription?: (searchText: string) => void; // Ürün kodu veya açıklaması ile arama için yeni prop
   loading: boolean;
   productVariants: ProductVariant[];
   setProductVariants: (variants: ProductVariant[]) => void;
@@ -41,6 +42,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
   barcodeInput,
   setBarcodeInput,
   onSearch,
+  onSearchByProductCodeOrDescription,
   loading,
   productVariants,
   setProductVariants,
@@ -58,6 +60,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
 }) => {
   const [bulkPrice, setBulkPrice] = useState<number | null>(null);
   const [bulkVatRate, setBulkVatRate] = useState<number>(10); // Varsayılan KDV oranı
+  const [searchByProduct, setSearchByProduct] = useState<boolean>(false); // false: barkod ile arama, true: ürün kodu/açıklaması ile arama
   
   // Toplu fiyat güncelleme fonksiyonu
   const updateAllPrices = () => {
@@ -91,6 +94,29 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
   // Enter tuşuna basıldığında arama yap
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+  
+  // Arama işlemini gerçekleştir
+  const handleSearch = () => {
+    if (!barcodeInput.trim()) {
+      message.warning('Lütfen arama metni girin');
+      return;
+    }
+    
+    // Doğrudan seçilen moda göre arama yap
+    if (searchByProduct) {
+      // Ürün kodu veya açıklaması ile arama
+      console.log('Ürün kodu/açıklaması ile arama yapılıyor:', barcodeInput);
+      if (onSearchByProductCodeOrDescription) {
+        onSearchByProductCodeOrDescription(barcodeInput);
+      } else {
+        message.error('Ürün kodu veya açıklaması ile arama fonksiyonu tanımlanmamış');
+      }
+    } else {
+      // Barkod ile arama
+      console.log('Barkod ile arama yapılıyor:', barcodeInput);
       onSearch(barcodeInput);
     }
   };
@@ -149,21 +175,42 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       ]}
       styles={{ body: { padding: '16px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' } }}
     >
-      <Row gutter={8} style={{ marginBottom: 16 }}>
+      {/* Arama modu değiştirme switch'i */}
+      <Row gutter={8} style={{ marginBottom: 8 }}>
+        <Col span={24}>
+          <Space align="center">
+            <Text>Barkod ile Ara</Text>
+            <Switch 
+              checked={searchByProduct}
+              onChange={(checked) => {
+                setSearchByProduct(checked);
+                setBarcodeInput(''); // Mod değiştiğinde input'u temizle
+              }}
+            />
+            <Text>Ürün Kodu/Açıklaması ile Ara</Text>
+          </Space>
+        </Col>
+      </Row>
+
+      {/* Arama kutusu ve ara butonu */}
+      <Row gutter={8} style={{ marginBottom: 8, marginTop: 8 }}>
         <Col flex="auto">
           <Input
             ref={inputRef}
-            placeholder="Ürün kodu, açıklaması veya barkod girin (en az 3 karakter)"
+            placeholder={searchByProduct 
+              ? "Ürün kodu veya açıklaması girin (en az 3 karakter)" 
+              : "Barkod girin"}
             value={barcodeInput}
             onChange={(e) => setBarcodeInput(e.target.value)}
             onPressEnter={() => {
-              // En az 3 karakter kontrolü
-              if (barcodeInput.trim().length >= 3) {
-                onSearch(barcodeInput);
+              // Arama tipine göre minimum karakter kontrolü
+              const minLength = searchByProduct ? 3 : 1;
+              if (barcodeInput.trim().length >= minLength) {
+                handleSearch();
                 // Arama yapıldıktan sonra input'u temizle
                 setBarcodeInput('');
               } else if (barcodeInput.trim().length > 0) {
-                message.warning('Lütfen en az 3 karakter girin');
+                message.warning(`Lütfen en az ${minLength} karakter girin`);
               }
             }}
             suffix={loading ? <Spin size="small" /> : <SearchOutlined />}
@@ -175,22 +222,25 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
           <Button 
             type="primary" 
             onClick={() => {
-              // En az 3 karakter kontrolü
-              if (barcodeInput.trim().length >= 3) {
-                onSearch(barcodeInput);
+              // Arama tipine göre minimum karakter kontrolü
+              const minLength = searchByProduct ? 3 : 1;
+              if (barcodeInput.trim().length >= minLength) {
+                handleSearch();
                 // Arama yapıldıktan sonra input'u temizle
                 setBarcodeInput('');
               } else if (barcodeInput.trim().length > 0) {
-                message.warning('Lütfen en az 3 karakter girin');
+                message.warning(`Lütfen en az ${minLength} karakter girin`);
               }
             }} 
             loading={loading}
-            disabled={barcodeInput.trim().length < 3}
+            disabled={barcodeInput.trim().length < (searchByProduct ? 3 : 1)}
           >
             Ara
           </Button>
         </Col>
       </Row>
+      
+      {/* Fazladan switch kaldırıldı */}
       
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
         <Col>

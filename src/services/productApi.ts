@@ -173,18 +173,27 @@ const productApi = {
   // Ürün varyantlarını ürün kodu veya açıklamasına göre getir
   async getProductVariantsByProductCodeOrDescription(searchText: string): Promise<ProductVariant[]> {
     try {
-      // Backend'de doğrulanmış ve test edilmiş endpoint'i kullan
+      if (!searchText) {
+        console.warn('Arama metni boş, ürün varyantları getirilemedi');
+        return [];
+      }
+      
       console.log('Ürün kodu/açıklaması ile arama yapılıyor:', searchText);
       
-      // Test edilmiş ve doğrulanmış endpoint'i kullan
+      // Sadece ProductController endpoint'ini kullan
       const response = await axiosInstance.get(`/api/Product/variants/by-product-code-or-description`, {
         params: { searchText }
       });
       
-      if (response.data && response.data.success) {
-        console.log('Ürün kodu/açıklaması ile bulunan varyantlar:', response.data.data);
+      if (response.data && (response.data.success || response.data.isSuccess) && 
+          ((Array.isArray(response.data.data) && response.data.data.length > 0) || 
+           (Array.isArray(response.data.items) && response.data.items.length > 0))) {
         
-        return response.data.data.map((item: any) => ({
+        const responseData = response.data.data || response.data.items;
+        console.log('Ürün kodu/açıklaması ile bulunan varyantlar:', responseData.length, 'adet');
+        
+        // API'den gelen verileri ProductVariant formatına dönüştür
+        const variants: ProductVariant[] = responseData.map((item: any) => ({
           productCode: item.productCode || item.itemCode || '',
           productDescription: item.productDescription || item.itemDescription || '',
           colorCode: item.colorCode || '',
@@ -205,9 +214,11 @@ const productApi = {
           vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
           isBlocked: Boolean(item.isBlocked || item.variantIsBlocked)
         }));
+        
+        return variants;
       }
       
-      // Eğer veri bulunamazsa boş dizi döndür
+      // Bulunamadıysa boş dizi döndür
       console.log('Ürün kodu/açıklaması ile varyant bulunamadı');
       return [];
     } catch (error) {
@@ -636,23 +647,8 @@ const productApi = {
       
       console.log(`Sadece barkod ile ürün varyantı aranıyor: ${searchText}`);
       
-      // Backend'de doğrulanmış endpoint'i kullan
-      let response;
-      
-      try {
-        // İlk olarak doğrulanmış endpoint'i dene
-        response = await axiosInstance.get(`/api/Product/variants/by-barcode/${searchText}`);
-      } catch (error: any) {
-        if (error.response && error.response.status === 404) {
-          // Alternatif doğrulanmış endpoint
-          console.log('Doğrulanmış alternatif endpoint kullanılıyor: /api/Item/search-by-barcode');
-          response = await axiosInstance.get(`/api/Item/search-by-barcode`, {
-            params: { barcode: searchText }
-          });
-        } else {
-          throw error;
-        }
-      }
+      // Sadece ProductController endpoint'ini kullan
+      const response = await axiosInstance.get(`/api/Product/variants/by-barcode/${searchText}`);
       
       if (response.data && (response.data.success || response.data.isSuccess) && 
           ((Array.isArray(response.data.data) && response.data.data.length > 0) || 
@@ -706,13 +702,23 @@ const productApi = {
       
       // Önce API'den varyantları getirmeyi dene
       try {
-        const response = await axiosInstance.get(`/api/Product/variants/by-code/${productCode}`);
+        // URL yapısını değiştirdim, query parameter kullanıyorum
+        console.log(`API çağrısı yapılıyor: /api/Product/variants/by-product-code?productCode=${productCode}`);
+        const response = await axiosInstance.get(`/api/Product/variants/by-product-code`, {
+          params: { productCode }
+        });
         
-        if (response.data && response.data.success && Array.isArray(response.data.data) && response.data.data.length > 0) {
-          console.log('Ürün koduna göre varyantlar bulundu:', response.data.data);
+        console.log('API yanıtı:', response.data);
+        
+        if (response.data && (response.data.success || response.data.isSuccess) && 
+            ((Array.isArray(response.data.data) && response.data.data.length > 0) || 
+             (Array.isArray(response.data.items) && response.data.items.length > 0))) {
+          
+          const responseData = response.data.data || response.data.items;
+          console.log('Ürün koduna göre varyantlar bulundu:', responseData);
           
           // API'den gelen verileri ProductVariant formatına dönüştür
-          const variants: ProductVariant[] = response.data.data.map((item: any) => ({
+          const variants: ProductVariant[] = responseData.map((item: any) => ({
             productCode: item.productCode || '',
             productDescription: item.productDescription || '',
             colorCode: item.colorCode || '',
@@ -740,10 +746,19 @@ const productApi = {
         console.log('Ürün varyantları bulunamadı, ürün detayı deneniyor:', variantError);
       }
       
-      // Varyantlar bulunamadıysa, ürün detayını getir
+      // Varyantlar bulunamazsa, ürün detayını getir
       try {
-        // Ürün detayını getir
-        const productResponse = await axiosInstance.get(`/api/Item?searchTerm=${productCode}&searchField=itemCode&pageSize=1`);
+        // Ürün detayını getir - URL encode ediyoruz ve parametreleri ayrı gönderiyoruz
+        console.log(`Ürün detayı aranıyor: /api/Item - searchTerm: ${productCode}`);
+        const productResponse = await axiosInstance.get(`/api/Item`, {
+          params: {
+            searchTerm: productCode,
+            searchField: 'itemCode',
+            pageSize: 1
+          }
+        });
+        
+        console.log('Ürün detayı API yanıtı:', productResponse.data);
         
         if (productResponse.data && productResponse.data.success && productResponse.data.data && 
             Array.isArray(productResponse.data.data.items) && productResponse.data.data.items.length > 0) {
