@@ -23,6 +23,9 @@ interface InvoiceDetail {
   colorCode?: string;
   colorDescription?: string;
   itemDim1Code?: string;
+  currencyCode?: string;
+  exchangeRate?: number;
+  tryEquivalent?: number; // TL karşılığı
 }
 
 interface InvoiceLinesProps {
@@ -54,8 +57,22 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
   currencyCode,
   form
 }) => {
-  // Para birimi kodu al, yoksa TRY kullan
-  const currency = currencyCode || (form ? form.getFieldValue('docCurrencyCode') : null) || 'TRY';
+  // Para birimi state'i
+  const [currency, setCurrency] = useState<string>(currencyCode || 'TRY');
+  
+  // Para birimi prop'u değiştiğinde state'i güncelle
+  useEffect(() => {
+    if (currencyCode && currencyCode !== currency) {
+      setCurrency(currencyCode);
+      
+      // Tüm satırların para birimi kodunu güncelle
+      invoiceDetails.forEach(detail => {
+        if (detail.currencyCode !== currencyCode) {
+          updateInvoiceDetail(detail.id, 'currencyCode', currencyCode);
+        }
+      });
+    }
+  }, [currencyCode, invoiceDetails]);
   
   // Para birimi sembolünü belirle
   const getCurrencySymbol = (code: string) => {
@@ -165,7 +182,36 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       render: (text: string, record: InvoiceDetail) => (
         <Input
           value={text}
-          onChange={(e) => updateInvoiceDetail(record.id, 'productDescription', e.target.value)}
+          onChange={e => updateInvoiceDetail(record.id, 'description', e.target.value)}
+          placeholder="Açıklama"
+        />
+      )
+    },
+    {
+      title: 'Renk',
+      dataIndex: 'colorDescription',
+      key: 'colorDescription',
+      width: 80,
+      render: (text: string, record: InvoiceDetail) => (
+        <Input
+          value={text || ''}
+          onChange={e => updateInvoiceDetail(record.id, 'colorDescription', e.target.value)}
+          placeholder="Renk"
+          disabled={true}
+        />
+      )
+    },
+    {
+      title: 'Beden',
+      dataIndex: 'itemDim1Code',
+      key: 'itemDim1Code',
+      width: 60,
+      render: (text: string, record: InvoiceDetail) => (
+        <Input
+          value={text || ''}
+          onChange={e => updateInvoiceDetail(record.id, 'itemDim1Code', e.target.value)}
+          placeholder="Beden"
+          disabled={true}
         />
       )
     },
@@ -297,9 +343,9 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       dataIndex: 'totalAmount',
       key: 'totalAmount',
       width: 60,
-      render: (text: number) => (
+      render: (text: number, record: InvoiceDetail) => (
         <span style={{ fontWeight: 'bold' }}>
-          {text?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {text?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {getCurrencySymbol(record.currencyCode || currency)}
         </span>
       )
     },
@@ -308,11 +354,32 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       dataIndex: 'netAmount',
       key: 'netAmount',
       width: 60,
-      render: (text: number) => (
+      render: (text: number, record: InvoiceDetail) => (
         <span style={{ fontWeight: 'bold' }}>
-          {text?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {text?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {getCurrencySymbol(record.currencyCode || currency)}
         </span>
       )
+    },
+    {
+      title: `TL Karşılığı`,
+      dataIndex: 'tryEquivalent',
+      key: 'tryEquivalent',
+      width: 70,
+      render: (_: any, record: InvoiceDetail) => {
+        // Eğer para birimi TRY ise, aynı değeri göster
+        if (record.currencyCode === 'TRY' || !record.exchangeRate) {
+          return <span>-</span>;
+        }
+        
+        // TL karşılığını hesapla (birim fiyat * kur)
+        const tryValue = (record.unitPrice || 0) * (record.exchangeRate || 1);
+        
+        return (
+          <span style={{ color: '#1890ff' }}>
+            {tryValue.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+          </span>
+        );
+      }
     },
     {
       title: '',
@@ -415,7 +482,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
                   <Table.Summary.Cell index={2}>
                     <strong>{totalQuantity.toFixed(2)}</strong>
                   </Table.Summary.Cell>
-                  <Table.Summary.Cell index={3} colSpan={4}></Table.Summary.Cell>
+                  <Table.Summary.Cell index={3} colSpan={6}></Table.Summary.Cell>
                   <Table.Summary.Cell index={7}>
                     <strong>{totalAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currencySymbol}</strong>
                   </Table.Summary.Cell>

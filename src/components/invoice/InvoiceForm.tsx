@@ -1144,9 +1144,9 @@ const onFinish = async (values: any) => {
         subtotalAmount: detail.subtotalAmount,
         vatAmount: detail.vatAmount,
         netAmount: detail.netAmount,
-        colorCode: detail.colorCode,
-        colorDescription: detail.colorDescription,
-        itemDim1Code: detail.itemDim1Code,
+        colorCode: detail.colorCode || '',
+        colorDescription: detail.colorDescription || '',
+        itemDim1Code: detail.itemDim1Code || '',
         exchangeRate: currentExchangeRate, // Güncel döviz kurunu kullan
         tryEquivalent: parseFloat(tryEquivalentAmount.toFixed(2)) // TL karşılığı tutarı (2 ondalık basamakla)
       };
@@ -1440,8 +1440,8 @@ return (
             description: variant.productDescription,
             productDescription: variant.productDescription,
             colorCode: variant.colorCode,
-            colorDescription: variant.colorDescription,
-            itemDim1Code: variant.itemDim1Code
+            colorDescription: variant.colorDescription || '',
+            itemDim1Code: variant.itemDim1Code || ''
           };
           
           return calculateLineAmounts(detail);
