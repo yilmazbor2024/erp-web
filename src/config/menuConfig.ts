@@ -158,6 +158,12 @@ export const mainMenuItems: MenuItem[] = [
             icon: 'SwapOutlined'
           }
         ]
+      },
+      {
+        id: 'exchange-rates',
+        title: 'Döviz Kurları',
+        path: '/finance/exchange-rates',
+        icon: 'DollarOutlined'
       }
     ]
   },

@@ -25,6 +25,8 @@ import InvoiceEditPage from './pages/invoice/InvoiceEditPage';
 import ProductPriceList from './pages/Products/ProductPriceList';
 import ProductDetail from './pages/Products/ProductDetail';
 import InventoryStockPage from './pages/inventory/InventoryStockPage';
+import ExchangeRatesPage from './pages/finance/ExchangeRatesPage';
+import ExchangeRateManagementPage from './pages/admin/ExchangeRateManagementPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Rota değişikliklerini izlemek için bileşen
@@ -93,6 +95,9 @@ const AppRoutes: React.FC = () => {
           
           {/* Envanter/Stok Sayfaları */}
           <Route path="inventory/count" element={<div>Sayım Sayfası (Geliştirme Aşamasında)</div>} />
+          
+          {/* Finans Sayfaları */}
+          <Route path="finance/exchange-rates" element={<ExchangeRatesPage />} />
         </Route>
         
         <Route path="*" element={<Navigate to="/" />} />
