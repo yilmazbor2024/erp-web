@@ -614,6 +614,7 @@ const InvoiceForm = ({
   const getProductPriceAndAddVariant = async (variant: ProductVariant) => {
     try {
       console.log('Ürün fiyatı getiriliyor ve varyant ekleniyor:', variant.productCode);
+      let fiyatBulundu = false;
       
       // Önce /api/v1/Product/all-price-lists endpoint'ini kullanarak fiyat bilgisini almayı dene
       try {
@@ -642,44 +643,60 @@ const InvoiceForm = ({
             variant.salesPrice1 = priceItem.birimFiyat || 0;
             variant.vatRate = 10; // Varsayılan KDV oranı 10
             console.log('Fiyat listesinden fiyat bilgisi güncellendi:', variant.salesPrice1);
-            // Varyantı taranan ürünler listesine ekle
-            addVariantToScannedList(variant);
-            return; // Başarılı olduğu için fonksiyondan çık
+            fiyatBulundu = true;
           }
         }
         
-        // Fiyat listesinde bulunamadıysa, eski yöntemi dene
-        console.log('Fiyat listesinde bulunamadı, eski yöntemi deniyoruz...');
+        if (!fiyatBulundu) {
+          console.log('Fiyat listesinde bulunamadı, eski yöntemi deniyoruz...');
+        }
       } catch (apiError) {
-        console.error('Fiyat listesi API hatası:', apiError);
-        // Hata durumunda eski yöntemi dene
+        console.log('Fiyat listesi API hatası:', apiError);
+        // Hata durumunda sessizce devam et, eski yöntemi dene
       }
       
-      // Eski yöntem: Ürün koduna göre fiyat listesini getir
-      const priceList = await productApi.getProductPriceList(variant.productCode);
-      
-      if (priceList.length > 0) {
-        // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
-        const firstPrice = priceList[0];
-        
-        // Varyantın fiyat ve KDV bilgilerini güncelle
-        variant.salesPrice1 = firstPrice.birimFiyat || 0;
-        variant.vatRate = firstPrice.vatRate || 10;
-        console.log('Eski yöntemle fiyat bilgisi güncellendi:', variant.salesPrice1, 'KDV:', variant.vatRate);
-      } else {
-        console.log('Fiyat listesi bulunamadı, varsayılan değerler kullanılacak');
+      // Fiyat bulunamadıysa eski yöntemi dene
+      if (!fiyatBulundu) {
+        try {
+          // Eski yöntem: Ürün koduna göre fiyat listesini getir
+          const priceList = await productApi.getProductPriceList(variant.productCode);
+          
+          if (priceList.length > 0) {
+            // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
+            const firstPrice = priceList[0];
+            
+            // Varyantın fiyat ve KDV bilgilerini güncelle
+            variant.salesPrice1 = firstPrice.birimFiyat || 0;
+            variant.vatRate = firstPrice.vatRate || 10;
+            console.log('Eski yöntemle fiyat bilgisi güncellendi:', variant.salesPrice1, 'KDV:', variant.vatRate);
+            fiyatBulundu = true;
+          }
+        } catch (priceError) {
+          console.log('Eski yöntem fiyat getirme hatası:', priceError);
+          // Sessizce devam et
+        }
       }
       
-      // Varyantı taranan ürünler listesine ekle
+      // Fiyat bulunamadıysa varsayılan değerleri kullan
+      if (!fiyatBulundu) {
+        console.log('Fiyat listesi bulunamadı, varsayılan değerler kullanılıyor');
+        variant.salesPrice1 = 0; // Varsayılan fiyat 0
+        variant.vatRate = 10;    // Varsayılan KDV oranı 10
+        message.info(`${variant.productCode} için fiyat bulunamadı, 0 TL olarak eklendi.`);
+      }
+      
+      // Her durumda varyantı taranan ürünler listesine ekle
       addVariantToScannedList(variant);
       
     } catch (error) {
       console.error('Ürün fiyatı getirilirken hata oluştu:', error);
-      // Hata olsa bile varyantı ekle
+      // Hata olsa bile varyantı varsayılan değerlerle ekle
+      variant.salesPrice1 = 0;
+      variant.vatRate = 10;
       addVariantToScannedList(variant);
       
-      // Hata durumunda da kullanıcı hızlıca yeni barkod girebilsin
-      message.error('Ürün fiyatı alınırken bir hata oluştu, varsayılan fiyat kullanıldı.');
+      // Bilgilendirme mesajı göster
+      message.info(`${variant.productCode} için fiyat bulunamadı, 0 TL olarak eklendi.`);
     }
   };
 
