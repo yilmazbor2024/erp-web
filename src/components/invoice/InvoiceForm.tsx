@@ -4,8 +4,12 @@ import type { RadioChangeEvent } from 'antd';
 import { PlusOutlined, ArrowLeftOutlined, ArrowRightOutlined, SaveOutlined, InfoCircleOutlined, BarcodeOutlined, CheckOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
+import axios from 'axios';
 import { exchangeRateApi, ExchangeRateSource } from '../../services/exchangeRateApi';
 import { v4 as uuidv4 } from 'uuid';
+
+// API Base URL
+const API_BASE_URL = 'http://localhost:5180';
 
 // Bileşenler
 import InvoiceHeader from './InvoiceHeader';
@@ -1372,15 +1376,28 @@ const onFinish = async (values: any) => {
     // API'ye gönder
     let response;
     try {
-      if (type === InvoiceType.WHOLESALE_SALES) {
-        response = await invoiceApi.createWholesaleInvoice(requestData);
-      } else if (type === InvoiceType.WHOLESALE_PURCHASE) {
-        response = await invoiceApi.createWholesalePurchaseInvoice(requestData);
-      } else if (type === InvoiceType.EXPENSE_SALES || type === InvoiceType.EXPENSE_PURCHASE) {
-        response = await invoiceApi.createExpenseInvoice(requestData);
-      } else {
-        throw new Error('Geçersiz fatura tipi');
-      }
+      console.log('Fatura API çağrısı yapılıyor, fatura tipi:', type);
+      console.log('API isteği:', requestData);
+      
+      // Axios ile doğrudan API çağrısı yap
+      // API_BASE_URL zaten dosyanın başında tanımlı
+      
+      // Axios instance oluştur ve token ekle
+      const token = localStorage.getItem('token');
+      const axiosInstance = axios.create({
+        baseURL: API_BASE_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // Fatura tipine göre doğru endpoint'i belirle
+      let endpoint = '/api/v1/Invoice';
+      
+      // API çağrısını yap
+      const axiosResponse = await axiosInstance.post(endpoint, requestData);
+      response = axiosResponse.data;
       
       console.log('API yanıtı:', response);
     } catch (apiError: any) {
