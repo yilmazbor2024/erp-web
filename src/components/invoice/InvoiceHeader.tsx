@@ -1,8 +1,19 @@
-import React from 'react';
-import { Form, Input, DatePicker, Select, Row, Col, Switch, Tooltip, Space, Radio } from 'antd';
-import { InfoCircleOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Form, Input, DatePicker, Select, Row, Col, Typography, Button, Spin, Divider, message, Radio, Switch, Tooltip, Space } from 'antd';
+import { SearchOutlined, PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { RadioChangeEvent } from 'antd';
+import { shipmentApi, ShipmentMethodResponse } from '../../services/api';
+import { customerService } from '../../services/customerService';
+
+// Bileşen içinde kullanılan ShipmentMethod tipi
+interface ShipmentMethod {
+  shipmentMethodCode: string;
+  shipmentMethodName: string;
+  shipmentMethodDescription: string;
+  isBlocked: boolean;
+  isDefault?: boolean;
+}
 
 const { Option } = Select;
 
@@ -24,6 +35,26 @@ interface InvoiceHeaderProps {
   onExchangeRateSourceChange?: (e: RadioChangeEvent) => void;
 }
 
+interface CustomerAddress {
+  postalAddressId: string;
+  addressName: string;
+  address1: string;
+  address2?: string;
+  cityName?: string;
+  countryName?: string;
+  isDefault?: boolean;
+  isDefaultShippingAddress?: boolean;
+  isDefaultBillingAddress?: boolean;
+}
+
+interface ShipmentMethod {
+  shipmentMethodCode: string;
+  shipmentMethodDescription: string;
+  transportModeCode?: string;
+  transportModeDescription?: string;
+  isBlocked: boolean;
+}
+
 const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   form,
   customers,
@@ -41,8 +72,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   onExchangeRateChange,
   onExchangeRateSourceChange
 }) => {
-  const [exchangeRate, setExchangeRate] = React.useState<number>(1);
-  const [exchangeRateSource, setExchangeRateSource] = React.useState<string>('TCMB');
+  const [exchangeRate, setExchangeRate] = useState<number>(1);
+  const [exchangeRateSource, setExchangeRateSource] = useState<string>('TCMB');
+  const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState<boolean>(false);
+  const [shipmentMethods, setShipmentMethods] = useState<ShipmentMethod[]>([]);
+  const [loadingShipmentMethods, setLoadingShipmentMethods] = useState<boolean>(false);
   
   // Para birimi değiştiğinde döviz kurunu güncelleme
   const handleCurrencyChange = (value: string) => {
@@ -96,6 +131,184 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     setExchangeRateSource(source);
     if (onExchangeRateSourceChange) onExchangeRateSourceChange(e);
   };
+  
+  // Müşteri adreslerini getir
+  const fetchCustomerAddresses = async (customerCode: string) => {
+    if (!customerCode) {
+      console.log('Müşteri kodu boş, adresler getirilmiyor');
+      return;
+    }
+    
+    setLoadingAddresses(true);
+    try {
+      console.log(`Fetching addresses for customer: ${customerCode}`);
+      
+      // İlk olarak müşteri adreslerini API'den getir
+      const response = await customerService.getCustomerAddresses(customerCode);
+      console.log('Müşteri adresleri API yanıtı:', response);
+      
+      let addresses: CustomerAddress[] = [];
+      
+      // API yanıtındaki adresleri kontrol et
+      if (response && response.success && response.data && response.data.length > 0) {
+        addresses = response.data.map((addr: any) => ({
+          postalAddressId: addr.postalAddressId,
+          addressName: addr.addressTypeDescription || 'Adres',
+          address1: addr.address || '',
+          cityName: addr.cityDescription,
+          countryName: addr.countryDescription,
+          isDefault: addr.isDefault
+        }));
+        console.log('API yanıtından dönüştürülen adresler:', addresses);
+      } else {
+        console.log('API yanıtında adres bulunamadı, müşteri detaylarını kontrol ediyorum...');
+        
+        // API yanıtında adres yoksa, müşteri detaylarından adresleri almayı dene
+        try {
+          const customerResponse = await customerService.getCustomerByCode(customerCode);
+          console.log('Müşteri detayları alındı:', customerResponse);
+          
+          // Müşteri detaylarında adresler varsa onları kullan
+          if (customerResponse && customerResponse.addresses && customerResponse.addresses.length > 0) {
+            addresses = customerResponse.addresses.map((addr: any) => ({
+              postalAddressId: addr.postalAddressId,
+              addressName: addr.addressTypeDescription || 'Adres',
+              address1: addr.address || '',
+              cityName: addr.cityDescription,
+              countryName: addr.countryDescription,
+              isDefault: addr.isDefault
+            }));
+            console.log('Müşteri detaylarından alınan adresler:', addresses);
+          } else {
+            console.log('Müşteri detaylarında da adres bulunamadı');
+          }
+        } catch (detailError) {
+          console.error('Müşteri detayları getirme hatası:', detailError);
+        }
+      }
+      
+      // Bulunan adresleri state'e kaydet
+      if (addresses.length > 0) {
+        console.log('Müşteri adresleri başarıyla alındı:', addresses);
+        setCustomerAddresses(addresses);
+        
+        // Varsayılan adresler varsa form alanlarını güncelle
+        const defaultAddress = addresses.find((address: any) => address.isDefault);
+        
+        console.log('Varsayılan adres:', defaultAddress);
+        
+        if (defaultAddress) {
+          console.log('Varsayılan adres form alanları güncelleniyor:', defaultAddress.postalAddressId);
+          form.setFieldsValue({
+            shippingPostalAddressID: defaultAddress.postalAddressId,
+            billingPostalAddressID: defaultAddress.postalAddressId
+          });
+        } else if (addresses.length === 1) {
+          // Sadece bir adres varsa, onu varsayılan olarak kullan
+          console.log('Tek adres bulundu, varsayılan olarak ayarlanıyor:', addresses[0].postalAddressId);
+          form.setFieldsValue({
+            shippingPostalAddressID: addresses[0].postalAddressId,
+            billingPostalAddressID: addresses[0].postalAddressId
+          });
+        }
+      } else {
+        console.log('Müşteri adresleri bulunamadı');
+        setCustomerAddresses([]);
+      }
+    } catch (error) {
+      console.error('Müşteri adresleri getirme hatası:', error);
+      setCustomerAddresses([]);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
+  
+  // Sevkiyat yöntemlerini getir
+  const fetchShipmentMethods = async () => {
+    console.log('fetchShipmentMethods çağrıldı');
+    setLoadingShipmentMethods(true);
+    try {
+      console.log('shipmentApi.getShipmentMethods çağrılıyor...');
+      const response = await shipmentApi.getShipmentMethods();
+      console.log('Sevkiyat yöntemleri API yanıtı:', response);
+      
+      if (response && response.success && response.data) {
+        console.log('Sevkiyat yöntemleri başarıyla alındı:', response.data);
+        
+        // API'den gelen veriyi direkt olarak kullanılabilir formata dönüştür
+        const methods: ShipmentMethod[] = response.data.map((item: any) => ({
+          shipmentMethodCode: item.shipmentMethodCode,
+          shipmentMethodName: item.shipmentMethodName || item.description || item.name || '',
+          shipmentMethodDescription: item.shipmentMethodDescription || item.shipmentMethodName || item.description || item.name || '',
+          transportModeCode: item.transportModeCode || '',
+          transportModeDescription: item.transportModeDescription || '',
+          isBlocked: item.isBlocked === true
+        }));
+        
+        console.log('Dönüştürülmüş sevkiyat yöntemleri:', methods);
+        
+        // Engellenmemiş yöntemleri filtrele
+        const filteredMethods = methods.filter(method => !method.isBlocked);
+        console.log('Filtrelenmiş sevkiyat yöntemleri:', filteredMethods);
+        
+        // State'i güncelle
+        setShipmentMethods(filteredMethods);
+        
+        // Debug: Form alanının adını kontrol et
+        console.log('Form alanı adı:', 'ShipmentMethodCode');
+        console.log('Mevcut form değerleri:', form.getFieldsValue());
+      } else {
+        console.log('Sevkiyat yöntemleri API yanıtı boş veya başarısız');
+        setShipmentMethods([]);
+      }
+    } catch (error) {
+      console.error('Sevkiyat yöntemleri getirme hatası:', error);
+      setShipmentMethods([]);
+    } finally {
+      setLoadingShipmentMethods(false);
+    }
+  };
+  
+  // Müşteri seçildiğinde adreslerini getir
+  const handleCustomerChange = (value: string) => {
+    console.log('handleCustomerChange çağrıldı, value:', value);
+    console.log('currAccType:', currAccType);
+    
+    if (currAccType === 3 && value) { // 3: CUSTOMER
+      console.log('Müşteri seçildi, adresler getiriliyor:', value);
+      // Adres bilgilerini getir
+      fetchCustomerAddresses(value);
+    } else {
+      console.log('Müşteri seçilmedi veya tedarikçi seçildi, adresler temizleniyor');
+      setCustomerAddresses([]);
+      // Adres alanlarını sıfırla
+      form.setFieldsValue({ 
+        shippingPostalAddressID: undefined,
+        billingPostalAddressID: undefined 
+      });
+    }
+  };
+  
+  // Bu useEffect kaldırıldı, yerine Form.Item'a onChange prop'u eklenecek
+  
+  // Sayfa yüklenirken mevcut müşteri için adresleri getir
+  useEffect(() => {
+    const currAccCode = form.getFieldValue('currAccCode');
+    console.log('useEffect: currAccCode değeri:', currAccCode);
+    if (currAccType === 3 && currAccCode) { // 3: CUSTOMER
+      fetchCustomerAddresses(currAccCode);
+    } else {
+      setCustomerAddresses([]);
+    }
+    
+    // Sevkiyat yöntemlerini getir
+    fetchShipmentMethods();
+  }, [currAccType, form]);
+  
+  // Sayfa yüklendiğinde sevkiyat yöntemlerini getir
+  useEffect(() => {
+    fetchShipmentMethods();
+  }, []);
   
   // API'den döviz kuru bilgisini getirme
   const fetchExchangeRate = async (currencyCode: string, date: string) => {
@@ -226,7 +439,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     fetchExchangeRate(currencyCode, formattedDate);
   }, [exchangeRateSource]);
   return (
-    <div className="invoice-header">
+    <Form form={form} layout="vertical">
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} md={8}>
           <Form.Item
@@ -370,6 +583,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               showSearch
               placeholder={`${currAccType === 1 ? "Tedarikçi" : "Müşteri"} seçiniz`}
               optionFilterProp="children"
+              onChange={handleCustomerChange} // Müşteri seçildiğinde adreslerini getir
               filterOption={(input, option) => {
                 if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
                 
@@ -520,6 +734,98 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Form.Item>
         </Col>
 
+        <Col xs={24} sm={12} md={8}>
+          <Form.Item
+            name="shippingPostalAddressID"
+            label="Teslimat Adresi"
+            rules={[{ required: true, message: 'Teslimat adresi seçilmesi zorunludur!' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Teslimat adresi seçiniz"
+              optionFilterProp="children"
+              loading={loadingAddresses}
+              disabled={customerAddresses.length === 0}
+              filterOption={(input, option) => {
+                if (!option || !option.children) return false;
+                return option.children.toString().toLowerCase().includes(input.toLowerCase());
+              }}
+            >
+              {customerAddresses.map((address) => (
+                <Option key={address.postalAddressId} value={address.postalAddressId}>
+                  {address.addressName ? `${address.addressName} - ` : ''}
+                  {address.address1}
+                  {address.address2 ? `, ${address.address2}` : ''}
+                  {address.cityName ? `, ${address.cityName}` : ''}
+                  {address.countryName ? ` / ${address.countryName}` : ''}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} sm={12} md={8}>
+          <Form.Item
+            name="billingPostalAddressID"
+            label="Fatura Adresi"
+            rules={[{ required: true, message: 'Fatura adresi seçilmesi zorunludur!' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Fatura adresi seçiniz"
+              optionFilterProp="children"
+              loading={loadingAddresses}
+              disabled={customerAddresses.length === 0}
+              filterOption={(input, option) => {
+                if (!option || !option.children) return false;
+                return option.children.toString().toLowerCase().includes(input.toLowerCase());
+              }}
+            >
+              {customerAddresses.map((address) => (
+                <Option key={address.postalAddressId} value={address.postalAddressId}>
+                  {address.addressName ? `${address.addressName} - ` : ''}
+                  {address.address1}
+                  {address.address2 ? `, ${address.address2}` : ''}
+                  {address.cityName ? `, ${address.cityName}` : ''}
+                  {address.countryName ? ` / ${address.countryName}` : ''}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Col>
+        
+        <Col xs={24} sm={12} md={8}>
+          <Form.Item
+            name="ShipmentMethodCode"
+            label="Sevkiyat Yöntemi"
+            extra="Sevkiyat yöntemi seçimi zorunlu değildir."
+          >
+            <Select
+              showSearch
+              placeholder="Sevkiyat yöntemi seçiniz"
+              optionFilterProp="children"
+              loading={loadingShipmentMethods}
+              allowClear
+              filterOption={(input, option) => {
+                if (!option || !option.children) return false;
+                return option.children.toString().toLowerCase().includes(input.toLowerCase());
+              }}
+            >
+              {shipmentMethods && shipmentMethods.length > 0 ? (
+                shipmentMethods.map((method) => (
+                  <Option key={method.shipmentMethodCode} value={method.shipmentMethodCode}>
+                    {method.shipmentMethodDescription || method.shipmentMethodName}
+                  </Option>
+                ))
+              ) : (
+                <Option value="" disabled>
+                  Sevkiyat yöntemi bulunamadı
+                </Option>
+              )}
+            </Select>
+          </Form.Item>
+        </Col>
+
         <Col xs={24}>
           <Form.Item
             name="notes"
@@ -529,7 +835,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Form.Item>
         </Col>
       </Row>
-    </div>
+    </Form>
   );
 };
 

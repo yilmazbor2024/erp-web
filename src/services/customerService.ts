@@ -178,13 +178,68 @@ export const customerService = {
   // Müşteri adres bilgilerini getir
   getCustomerAddresses: async (customerCode: string) => {
     try {
+      if (!customerCode) {
+        console.error('Müşteri kodu boş, adresler getirilemez');
+        return { success: false, message: 'Müşteri kodu boş', data: [] };
+      }
+      
       console.log(`Fetching addresses for customer: ${customerCode}`);
-      const response = await apiClient.get(`/api/v1/customer/${customerCode}/addresses`);
+      console.log(`API URL: ${API_BASE_URL}/api/v1/customer/${customerCode}/addresses`);
+      
+      // API endpoint'i büyük/küçük harf duyarlı olabilir, her iki formatı da deneyelim
+      let response;
+      try {
+        // İlk olarak küçük harfle deneyelim
+        response = await apiClient.get(`/api/v1/customer/${customerCode}/addresses`, {
+          timeout: 30000 // 30 saniye timeout
+        });
+      } catch (firstError) {
+        console.log('Küçük harfli endpoint başarısız, büyük harfle deneniyor:', firstError);
+        // Küçük harf başarısız olursa büyük harfle deneyelim
+        response = await apiClient.get(`/api/v1/Customer/${customerCode}/addresses`, {
+          timeout: 30000 // 30 saniye timeout
+        });
+      }
+      
+      console.log('Customer addresses API response status:', response.status);
       console.log('Customer addresses response:', response.data);
-      return response.data;
+      
+      // API yanıtını kontrol et
+      if (!response.data) {
+        console.warn('API returned empty data for customer addresses:', customerCode);
+        return { success: false, message: 'API boş yanıt döndü', data: [] };
+      }
+      
+      // API yanıt yapısını kontrol et
+      if (response.data && response.data.data) {
+        console.log('API response has data.data structure with', response.data.data.length, 'addresses');
+        return response.data;
+      } else if (response.data && Array.isArray(response.data)) {
+        console.log('API response is direct array with', response.data.length, 'addresses');
+        return { success: true, data: response.data, message: 'Adresler başarıyla alındı' };
+      } else {
+        console.log('API response has unknown structure, returning as is');
+        return response.data;
+      }
     } catch (error) {
       console.error(`Error fetching addresses for customer ${customerCode}:`, error);
-      throw error;
+      
+      // Axios hata detaylarını logla
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          console.error('API error response:', {
+            status: error.response.status,
+            data: error.response.data,
+            headers: error.response.headers
+          });
+        } else if (error.request) {
+          console.error('API request made but no response received:', error.request);
+        } else {
+          console.error('Error setting up API request:', error.message);
+        }
+      }
+      
+      return { success: false, message: 'Müşteri adresleri getirilemedi', data: [] };
     }
   },
 

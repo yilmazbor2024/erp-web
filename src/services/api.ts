@@ -17,6 +17,14 @@ export type CustomerCreateResponseNew = any;
 export type CustomerListResponse = any;
 export type CustomerResponse = any;
 
+// Sevkiyat yöntemi yanıt tipi
+export interface ShipmentMethodResponse {
+  shipmentMethodCode: string;
+  shipmentMethodName: string;
+  isBlocked: boolean;
+  isDefault?: boolean;
+}
+
 interface CustomerData {
   CustomerCode: any;
   CustomerName: any;
@@ -486,6 +494,25 @@ export const authApi = {
 };
 
 // Diğer API grupları (invoiceApi, productApi vb.) burada olabilir
+
+// Sevkiyat yöntemleri API'si
+export const shipmentApi = {
+  getShipmentMethods: async () => {
+    try {
+      console.log('API: Fetching shipment methods');
+      const response = await axiosInstance.get<ApiResponse<ShipmentMethodResponse[]>>('/api/v1/ShipmentMethod');
+      if (response.data.success) {
+        console.log('API: Shipment methods fetched successfully', response.data.data);
+        return response.data;
+      }
+      console.error('API: Error fetching shipment methods', response.data.message);
+      throw new Error(response.data.message || 'Sevkiyat yöntemleri alınamadı');
+    } catch (error) {
+      console.error('API: Exception while fetching shipment methods', error);
+      throw error;
+    }
+  }
+};
 
 export const invoiceApi = {
   // Örnek fatura API çağrıları

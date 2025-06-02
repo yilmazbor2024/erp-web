@@ -55,12 +55,38 @@ interface InvoiceDetail {
   subtotalAmount?: number;
   vatAmount?: number;
   netAmount?: number;
+  // Ürün varyant bilgileri
   colorCode?: string;
   colorDescription?: string;
   itemDim1Code?: string;
+  itemDim2Code?: string;
+  itemDim3Code?: string;
   currencyCode?: string;
   exchangeRate?: number;
   tryEquivalent?: number; // TL karşılığı
+}
+
+// Backend'e gönderilecek fatura detayı formatı
+interface InvoiceDetailRequest {
+  itemCode: string;
+  // Ürün varyant bilgileri
+  colorCode?: string;
+  itemDim1Code?: string;
+  itemDim2Code?: string;
+  itemDim3Code?: string;
+  quantity: number;
+  unitOfMeasureCode: string;
+  unitPrice: number;
+  vatRate: number;
+  discountRate: number;
+  description: string;
+  totalAmount: number;
+  discountAmount: number;
+  subtotalAmount: number;
+  vatAmount: number;
+  netAmount: number;
+  currencyCode: string;
+  exchangeRate: number;
 }
 
 // API için istek tipi
@@ -88,7 +114,10 @@ interface CreateInvoiceRequest {
   netAmount?: number;
   exchangeRate?: number; // TL karşılığı (kur) değeri
   tryEquivalentTotal?: number; // Toplam tutarın TL karşılığı
-  details: any[];
+  shippingPostalAddressID?: string; // Teslimat adresi ID'si
+  billingPostalAddressID?: string;   // Fatura adresi ID'si
+  ShipmentMethodCode?: string;       // Sevkiyat yöntemi kodu
+  details: InvoiceDetailRequest[];
 }
 
 // Bileşen props
@@ -1297,11 +1326,20 @@ const handleSave = () => {
   message.info('Form gönderiliyor...');
   setLoading(true); // Yükleme durumunu başlat
   
+  // Fatura detaylarını kontrol et
+  if (!invoiceDetails || invoiceDetails.length === 0) {
+    console.error('Fatura detayları boş! En az bir ürün eklemelisiniz.');
+    message.error('Fatura detayları boş! En az bir ürün eklemelisiniz.');
+    setLoading(false);
+    return;
+  }
+  
   // Form validasyonunu kontrol et
   form.validateFields()
-    .then(() => {
-      console.log('Form doğrulandı, gönderiliyor...');
-      form.submit(); // Form gönderme işlemini başlat
+    .then(values => {
+      console.log('Form doğrulandı, gönderiliyor...', values);
+      // Form.submit yerine doğrudan onFinish fonksiyonunu çağır
+      onFinish(values);
     })
     .catch(errorInfo => {
       console.error('Form doğrulama hatası:', errorInfo);
@@ -1326,19 +1364,70 @@ const onFinish = async (values: any) => {
                            CurrAccType.CUSTOMER : CurrAccType.VENDOR;
     
     // Fatura detaylarını hazırla
-    const details = invoiceDetails.map(detail => ({
-      itemCode: detail.itemCode,
-      quantity: detail.quantity,
-      unitOfMeasureCode: detail.unitOfMeasureCode,
-      unitPrice: detail.unitPrice,
-      vatRate: detail.vatRate,
-      discountRate: detail.discountRate || 0,
-      description: detail.description || '',
-      currencyCode: detail.currencyCode || values.docCurrencyCode,
-      exchangeRate: detail.exchangeRate || values.exchangeRate
-    }));
+    console.log('Hazırlanacak fatura detayları:', invoiceDetails);
     
-    // API isteği için veri hazırla
+    if (!invoiceDetails || invoiceDetails.length === 0) {
+      message.error('Fatura detayları boş! En az bir ürün eklemelisiniz.');
+      setLoading(false);
+      return;
+    }
+    
+    // Adres kontrolleri
+    if (!values.shippingPostalAddressID) {
+      message.error('Teslimat adresi seçilmesi zorunludur!');
+      setLoading(false);
+      return;
+    }
+    
+    if (!values.billingPostalAddressID) {
+      message.error('Fatura adresi seçilmesi zorunludur!');
+      setLoading(false);
+      return;
+    }
+    
+    // Fatura detaylarını doğru formatta hazırla
+    const formattedDetails: InvoiceDetailRequest[] = [];
+    
+    // Her bir detayı döngüyle işle ve formatlayarak yeni diziye ekle
+    for (let i = 0; i < invoiceDetails.length; i++) {
+      const detail = invoiceDetails[i];
+      console.log(`Detay ${i + 1}:`, detail);
+      
+      // Hesaplanan tutarları kontrol et ve varsayılan değerler ata
+      const totalAmount = detail.totalAmount || (detail.quantity * detail.unitPrice) || 0;
+      const discountAmount = detail.discountAmount || 0;
+      const subtotalAmount = detail.subtotalAmount || totalAmount - discountAmount || 0;
+      const vatAmount = detail.vatAmount || (subtotalAmount * (detail.vatRate / 100)) || 0;
+      const netAmount = detail.netAmount || subtotalAmount + vatAmount || 0;
+      
+      // Backend'in beklediği formatta detay oluştur
+      const formattedDetail: InvoiceDetailRequest = {
+        itemCode: detail.itemCode,
+        // Ürün varyant bilgilerini ekle
+        colorCode: detail.colorCode || 'STD',  // Varsayılan olarak STD renk kodu
+        itemDim1Code: detail.itemDim1Code || '',
+        itemDim2Code: detail.itemDim2Code || '',
+        itemDim3Code: detail.itemDim3Code || '',
+        quantity: detail.quantity,
+        unitOfMeasureCode: detail.unitOfMeasureCode || 'AD',
+        unitPrice: detail.unitPrice || 0,
+        vatRate: detail.vatRate || 10,
+        discountRate: detail.discountRate || 0,
+        description: detail.description || detail.productDescription || '',
+        totalAmount: totalAmount,
+        discountAmount: discountAmount,
+        subtotalAmount: subtotalAmount,
+        vatAmount: vatAmount,
+        netAmount: netAmount,
+        currencyCode: detail.currencyCode || values.docCurrencyCode || 'TRY',
+        exchangeRate: detail.exchangeRate || values.exchangeRate || 1
+      };
+      
+      formattedDetails.push(formattedDetail);
+    }
+    
+    console.log('Formatlanan fatura detayları:', formattedDetails);
+    
     const requestData: CreateInvoiceRequest = {
       invoiceNumber: values.invoiceNumber || 'Otomatik',
       invoiceTypeCode: values.invoiceTypeCode || invoiceTypeCode,
@@ -1361,7 +1450,10 @@ const onFinish = async (values: any) => {
       netAmount: netAmount,
       exchangeRate: values.exchangeRate || 1,
       tryEquivalentTotal: values.tryEquivalentTotal,
-      details: details
+      shippingPostalAddressID: values.shippingPostalAddressID, // Teslimat adresi ID'si
+      billingPostalAddressID: values.billingPostalAddressID,   // Fatura adresi ID'si
+      ShipmentMethodCode: values.ShipmentMethodCode,           // Sevkiyat yöntemi kodu (opsiyonel) - form alanı ve backend'de büyük harfle başlıyor
+      details: formattedDetails // Formatlanan detayları kullan
     };
     
     // Müşteri veya tedarikçi kodunu ekle
@@ -1396,10 +1488,52 @@ const onFinish = async (values: any) => {
       let endpoint = '/api/v1/Invoice';
       
       // API çağrısını yap
-      const axiosResponse = await axiosInstance.post(endpoint, requestData);
-      response = axiosResponse.data;
+      console.log(`API çağrısı yapılıyor: ${endpoint}`);
+      console.log('Gönderilen veri detayları:', {
+        "invoiceNumber": requestData.invoiceNumber,
+        "invoiceTypeCode": requestData.invoiceTypeCode,
+        "invoiceDate": requestData.invoiceDate,
+        "currAccCode": requestData.currAccCode,
+        "docCurrencyCode": requestData.docCurrencyCode,
+        "shippingPostalAddressID": requestData.shippingPostalAddressID,
+        "billingPostalAddressID": requestData.billingPostalAddressID,
+        "ShipmentMethodCode": requestData.ShipmentMethodCode,
+        "detaylar": requestData.details ? requestData.details.length : 0
+      });
       
-      console.log('API yanıtı:', response);
+      // Özellikle detayları kontrol et
+      if (!requestData.details || requestData.details.length === 0) {
+        console.error('Fatura detayları boş! API çağrısı iptal ediliyor.');
+        message.error('Fatura detayları boş! Lütfen en az bir ürün ekleyin.');
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        // Önce request data'yı JSON'a çevirip sonra tekrar parse edelim
+        // Bu, detayların doğru formatta gönderilmesini sağlar
+        const jsonString = JSON.stringify(requestData);
+        console.log('JSON String:', jsonString);
+        const parsedData = JSON.parse(jsonString);
+        console.log('Parsed Data:', parsedData);
+        
+        // Detayların doğru formatta olduğundan emin olalım
+        console.log('API çağrısında gönderilen detaylar:', parsedData.details);
+        
+        // API çağrısını yap
+        const axiosResponse = await axiosInstance.post(endpoint, parsedData);
+        response = axiosResponse.data;
+        console.log('API yanıtı (başarılı):', response);
+      } catch (error: any) {
+        console.error('API yanıtı (hata):', error.response?.data || error.message);
+        if (error.response?.data) {
+          message.error(`Sunucu hatası: ${error.response.data.message || JSON.stringify(error.response.data)}`);
+        } else {
+          message.error(`İstek hatası: ${error.message}`);
+        }
+        setLoading(false);
+        return;
+      }
     } catch (apiError: any) {
       console.error('API çağrısı sırasında hata:', apiError);
       message.error({ content: `API hatası: ${apiError.message || 'Bilinmeyen hata'}`, key: 'invoiceSave' });
