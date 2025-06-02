@@ -59,19 +59,33 @@ const inventoryApi = {
       
       const response = await axiosInstance.get(endpoint);
       console.log('Envanter API - Yanıt alındı');
-
-      
       console.log('Envanter API - Response:', response);
       
-      if (response.data && response.data.isSuccess && Array.isArray(response.data.data)) {
-        console.log('Envanter stok bilgisi bulundu:', response.data.data);
+      // API yanıt yapısı kontrolü - İki farklı format olabilir
+      // Format 1: {data: Array, success: true, message: string}
+      // Format 2: {data: {isSuccess: true, data: Array}}
+      
+      let inventoryData: any[] = [];
+      
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        // Format 1: {data: Array, success: true}
+        console.log('Format 1: Başarılı yanıt, data dizisi bulundu:', response.data.data);
+        inventoryData = response.data.data;
+      } else if (response.data && response.data.isSuccess && Array.isArray(response.data.data)) {
+        // Format 2: {data: {isSuccess: true, data: Array}}
+        console.log('Format 2: Başarılı yanıt, data dizisi bulundu:', response.data.data);
+        inventoryData = response.data.data;
+      }
+      
+      if (inventoryData.length > 0) {
+        console.log('Envanter stok bilgisi bulundu, veri dönüştürülüyor:', inventoryData);
         
         // API'den gelen verileri InventoryStock formatına dönüştür
-        const inventoryStocks: InventoryStock[] = response.data.data.map((item: any) => ({
+        const inventoryStocks: InventoryStock[] = inventoryData.map((item: any) => ({
           itemTypeCode: item.itemTypeCode || '',
-          itemCode: item.itemCode || '',
-          usedBarcode: item.usedBarcode || '',
-          itemDescription: item.itemDescription || '',
+          itemCode: item.itemCode || item.productCode || '',
+          usedBarcode: item.usedBarcode || item.barcode || '',
+          itemDescription: item.itemDescription || item.productDescription || '',
           colorDescription: item.colorDescription || '',
           binCode: item.binCode || '',
           unitOfMeasureCode: item.unitOfMeasureCode || '',
