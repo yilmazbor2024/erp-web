@@ -2,7 +2,8 @@ import React, { useRef, useEffect, ReactNode, useState } from 'react';
 import { Modal, Input, Button, Table, InputNumber, Row, Col, Space, Typography, Spin, Empty, message, Tag, Switch } from 'antd';
 import { ScanOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { ProductVariant } from '../../services/productApi';
-import { InventoryStock } from '../../services/inventoryApi';
+import { InventoryStock, InventorySearchParams } from '../../services/inventoryApi';
+import inventoryApi from '../../services/inventoryApi';
 import type { InputRef } from 'antd/lib/input';
 import type { ColumnsType } from 'antd/lib/table';
 
@@ -60,7 +61,9 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
 }) => {
   const [bulkPrice, setBulkPrice] = useState<number | null>(null);
   const [bulkVatRate, setBulkVatRate] = useState<number>(10); // Varsayılan KDV oranı
-  const [searchByProduct, setSearchByProduct] = useState<boolean>(false); // false: barkod ile arama, true: ürün kodu/açıklaması ile arama
+  const [searchByProduct, setSearchByProduct] = useState<boolean>(false); // false: barkod/varyant ile arama, true: ürün kodu/açıklaması ile arama
+  const [localInventoryStock, setLocalInventoryStock] = useState<InventoryStock[]>([]);
+  const [localLoadingInventory, setLocalLoadingInventory] = useState<boolean>(false);
   
   // Toplu fiyat güncelleme fonksiyonu
   const updateAllPrices = () => {
@@ -90,6 +93,23 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       }, 100);
     }
   }, [open, inputRef]);
+  
+  // Ürün varyantları değiştiğinde stok verilerini yükle
+  useEffect(() => {
+    if (productVariants.length > 0) {
+      const firstVariant = productVariants[0];
+      console.log("productVariants değişti, stok verilerini yükleniyor:", firstVariant.productCode);
+      
+      // Ürün kodu ile stok verilerini yükle
+      loadInventoryStock({
+        productCode: firstVariant.productCode,
+        showOnlyPositiveStock: true
+      }).then(stockData => {
+        console.log("Stok verileri yüklendi ve state güncellendi:", stockData);
+        // Stok verileri yüklendi, forceUpdate yerine doğrudan render edilmesini bekliyoruz
+      });
+    }
+  }, [productVariants]);
 
   // Enter tuşuna basıldığında arama yap
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -98,44 +118,183 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     }
   };
   
+  // Stok verilerini yükle
+  const loadInventoryStock = async (params: {
+    barcode?: string;
+    productCode?: string;
+    colorCode?: string;
+    itemDim1Code?: string;
+    showOnlyPositiveStock?: boolean;
+  }) => {
+    setLocalLoadingInventory(true);
+    console.log('Stok verileri yükleniyor:', params);
+    
+    try {
+      const stockData = await inventoryApi.getInventoryStock(params);
+      console.log('Yüklenen stok verileri:', stockData);
+      
+      // Stok verilerini state'e kaydet
+      setLocalInventoryStock(stockData);
+      
+      return stockData;
+    } catch (error) {
+      console.error('Stok verileri yüklenirken hata oluştu:', error);
+      message.error('Stok verileri yüklenirken bir hata oluştu');
+      return [];
+    } finally {
+      setLocalLoadingInventory(false);
+    }
+  };
+
   // Arama işlemini gerçekleştir
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (!barcodeInput.trim()) {
       message.warning('Lütfen arama metni girin');
       return;
     }
     
-    // Doğrudan seçilen moda göre arama yap
-    if (searchByProduct) {
-      // Ürün kodu veya açıklaması ile arama
-      console.log('Ürün kodu/açıklaması ile arama yapılıyor:', barcodeInput);
-      if (onSearchByProductCodeOrDescription) {
-        onSearchByProductCodeOrDescription(barcodeInput);
+    try {
+      // Doğrudan seçilen moda göre arama yap
+      if (searchByProduct) {
+        // Ürün kodu veya açıklaması ile arama
+        console.log('Ürün kodu/açıklaması ile arama yapılıyor:', barcodeInput);
+        
+        // Ürün kodu ile stok verilerini yükle
+        const stockData = await loadInventoryStock({ 
+          productCode: barcodeInput.trim(),
+          showOnlyPositiveStock: true 
+        });
+        
+        console.log('Ürün kodu araması için stok verileri yüklendi:', stockData);
+        
+        // State güncellemesinin tamamlanması için küçük bir gecikme
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        if (onSearchByProductCodeOrDescription) {
+          onSearchByProductCodeOrDescription(barcodeInput);
+        } else {
+          message.error('Ürün kodu veya açıklaması ile arama fonksiyonu tanımlanmamış');
+        }
       } else {
-        message.error('Ürün kodu veya açıklaması ile arama fonksiyonu tanımlanmamış');
+        // Barkod ile arama - Barkod formatını kontrol et
+        console.log('Barkod ile arama yapılıyor:', barcodeInput);
+        
+        // Barkod formatını kontrol et (genellikle sayısal ve belirli uzunlukta olur)
+        const isValidBarcode = /^\d{8,14}$/.test(barcodeInput.trim());
+        
+        if (isValidBarcode) {
+          // Önce stok verilerini yükle
+          const stockData = await loadInventoryStock({ 
+            barcode: barcodeInput.trim(),
+            showOnlyPositiveStock: true 
+          });
+          
+          console.log('Barkod araması için stok verileri yüklendi:', stockData);
+          
+          // State güncellemesinin tamamlanması için küçük bir gecikme
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Sonra ürün varyantlarını ara
+          onSearch(barcodeInput);
+        } else {
+          // Barkod formatı geçerli değil, varyant bilgisi olabilir
+          // Format: URUNCODE-RENKKODU-BEDENKODU şeklinde olabilir
+          const parts = barcodeInput.split('-');
+          
+          if (parts.length >= 1) {
+            // En azından ürün kodu var, varyant araması yap
+            const productCode = parts[0].trim();
+            const colorCode = parts.length >= 2 ? parts[1].trim() : '';
+            const itemDim1Code = parts.length >= 3 ? parts[2].trim() : '';
+            
+            console.log(`Varyant bazında arama: Ürün Kodu=${productCode}, Renk Kodu=${colorCode || 'Yok'}, Beden Kodu=${itemDim1Code || 'Yok'}`);
+            
+            // Varyant parametreleri ile stok verilerini yükle
+            const stockData = await loadInventoryStock({
+              productCode: productCode,
+              colorCode: colorCode || undefined,
+              itemDim1Code: itemDim1Code || undefined,
+              showOnlyPositiveStock: true
+            });
+            
+            console.log('Varyant araması için stok verileri yüklendi:', stockData);
+            
+            // State güncellemesinin tamamlanması için küçük bir gecikme
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Varyant bazında arama için onSearch fonksiyonunu çağır
+            onSearch(barcodeInput);
+          } else {
+            message.warning('Geçersiz barkod veya varyant formatı');
+          }
+        }
       }
-    } else {
-      // Barkod ile arama
-      console.log('Barkod ile arama yapılıyor:', barcodeInput);
-      onSearch(barcodeInput);
+    } catch (error) {
+      console.error('Arama sırasında hata oluştu:', error);
+      message.error('Arama sırasında bir hata oluştu');
     }
   };
 
-  // Stok miktarını bul
+  // Force update için özel hook
+  const useForceUpdate = () => {
+    const [, setValue] = useState(0);
+    return () => setValue(value => value + 1);
+  };
+  
+  // Force update fonksiyonu
+  const forceUpdate = useForceUpdate();
+  
+  // Stok verilerini izle ve değiştiğinde yeniden render et
+  useEffect(() => {
+    if (localInventoryStock && localInventoryStock.length > 0) {
+      console.log('Stok verileri değişti, yeniden render ediliyor');
+      forceUpdate();
+    }
+  }, [localInventoryStock]);
+  
+  // Stok miktarını bul - düzeltilmiş implementasyon
   const getStockQuantity = (variant: ProductVariant): ReactNode => {
-    // Envanter/Stok Bilgisi tablosundan doğru stok miktarını bul
-    const stock = inventoryStock?.find(s => 
-      s.itemCode === variant.productCode && 
-      s.colorCode === variant.colorCode && 
-      s.itemDim1Code === variant.itemDim1Code
+    // Yükleme durumunda spinner göster
+    if (localLoadingInventory || loadingInventory) {
+      return <Spin size="small" />;
+    }
+    
+    // Hem local hem de props'tan gelen stok verilerini birleştir
+    const stockData = [...(localInventoryStock || []), ...(inventoryStock || [])];
+    
+    // Debug için stok verilerini konsola yazdır
+    console.log('getStockQuantity - Ürün:', variant.productCode, variant.colorCode, variant.itemDim1Code);
+    console.log('getStockQuantity - Stok verileri:', stockData);
+    
+    // Önce barkod ile eşleşme ara
+    let stock = variant.barcode && stockData.find(s => 
+      s.usedBarcode === variant.barcode
     );
     
-    // Stok miktarını göster - eğer varsa stok.qty değerini, yoksa 0 göster
-    return loadingInventory ? 
-      <Spin size="small" /> : 
+    // Barkod ile eşleşme yoksa, tam varyant bilgileri ile ara
+    if (!stock) {
+      stock = stockData.find(s => 
+        s.itemCode === variant.productCode && 
+        s.colorCode === variant.colorCode && 
+        s.itemDim1Code === variant.itemDim1Code
+      );
+    }
+    
+    // Hala eşleşme yoksa, sadece ürün kodu ile ara
+    if (!stock) {
+      stock = stockData.find(s => 
+        s.itemCode === variant.productCode
+      );
+    }
+    
+    console.log('getStockQuantity - Bulunan stok:', stock);
+    
+    // Stok miktarını göster
+    return (
       <Tag color={stock && stock.qty > 0 ? 'green' : 'red'}>
         {stock ? stock.qty.toFixed(2) : '0.00'}
-      </Tag>;
+      </Tag>
+    );
   };
   
   // Bulunan tüm varyantları listeye ekle
@@ -180,13 +339,20 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
         <Col span={24}>
           <Space align="center">
             <Text>Barkod ile Ara</Text>
-            <Switch 
+            <Switch
               checked={searchByProduct}
-              onChange={(checked) => {
-                setSearchByProduct(checked);
-                setBarcodeInput(''); // Mod değiştiğinde input'u temizle
-              }}
+              onChange={(checked) => setSearchByProduct(checked)}
+              checkedChildren="Ürün Kodu/Açıklaması"
+              unCheckedChildren="Barkod/Varyant"
+              style={{ marginBottom: 8, width: 180 }}
             />
+            {!searchByProduct && (
+              <div style={{ marginBottom: 8 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Barkod veya varyant formatı (URUNCODE-RENKKODU-BEDENKODU) girebilirsiniz
+                </Text>
+              </div>
+            )}
             <Text>Ürün Kodu/Açıklaması ile Ara</Text>
           </Space>
         </Col>
@@ -371,33 +537,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
                 title: 'Stok',
                 key: 'stock',
                 width: 80,
-                render: (_, record: ProductVariant) => {
-                  // Debug için stok verilerini konsola yazdır
-                  console.log('BarcodeModal - Ürün:', record.productCode, record.colorCode, record.itemDim1Code);
-                  console.log('BarcodeModal - Tüm stok verileri:', inventoryStock);
-                  
-                  // Envanter/Stok Bilgisi tablosundan doğru stok miktarını bul
-                  // Önce tam eşleşme ara
-                  let stock = inventoryStock?.find(s => 
-                    s.itemCode === record.productCode && 
-                    s.colorCode === record.colorCode && 
-                    s.itemDim1Code === record.itemDim1Code
-                  );
-                  
-                  // Tam eşleşme bulunamazsa sadece ürün koduna göre ara
-                  if (!stock && inventoryStock && inventoryStock.length > 0) {
-                    stock = inventoryStock.find(s => s.itemCode === record.productCode);
-                  }
-                  
-                  console.log('BarcodeModal - Bulunan stok:', stock);
-                  
-                  // Stok miktarını göster - eğer varsa stok.qty değerini, yoksa 0 göster
-                  return loadingInventory ? 
-                    <Spin size="small" /> : 
-                    <Tag color={stock && stock.qty > 0 ? 'green' : 'red'}>
-                      {stock ? stock.qty.toFixed(2) : '0.00'}
-                    </Tag>;
-                }
+                render: (_, record: ProductVariant) => getStockQuantity(record)
               },
               {
                 title: 'İşlem',
