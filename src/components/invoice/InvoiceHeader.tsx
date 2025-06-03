@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, DatePicker, Select, Row, Col, Typography, Button, Spin, Divider, message, Radio, Switch, Tooltip, Space } from 'antd';
+import moment from 'moment';
+import { Form, Input, DatePicker, Select, Row, Col, Typography, Button, Spin, Divider, message, Radio, Switch, Tooltip, Space, Empty } from 'antd';
 import { SearchOutlined, PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { RadioChangeEvent } from 'antd';
-import { shipmentApi, ShipmentMethodResponse } from '../../services/api';
+import { shipmentApi } from '../../services/api';
 import { customerService } from '../../services/customerService';
-
-// Bileşen içinde kullanılan ShipmentMethod tipi
-interface ShipmentMethod {
-  shipmentMethodCode: string;
-  shipmentMethodName: string;
-  shipmentMethodDescription: string;
-  isBlocked: boolean;
-  isDefault?: boolean;
-}
+import { exchangeRateService } from '../../services/exchangeRateService';
 
 const { Option } = Select;
+const { Text, Title } = Typography;
+
+// Fatura tipi enum - InvoiceForm ile aynı olmalı
+enum InvoiceType {
+  WHOLESALE_SALES = 'WS',
+  WHOLESALE_PURCHASE = 'BP',
+  EXPENSE_SALES = 'EXP',
+  EXPENSE_PURCHASE = 'EP'
+}
 
 interface InvoiceHeaderProps {
   form: any;
@@ -25,7 +27,6 @@ interface InvoiceHeaderProps {
   warehouses: any[];
   currencies: any[];
   loadingCurrencies: boolean;
-  currAccType: number;
   isReturn: boolean;
   setIsReturn: (value: boolean) => void;
   isEInvoice: boolean;
@@ -33,6 +34,7 @@ interface InvoiceHeaderProps {
   onCurrencyChange?: (currencyCode: string) => void;
   onExchangeRateChange?: (rate: number) => void;
   onExchangeRateSourceChange?: (e: RadioChangeEvent) => void;
+  invoiceType: InvoiceType;
 }
 
 interface CustomerAddress {
@@ -47,12 +49,16 @@ interface CustomerAddress {
   isDefaultBillingAddress?: boolean;
 }
 
+// Sevkiyat yöntemi arayüzü - API'den gelen veri yapısına uygun
 interface ShipmentMethod {
   shipmentMethodCode: string;
-  shipmentMethodDescription: string;
+  shipmentMethodName?: string;
+  shipmentMethodDescription?: string;
+  description?: string;
   transportModeCode?: string;
   transportModeDescription?: string;
   isBlocked: boolean;
+  isDefault?: boolean;
 }
 
 const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
@@ -63,101 +69,77 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   warehouses,
   currencies,
   loadingCurrencies,
-  currAccType,
   isReturn,
   setIsReturn,
   isEInvoice,
   setIsEInvoice,
   onCurrencyChange,
   onExchangeRateChange,
-  onExchangeRateSourceChange
+  onExchangeRateSourceChange,
+  invoiceType
 }) => {
-  const [exchangeRate, setExchangeRate] = useState<number>(1);
-  const [exchangeRateSource, setExchangeRateSource] = useState<string>('TCMB');
+  // State tanımlamaları
   const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
+  const [vendorAddresses, setVendorAddresses] = useState<CustomerAddress[]>([]);
   const [loadingAddresses, setLoadingAddresses] = useState<boolean>(false);
   const [shipmentMethods, setShipmentMethods] = useState<ShipmentMethod[]>([]);
   const [loadingShipmentMethods, setLoadingShipmentMethods] = useState<boolean>(false);
-  
-  // Para birimi değiştiğinde döviz kurunu güncelleme
-  const handleCurrencyChange = (value: string) => {
-    if (onCurrencyChange && typeof value === 'string') {
-      onCurrencyChange(value);
-      
-      // Para birimi boş veya null ise kur 0 olarak ayarlanır
-      if (!value) {
-        setExchangeRate(0);
-        form.setFieldsValue({ exchangeRate: 0 });
-        if (onExchangeRateChange) onExchangeRateChange(0);
-        return;
+  const [isCustomerCurrency, setIsCustomerCurrency] = useState<boolean>(false);
+  const [isVendorCurrency, setIsVendorCurrency] = useState<boolean>(false);
+  const [exchangeRateDisabled, setExchangeRateDisabled] = useState<boolean>(true);
+  const [exchangeRate, setExchangeRate] = useState<number>(0);
+  const [exchangeRateSource, setExchangeRateSource] = useState<string>('TCMB'); // TCMB varsayılan olarak seçili
+
+  // Sevkiyat yöntemlerini getir
+  const fetchShipmentMethods = async () => {
+    setLoadingShipmentMethods(true);
+    try {
+      const response = await shipmentApi.getShipmentMethods();
+      if (response && response.data) {
+        setShipmentMethods(response.data);
+        console.log('Sevkiyat yöntemleri yüklendi:', response.data);
+        
+        // Varsayılan olarak hiçbir sevkiyat yöntemi seçilmeyecek
+        // Kullanıcının manuel olarak seçmesi gerekiyor
+        form.setFieldsValue({ shipmentMethodCode: '' });
       }
-      
-      // TRY seçilirse kur 1 olarak ayarlanır
-      if (value === 'TRY') {
-        setExchangeRate(1);
-        form.setFieldsValue({ exchangeRate: 1 });
-        if (onExchangeRateChange) onExchangeRateChange(1);
-        return;
-      }
-      
-      // Seçilen para birimi ve tarihe göre kur bilgisini API'den al
-      const invoiceDate = form.getFieldValue('invoiceDate');
-      if (invoiceDate) {
-        const formattedDate = dayjs(invoiceDate).format('YYYY-MM-DD');
-        fetchExchangeRate(value, formattedDate);
-      } else {
-        // Tarih yoksa kur 0 olarak ayarlanır
-        setExchangeRate(0);
-        form.setFieldsValue({ exchangeRate: 0 });
-        if (onExchangeRateChange) onExchangeRateChange(0);
-      }
+    } catch (error) {
+      console.error('Sevkiyat yöntemleri alınırken hata oluştu:', error);
+      message.error('Sevkiyat yöntemleri alınırken hata oluştu');
+    } finally {
+      setLoadingShipmentMethods(false);
     }
   };
-  
-  // Döviz kuru değiştiğinde
-  const handleExchangeRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rate = parseFloat(e.target.value);
-    if (!isNaN(rate)) {
-      setExchangeRate(rate);
-      if (onExchangeRateChange) onExchangeRateChange(rate);
-    }
-  };
-  
-  // Döviz kuru kaynağı değiştiğinde
-  const handleExchangeRateSourceChange = (e: RadioChangeEvent) => {
-    if (!e || !e.target) return;
-    
-    const source = e.target.value;
-    setExchangeRateSource(source);
-    if (onExchangeRateSourceChange) onExchangeRateSourceChange(e);
-  };
-  
+
+  // Bileşen yüklendiğinde sevkiyat yöntemlerini getir
+  useEffect(() => {
+    fetchShipmentMethods();
+  }, []);
+
   // Müşteri adreslerini getir
-  const fetchCustomerAddresses = async (customerCode: string) => {
-    if (!customerCode) {
+  const fetchCustomerAddresses = async (customerId: string) => {
+    if (!customerId) {
       console.log('Müşteri kodu boş, adresler getirilmiyor');
       return;
     }
     
     setLoadingAddresses(true);
     try {
-      console.log(`Fetching addresses for customer: ${customerCode}`);
-      
-      // İlk olarak müşteri adreslerini API'den getir
-      const response = await customerService.getCustomerAddresses(customerCode);
+      const response = await customerService.getCustomerAddresses(customerId);
       console.log('Müşteri adresleri API yanıtı:', response);
       
       let addresses: CustomerAddress[] = [];
       
-      // API yanıtındaki adresleri kontrol et
-      if (response && response.success && response.data && response.data.length > 0) {
+      if (response && response.data && response.data.length > 0) {
         addresses = response.data.map((addr: any) => ({
           postalAddressId: addr.postalAddressId,
           addressName: addr.addressTypeDescription || 'Adres',
           address1: addr.address || '',
           cityName: addr.cityDescription,
           countryName: addr.countryDescription,
-          isDefault: addr.isDefault
+          isDefault: addr.isDefault,
+          isDefaultBillingAddress: addr.isDefaultBillingAddress,
+          isDefaultShippingAddress: addr.isDefaultShippingAddress
         }));
         console.log('API yanıtından dönüştürülen adresler:', addresses);
       } else {
@@ -165,7 +147,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         
         // API yanıtında adres yoksa, müşteri detaylarından adresleri almayı dene
         try {
-          const customerResponse = await customerService.getCustomerByCode(customerCode);
+          const customerResponse = await customerService.getCustomerByCode(customerId);
           console.log('Müşteri detayları alındı:', customerResponse);
           
           // Müşteri detaylarında adresler varsa onları kullan
@@ -176,7 +158,9 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               address1: addr.address || '',
               cityName: addr.cityDescription,
               countryName: addr.countryDescription,
-              isDefault: addr.isDefault
+              isDefault: addr.isDefault,
+              isDefaultBillingAddress: addr.isDefaultBillingAddress,
+              isDefaultShippingAddress: addr.isDefaultShippingAddress
             }));
             console.log('Müşteri detaylarından alınan adresler:', addresses);
           } else {
@@ -192,640 +176,949 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         console.log('Müşteri adresleri başarıyla alındı:', addresses);
         setCustomerAddresses(addresses);
         
-        // Varsayılan adresler varsa form alanlarını güncelle
-        const defaultAddress = addresses.find((address: any) => address.isDefault);
+        // Varsayılan fatura adresi
+        const defaultBillingAddress = addresses.find((address: CustomerAddress) => 
+          address.isDefaultBillingAddress || address.isDefault
+        );
         
-        console.log('Varsayılan adres:', defaultAddress);
+        // Varsayılan teslimat adresi
+        const defaultShippingAddress = addresses.find((address: CustomerAddress) => 
+          address.isDefaultShippingAddress || address.isDefault
+        );
         
-        if (defaultAddress) {
-          console.log('Varsayılan adres form alanları güncelleniyor:', defaultAddress.postalAddressId);
-          form.setFieldsValue({
-            shippingPostalAddressID: defaultAddress.postalAddressId,
-            billingPostalAddressID: defaultAddress.postalAddressId
-          });
+        console.log('Varsayılan fatura adresi:', defaultBillingAddress);
+        console.log('Varsayılan teslimat adresi:', defaultShippingAddress);
+        
+        // Form alanlarını güncelle
+        const formUpdate: any = {};
+        
+        // Müşteri kodunu currAccCode alanına set et
+        formUpdate.currAccCode = customerId;
+        
+        // Fatura adresi seçimi
+        if (defaultBillingAddress) {
+          formUpdate.billingPostalAddressID = defaultBillingAddress.postalAddressId;
+          console.log('Varsayılan fatura adresi seçildi:', defaultBillingAddress.postalAddressId);
         } else if (addresses.length === 1) {
-          // Sadece bir adres varsa, onu varsayılan olarak kullan
-          console.log('Tek adres bulundu, varsayılan olarak ayarlanıyor:', addresses[0].postalAddressId);
-          form.setFieldsValue({
-            shippingPostalAddressID: addresses[0].postalAddressId,
-            billingPostalAddressID: addresses[0].postalAddressId
-          });
+          formUpdate.billingPostalAddressID = addresses[0].postalAddressId;
+          console.log('Tek adres olduğu için fatura adresi olarak seçildi:', addresses[0].postalAddressId);
+        } else if (addresses.length > 1) {
+          // Birden fazla adres varsa ve varsayılan yoksa, ilk adresi seç
+          formUpdate.billingPostalAddressID = addresses[0].postalAddressId;
+          console.log('Varsayılan fatura adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
+        }
+        
+        // Teslimat adresi seçimi
+        if (defaultShippingAddress) {
+          formUpdate.shippingPostalAddressID = defaultShippingAddress.postalAddressId;
+          console.log('Varsayılan teslimat adresi seçildi:', defaultShippingAddress.postalAddressId);
+        } else if (addresses.length === 1) {
+          formUpdate.shippingPostalAddressID = addresses[0].postalAddressId;
+          console.log('Tek adres olduğu için teslimat adresi olarak seçildi:', addresses[0].postalAddressId);
+        } else if (addresses.length > 1) {
+          // Birden fazla adres varsa ve varsayılan yoksa, ilk adresi seç
+          formUpdate.shippingPostalAddressID = addresses[0].postalAddressId;
+          console.log('Varsayılan teslimat adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
+        }
+        
+        if (Object.keys(formUpdate).length > 0) {
+          console.log('Form alanları güncelleniyor:', formUpdate);
+          form.setFieldsValue(formUpdate);
+          
+          // Form alanlarının güncel değerlerini kontrol et
+          setTimeout(() => {
+            const currentValues = form.getFieldsValue(['billingPostalAddressID', 'shippingPostalAddressID', 'currAccCode']);
+            console.log('Form alanlarının güncel değerleri:', currentValues);
+            
+            // Eğer adres alanları boşsa, tekrar dene
+            if (!currentValues.billingPostalAddressID || !currentValues.shippingPostalAddressID) {
+              console.log('Adres alanları boş, tekrar ayarlanıyor...');
+              form.setFieldsValue(formUpdate);
+            }
+          }, 200);
         }
       } else {
         console.log('Müşteri adresleri bulunamadı');
         setCustomerAddresses([]);
       }
     } catch (error) {
-      console.error('Müşteri adresleri getirme hatası:', error);
+      console.error('Müşteri adresleri alınırken hata oluştu:', error);
+      message.error('Müşteri adresleri alınırken hata oluştu');
       setCustomerAddresses([]);
     } finally {
       setLoadingAddresses(false);
     }
   };
-  
-  // Sevkiyat yöntemlerini getir
-  const fetchShipmentMethods = async () => {
-    console.log('fetchShipmentMethods çağrıldı');
-    setLoadingShipmentMethods(true);
+
+  // Tedarikçi adreslerini getir
+  const fetchVendorAddresses = async (vendorId: string) => {
+    if (!vendorId) {
+      console.log('Tedarikçi kodu boş, adresler getirilmiyor');
+      return;
+    }
+    
+    setLoadingAddresses(true);
     try {
-      console.log('shipmentApi.getShipmentMethods çağrılıyor...');
-      const response = await shipmentApi.getShipmentMethods();
-      console.log('Sevkiyat yöntemleri API yanıtı:', response);
+      console.log('Tedarikçi adresleri getiriliyor:', vendorId);
+      // Tedarikçi adreslerini getirmek için API çağrısı
+      const response = await customerService.getCustomerAddresses(vendorId);
+      console.log('Tedarikçi adresleri API yanıtı:', response);
       
-      if (response && response.success && response.data) {
-        console.log('Sevkiyat yöntemleri başarıyla alındı:', response.data);
-        
-        // API'den gelen veriyi direkt olarak kullanılabilir formata dönüştür
-        const methods: ShipmentMethod[] = response.data.map((item: any) => ({
-          shipmentMethodCode: item.shipmentMethodCode,
-          shipmentMethodName: item.shipmentMethodName || item.description || item.name || '',
-          shipmentMethodDescription: item.shipmentMethodDescription || item.shipmentMethodName || item.description || item.name || '',
-          transportModeCode: item.transportModeCode || '',
-          transportModeDescription: item.transportModeDescription || '',
-          isBlocked: item.isBlocked === true
+      let addresses: CustomerAddress[] = [];
+      
+      if (response && response.data && response.data.length > 0) {
+        addresses = response.data.map((addr: any) => ({
+          postalAddressId: addr.postalAddressId,
+          addressName: addr.addressTypeDescription || 'Adres',
+          address1: addr.address || '',
+          cityName: addr.cityDescription,
+          countryName: addr.countryDescription,
+          isDefault: addr.isDefault,
+          isDefaultBillingAddress: addr.isDefaultBillingAddress,
+          isDefaultShippingAddress: addr.isDefaultShippingAddress
         }));
-        
-        console.log('Dönüştürülmüş sevkiyat yöntemleri:', methods);
-        
-        // Engellenmemiş yöntemleri filtrele
-        const filteredMethods = methods.filter(method => !method.isBlocked);
-        console.log('Filtrelenmiş sevkiyat yöntemleri:', filteredMethods);
-        
-        // State'i güncelle
-        setShipmentMethods(filteredMethods);
-        
-        // Debug: Form alanının adını kontrol et
-        console.log('Form alanı adı:', 'ShipmentMethodCode');
-        console.log('Mevcut form değerleri:', form.getFieldsValue());
+        console.log('API yanıtından dönüştürülen tedarikçi adresleri:', addresses);
       } else {
-        console.log('Sevkiyat yöntemleri API yanıtı boş veya başarısız');
-        setShipmentMethods([]);
+        console.log('API yanıtında tedarikçi adresi bulunamadı');
+      }
+      
+      if (addresses.length > 0) {
+        setVendorAddresses(addresses);
+        setCustomerAddresses(addresses); // Aynı adres seçicileri kullanıldığı için
+        
+        // Varsayılan fatura adresi
+        const defaultBillingAddress = addresses.find((address: CustomerAddress) => 
+          address.isDefaultBillingAddress || address.isDefault
+        );
+        
+        // Varsayılan teslimat adresi
+        const defaultShippingAddress = addresses.find((address: CustomerAddress) => 
+          address.isDefaultShippingAddress || address.isDefault
+        );
+        
+        console.log('Varsayılan fatura adresi:', defaultBillingAddress);
+        console.log('Varsayılan teslimat adresi:', defaultShippingAddress);
+        
+        // Form alanlarını güncelle
+        const formUpdate: any = {};
+        
+        // Tedarikçi kodunu currAccCode alanına ekle
+        formUpdate.currAccCode = vendorId;
+        
+        // Fatura adresi seçimi
+        if (defaultBillingAddress) {
+          formUpdate.billingPostalAddressID = defaultBillingAddress.postalAddressId;
+          console.log('Varsayılan fatura adresi seçildi:', defaultBillingAddress.postalAddressId);
+        } else if (addresses.length === 1) {
+          formUpdate.billingPostalAddressID = addresses[0].postalAddressId;
+          console.log('Tek adres olduğu için fatura adresi olarak seçildi:', addresses[0].postalAddressId);
+        } else if (addresses.length > 1) {
+          // Birden fazla adres varsa ve varsayılan yoksa, ilk adresi seç
+          formUpdate.billingPostalAddressID = addresses[0].postalAddressId;
+          console.log('Varsayılan fatura adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
+        }
+        
+        // Teslimat adresi seçimi
+        if (defaultShippingAddress) {
+          formUpdate.shippingPostalAddressID = defaultShippingAddress.postalAddressId;
+          console.log('Varsayılan teslimat adresi seçildi:', defaultShippingAddress.postalAddressId);
+        } else if (addresses.length === 1) {
+          formUpdate.shippingPostalAddressID = addresses[0].postalAddressId;
+          console.log('Tek adres olduğu için teslimat adresi olarak seçildi:', addresses[0].postalAddressId);
+        } else if (addresses.length > 1) {
+          // Birden fazla adres varsa ve varsayılan yoksa, ilk adresi seç
+          formUpdate.shippingPostalAddressID = addresses[0].postalAddressId;
+          console.log('Varsayılan teslimat adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
+        }
+        
+        // Form alanlarını güncelle
+        if (Object.keys(formUpdate).length > 0) {
+          console.log('Form alanları güncelleniyor:', formUpdate);
+          form.setFieldsValue(formUpdate);
+          
+          // Form alanlarının güncel değerlerini kontrol et
+          setTimeout(() => {
+            const currentValues = form.getFieldsValue(['billingPostalAddressID', 'shippingPostalAddressID', 'currAccCode']);
+            console.log('Form alanlarının güncel değerleri:', currentValues);
+            
+            // Eğer adres alanları boşsa, tekrar dene
+            if (!currentValues.billingPostalAddressID || !currentValues.shippingPostalAddressID) {
+              console.log('Adres alanları boş, tekrar ayarlanıyor...');
+              form.setFieldsValue(formUpdate);
+              
+              // Bir kez daha kontrol et
+              setTimeout(() => {
+                const finalValues = form.getFieldsValue(['billingPostalAddressID', 'shippingPostalAddressID']);
+                console.log('Son form alanları değerleri:', finalValues);
+              }, 200);
+            }
+          }, 200);
+        }
+      } else {
+        setVendorAddresses([]);
+        setCustomerAddresses([]);
+        message.warning('Tedarikçi için kayıtlı adres bulunamadı.');
       }
     } catch (error) {
-      console.error('Sevkiyat yöntemleri getirme hatası:', error);
-      setShipmentMethods([]);
+      console.error('Tedarikçi adresleri alınırken hata oluştu:', error);
+      message.error('Tedarikçi adresleri alınırken hata oluştu');
+      setVendorAddresses([]);
+      setCustomerAddresses([]);
     } finally {
-      setLoadingShipmentMethods(false);
+      setLoadingAddresses(false);
     }
   };
-  
-  // Müşteri seçildiğinde adreslerini getir
-  const handleCustomerChange = (value: string) => {
-    console.log('handleCustomerChange çağrıldı, value:', value);
-    console.log('currAccType:', currAccType);
+
+  // Döviz kurunu getir
+  const fetchExchangeRate = async (currencyCodeParam?: string) => {
+    const currencyCode = currencyCodeParam || form.getFieldValue('currencyCode');
+    const invoiceDate = form.getFieldValue('invoiceDate');
+    const source = form.getFieldValue('exchangeRateSource') || exchangeRateSource;
     
-    if (currAccType === 3 && value) { // 3: CUSTOMER
-      console.log('Müşteri seçildi, adresler getiriliyor:', value);
-      // Adres bilgilerini getir
-      fetchCustomerAddresses(value);
-    } else {
-      console.log('Müşteri seçilmedi veya tedarikçi seçildi, adresler temizleniyor');
-      setCustomerAddresses([]);
-      // Adres alanlarını sıfırla
-      form.setFieldsValue({ 
-        shippingPostalAddressID: undefined,
-        billingPostalAddressID: undefined 
-      });
-    }
-  };
-  
-  // Bu useEffect kaldırıldı, yerine Form.Item'a onChange prop'u eklenecek
-  
-  // Sayfa yüklenirken mevcut müşteri için adresleri getir
-  useEffect(() => {
-    const currAccCode = form.getFieldValue('currAccCode');
-    console.log('useEffect: currAccCode değeri:', currAccCode);
-    if (currAccType === 3 && currAccCode) { // 3: CUSTOMER
-      fetchCustomerAddresses(currAccCode);
-    } else {
-      setCustomerAddresses([]);
+    if (!currencyCode || !invoiceDate) {
+      console.log('Para birimi veya tarih eksik, döviz kuru alınamıyor');
+      return;
     }
     
-    // Sevkiyat yöntemlerini getir
-    fetchShipmentMethods();
-  }, [currAccType, form]);
-  
-  // Sayfa yüklendiğinde sevkiyat yöntemlerini getir
-  useEffect(() => {
-    fetchShipmentMethods();
-  }, []);
-  
-  // API'den döviz kuru bilgisini getirme
-  const fetchExchangeRate = async (currencyCode: string, date: string) => {
+    // TRY için kur her zaman 1'dir
+    if (currencyCode === 'TRY') {
+      setExchangeRate(1);
+      form.setFieldsValue({ exchangeRate: 1 });
+      if (onExchangeRateChange) onExchangeRateChange(1);
+      return;
+    }
+    
+    // Manuel kaynak seçilmişse, kullanıcının kuru girmesine izin ver
+    if (source === 'MANUEL') {
+      setExchangeRateDisabled(false);
+      return;
+    }
+    
+    // Otomatik kaynak seçilmişse, API'den kur bilgisini al
+    setExchangeRateDisabled(true);
+    
     try {
-      // API çağrısı yapılacak - kaynak parametresi eklendi
-      const response = await fetch(`/api/exchange-rates/conversion?fromCurrency=${currencyCode}&toCurrency=TRY&date=${date}&source=${exchangeRateSource}`);
-      const data = await response.json();
+      console.log(`Döviz kuru alınıyor: ${currencyCode}, Tarih: ${invoiceDate.format('YYYY-MM-DD')}, Kaynak: ${source}`);
       
-      if (data && data.rate !== undefined && data.rate !== null) {
-        setExchangeRate(data.rate);
-        form.setFieldsValue({ exchangeRate: data.rate });
-        if (onExchangeRateChange) onExchangeRateChange(data.rate);
+      // Döviz kuru API'sini çağır - kaynak değerini API beklentisine göre dönüştür
+      let apiSource = 'central_bank';
+      if (source === 'SERBEST_PIYASA') {
+        apiSource = 'free_market';
+      } else if (source === 'MANUEL') {
+        apiSource = 'manual';
+      }
+      
+      const response = await exchangeRateService.getExchangeRate(
+        currencyCode,
+        invoiceDate.format('YYYY-MM-DD'),
+        apiSource
+      );
+      
+      if (response && response.exchangeRate) {
+        const rate = parseFloat(response.exchangeRate);
+        setExchangeRate(rate);
+        form.setFieldsValue({ exchangeRate: rate });
+        if (onExchangeRateChange) onExchangeRateChange(rate);
       } else {
-        // API'den gelen kur değeri boş veya null ise 0 olarak ayarla
+        message.warning(`${currencyCode} için döviz kuru bulunamadı.`);
         setExchangeRate(0);
         form.setFieldsValue({ exchangeRate: 0 });
         if (onExchangeRateChange) onExchangeRateChange(0);
       }
     } catch (error) {
-      console.error('Döviz kuru bilgisi alınamadı:', error);
-      // Hata durumunda 0 olarak ayarla
+      console.error('Döviz kuru alınırken hata oluştu:', error);
+      message.error('Döviz kuru alınırken hata oluştu');
       setExchangeRate(0);
       form.setFieldsValue({ exchangeRate: 0 });
       if (onExchangeRateChange) onExchangeRateChange(0);
     }
   };
+
+  // Para birimi değiştiğinde
+  const handleCurrencyChange = (value: string) => {
+    // Müşteri para birimi kontrolü
+    const customerId = form.getFieldValue('customerId');
+    const vendorId = form.getFieldValue('vendorId');
+    
+    if (customerId && customers) {
+      const customer = customers.find(c => c.customerCode === customerId);
+      if (customer && customer.currencyCode === value) {
+        setIsCustomerCurrency(true);
+      } else {
+        setIsCustomerCurrency(false);
+      }
+    } else if (vendorId && vendors) {
+      const vendor = vendors.find(v => v.vendorCode === vendorId);
+      if (vendor && vendor.currencyCode === value) {
+        setIsCustomerCurrency(true);
+      } else {
+        setIsCustomerCurrency(false);
+      }
+    }
+    
+    // Döviz kurunu getir
+    fetchExchangeRate(value);
+    
+    // Callback fonksiyonu çağır
+    if (onCurrencyChange) onCurrencyChange(value);
+  };
+
+  // Döviz kuru kaynağı değiştiğinde
+  const handleExchangeRateSourceChange = (e: RadioChangeEvent) => {
+    const source = e.target.value;
+    setExchangeRateSource(source);
+    
+    // Manuel kaynak seçilmişse, kullanıcının kuru girmesine izin ver
+    if (source === 'MANUEL') {
+      setExchangeRateDisabled(false);
+    } else {
+      // Otomatik kaynak seçilmişse, API'den kur bilgisini al
+      setExchangeRateDisabled(true);
+      fetchExchangeRate();
+    }
+    
+    // Callback fonksiyonu çağır
+    if (onExchangeRateSourceChange) onExchangeRateSourceChange(e);
+  };
+
+  // Tarih değiştiğinde döviz kurunu güncelle
+  const handleDateChange = (date: any) => {
+    if (!date) return;
+    
+    const currencyCode = form.getFieldValue('currencyCode');
+    if (currencyCode) {
+      fetchExchangeRate();
+    }
+  };
+
+  // Müşteri/Tedarikçi değiştiğinde
+  useEffect(() => {
+    // Form değerlerini izle
+    const customerId = form.getFieldValue('customerId');
+    const vendorId = form.getFieldValue('vendorId');
+    
+    // Müşteri veya tedarikçi seçilmişse adreslerini getir
+    if (customerId && (invoiceType === InvoiceType.WHOLESALE_SALES || invoiceType === InvoiceType.EXPENSE_SALES)) {
+      fetchCustomerAddresses(customerId);
+      
+      // Müşteri para birimi kontrolü
+      if (customers) {
+        const customer = customers.find(c => c.customerCode === customerId);
+        if (customer && customer.currencyCode) {
+          // Müşterinin para birimi varsa, onu seç
+          form.setFieldsValue({ currencyCode: customer.currencyCode });
+          setIsCustomerCurrency(true);
+          
+          // Döviz kurunu getir
+          fetchExchangeRate(customer.currencyCode);
+        } else {
+          setIsCustomerCurrency(false);
+        }
+      }
+    } else if (vendorId && (invoiceType === InvoiceType.WHOLESALE_PURCHASE || invoiceType === InvoiceType.EXPENSE_PURCHASE)) {
+      fetchVendorAddresses(vendorId);
+      
+      // Tedarikçi para birimi kontrolü
+      if (vendors) {
+        const vendor = vendors.find(v => v.vendorCode === vendorId);
+        if (vendor && vendor.currencyCode) {
+          // Tedarikçinin para birimi varsa, onu seç
+          form.setFieldsValue({ currencyCode: vendor.currencyCode });
+          setIsCustomerCurrency(true);
+          
+          // Döviz kurunu getir
+          fetchExchangeRate(vendor.currencyCode);
+        } else {
+          setIsCustomerCurrency(false);
+        }
+      }
+    }
+    
+    // Tarih ve para birimi varsa döviz kurunu getir
+    const currencyCode = form.getFieldValue('currencyCode');
+    const date = form.getFieldValue('invoiceDate');
+    if (currencyCode && date) {
+      fetchExchangeRate(currencyCode);
+    }
+  }, []);
+
+  // useEffect ile form başlangıç değerlerini ayarla
+  // Component mount olduğunda form başlangıç değerlerini ayarla
+  useEffect(() => {
+    if (form) {
+      // Form başlangıç değerlerini ayarla
+      form.setFieldsValue({
+        exchangeRateSource: 'TCMB', // TCMB varsayılan olarak seçili
+        invoiceDate: dayjs() // Bugünün tarihi
+      });
+    }
+  }, [form]);
   
-  // Tarih değiştiğinde döviz kurunu güncelleme
-  React.useEffect(() => {
-    const currencyCode = form.getFieldValue('docCurrencyCode');
-    const invoiceDate = form.getFieldValue('invoiceDate');
-    
-    // Tarih değiştiğinde para birimine bakılır
-    // Para birimi boşsa kur 0 olarak ayarlanır
-    if (!currencyCode) {
-      setExchangeRate(0);
-      form.setFieldsValue({ exchangeRate: 0 });
-      if (onExchangeRateChange) onExchangeRateChange(0);
-      return;
-    }
-    
-    // TRY seçiliyse kur 1 olarak ayarlanır
-    if (currencyCode === 'TRY') {
-      setExchangeRate(1);
-      form.setFieldsValue({ exchangeRate: 1 });
-      if (onExchangeRateChange) onExchangeRateChange(1);
-      return;
-    }
-    
-    // Tarih yoksa kur 0 olarak ayarlanır
-    if (!invoiceDate) {
-      setExchangeRate(0);
-      form.setFieldsValue({ exchangeRate: 0 });
-      if (onExchangeRateChange) onExchangeRateChange(0);
-      return;
-    }
-    
-    // Tarih ve para birimi varsa, kur bilgisini al
-    const formattedDate = dayjs(invoiceDate).format('YYYY-MM-DD');
-    fetchExchangeRate(currencyCode, formattedDate);
-  }, [form.getFieldValue('invoiceDate')]);
-  
-  // Para birimi değiştiğinde döviz kurunu güncelleme
-  React.useEffect(() => {
-    const currencyCode = form.getFieldValue('docCurrencyCode');
-    const invoiceDate = form.getFieldValue('invoiceDate');
-    
-    // Para birimi boşsa kur 0 olarak ayarlanır
-    if (!currencyCode) {
-      setExchangeRate(0);
-      form.setFieldsValue({ exchangeRate: 0 });
-      if (onExchangeRateChange) onExchangeRateChange(0);
-      return;
-    }
-    
-    // TRY seçiliyse kur 1 olarak ayarlanır
-    if (currencyCode === 'TRY') {
-      setExchangeRate(1);
-      form.setFieldsValue({ exchangeRate: 1 });
-      if (onExchangeRateChange) onExchangeRateChange(1);
-      return;
-    }
-    
-    // Tarih yoksa kur 0 olarak ayarlanır
-    if (!invoiceDate) {
-      setExchangeRate(0);
-      form.setFieldsValue({ exchangeRate: 0 });
-      if (onExchangeRateChange) onExchangeRateChange(0);
-      return;
-    }
-    
-    // Tarih ve para birimi varsa, kur kaynağı ve tarih bakılarak API'den çekilir
-    const formattedDate = dayjs(invoiceDate).format('YYYY-MM-DD');
-    fetchExchangeRate(currencyCode, formattedDate);
-  }, [form.getFieldValue('docCurrencyCode')]);
-  
-  // Kur kaynağı değiştiğinde döviz kurunu güncelleme
-  React.useEffect(() => {
-    const currencyCode = form.getFieldValue('docCurrencyCode');
-    const invoiceDate = form.getFieldValue('invoiceDate');
-    
-    // Para birimi boşsa kur 0 olarak ayarlanır
-    if (!currencyCode) {
-      setExchangeRate(0);
-      form.setFieldsValue({ exchangeRate: 0 });
-      if (onExchangeRateChange) onExchangeRateChange(0);
-      return;
-    }
-    
-    // TRY seçiliyse kur 1 olarak ayarlanır
-    if (currencyCode === 'TRY') {
-      setExchangeRate(1);
-      form.setFieldsValue({ exchangeRate: 1 });
-      if (onExchangeRateChange) onExchangeRateChange(1);
-      return;
-    }
-    
-    // Tarih yoksa kur 0 olarak ayarlanır
-    if (!invoiceDate) {
-      setExchangeRate(0);
-      form.setFieldsValue({ exchangeRate: 0 });
-      if (onExchangeRateChange) onExchangeRateChange(0);
-      return;
-    }
-    
-    // Kur kaynağı değiştiğinde tarih ve para birimi varsa, kur bilgisini al
-    const formattedDate = dayjs(invoiceDate).format('YYYY-MM-DD');
-    fetchExchangeRate(currencyCode, formattedDate);
-  }, [exchangeRateSource]);
   return (
-    <Form form={form} layout="vertical">
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} md={8}>
-          <Form.Item
-            name="invoiceNumber"
-            label="Fatura Numarası"
-            tooltip="Fatura numarası backend tarafında otomatik oluşturulacak"
-          >
-            <Input placeholder="Otomatik oluşturulacak" disabled style={{ backgroundColor: '#f5f5f5' }} />
-          </Form.Item>
+    <>
+      
+      <Row gutter={24}>
+        <Col span={24}>
+          <Title level={5}>Fatura Bilgileri</Title>
         </Col>
-        <Col xs={24} sm={12} md={8}>
+      </Row>
+
+      <Row gutter={24}>
+        <Col xs={24} sm={12} md={8} lg={6}>
           <Form.Item
             name="invoiceDate"
             label="Fatura Tarihi"
-            rules={[{ required: true, message: 'Lütfen fatura tarihini seçiniz' }]}
+            rules={[{ required: true, message: 'Lütfen fatura tarihini seçin' }]}
           >
-            <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+            <DatePicker 
+              style={{ width: '100%' }} 
+              format="DD.MM.YYYY" 
+              placeholder="Tarih seçin"
+              onChange={handleDateChange}
+            />
           </Form.Item>
         </Col>
-        <Col xs={24} sm={12} md={8}>
-          <div style={{ border: '1px solid #f0f0f0', padding: '12px', borderRadius: '4px', marginBottom: '16px' }}>
-            <Row gutter={[8, 8]}>
-              <Col xs={24} sm={24} md={24}>
-                <Form.Item
-                  name="docCurrencyCode"
-                  label="Para Birimi"
-                  rules={[{ required: true, message: 'Para birimi seçiniz!' }]}
-                  style={{ marginBottom: '8px' }}
-                >
-                  <Select
-                    showSearch
-                    placeholder="Para birimi seçiniz"
-                    optionFilterProp="children"
-                    loading={loadingCurrencies}
-                    // defaultValue kaldırıldı - Form initialValues kullanılacak
-                    onChange={handleCurrencyChange}
-                    style={{ width: '100%' }}
-                    filterOption={(input, option: any) => {
-                      if (!input || !option || !option.children) return true;
-                      
-                      // Arama metni
-                      const searchText = input.toLowerCase();
-                      
-                      // Option'ın text içeriğini al
-                      let childText = '';
-                      if (typeof option.children === 'string') {
-                        childText = option.children.toLowerCase();
-                      } else if (React.isValidElement(option.children)) {
-                        const childrenText = (option.children as any).props.children;
-                        childText = (childrenText?.toString() || '').toLowerCase();
-                      }
-                      
-                      // Para birimi kodu
-                      let code = '';
-                      if (option.value && typeof option.value === 'string') {
-                        code = option.value.toLowerCase();
-                      }
-                      
-                      // Özel durumlar için kısayollar
-                      if (code === 'try' && (searchText === 'try' || searchText === 'tl' || searchText.includes('lira'))) {
-                        return true;
-                      }
-                      if (code === 'eur' && (searchText === 'eur' || searchText === 'euro' || searchText.includes('avro'))) {
-                        return true;
-                      }
-                      if (code === 'usd' && (searchText === 'usd' || searchText === 'abd' || searchText.includes('dolar'))) {
-                        return true;
-                      }
-                      
-                      // Hem kod hem de açıklamada arama yap
-                      return childText.toLowerCase().includes(searchText) || code.includes(searchText);
-                    }}
-                  >
-                    {currencies.map((currency, index) => {
-                      // TRY için varsayılan ve koyu stil
-                      const isTRY = currency.code === 'TRY';
-                      const style = isTRY ? { fontWeight: 'bold' } : {};
-                      
-                      return (
-                        <Option 
-                          key={currency.code || currency.id || `currency-${index}`} 
-                          value={currency.code || ''}
-                          style={style}
-                        >
-                          {currency.code} - {currency.name}
-                        </Option>
-                      );
-                    })}
-                  </Select>
-                </Form.Item>
-              </Col>
-              
-              <Col xs={12} sm={12} md={12}>
-                <Form.Item
-                  name="exchangeRateSource"
-                  label="Kur Kaynağı"
-                  // initialValue kaldırıldı - Form initialValues kullanılacak
-                  style={{ marginBottom: '8px' }}
-                >
-                  <Radio.Group 
-                    onChange={handleExchangeRateSourceChange} 
-                    // defaultValue kaldırıldı - Form initialValues kullanılacak
-                    optionType="button"
-                    buttonStyle="solid"
-                    size="small"
-                    style={{ textAlign: 'left' }}
-                  >
-                    <Radio.Button value="TCMB">TCMB</Radio.Button>
-                    <Radio.Button value="SPYS">SPYS</Radio.Button>
-                  </Radio.Group>
-                </Form.Item>
-              </Col>
-              
-              <Col xs={12} sm={12} md={12}>
-                <Form.Item
-                  name="exchangeRate"
-                  label="TL Karşılığı"
-                  tooltip="Seçilen para biriminin TL karşılığı. Otomatik hesaplanır, gerekirse düzenlenebilir."
-                  style={{ marginBottom: '8px' }}
-                >
-                  <Input 
-                    type="number" 
-                    step="0.0001"
-                    min="0.0001"
-                    onChange={handleExchangeRateChange}
-                    addonAfter="TL"
-                    style={{ width: '100%', textAlign: 'left' }}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-          </div>
-        </Col>
-        <Col xs={24} sm={12} md={8}>
+
+        <Col xs={24} sm={12} md={8} lg={6}>
           <Form.Item
-            name="currAccCode"
-            label={currAccType === 1 ? "Tedarikçi" : "Müşteri"}
-            rules={[{ required: true, message: `Lütfen ${currAccType === 1 ? "tedarikçi" : "müşteri"} seçiniz` }]}
+            name="invoiceNumber"
+            label="Fatura Numarası"
+            tooltip="Fatura numarası sistem tarafından otomatik oluşturulacak"
+          >
+            <Input 
+              placeholder="WS-7-XXXX" 
+              disabled 
+              style={{ backgroundColor: '#f5f5f5' }} 
+            />
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} sm={12} md={8} lg={6}>
+          <Form.Item
+            name="currencyCode"
+            label="Para Birimi"
+            rules={[{ required: true, message: 'Lütfen para birimini seçin' }]}
           >
             <Select
               showSearch
-              placeholder={`${currAccType === 1 ? "Tedarikçi" : "Müşteri"} seçiniz`}
+              placeholder="Para birimi seçin"
               optionFilterProp="children"
-              onChange={handleCustomerChange} // Müşteri seçildiğinde adreslerini getir
+              onChange={handleCurrencyChange}
+              loading={loadingCurrencies}
               filterOption={(input, option) => {
-                if (!input || input.length < 3 || !option || !option.children) return true; // 3 karakterden az ise tümünü göster
+                // Hem müşteri kodu hem müşteri adında arama yapabilmek için
+                if (!input || !option) return true;
                 
-                // Option içeriğini string'e çevir
-                let childText = '';
-                if (typeof option.children === 'string') {
-                  childText = option.children;
-                } else if (React.isValidElement(option.children)) {
+                // Option label veya children'dan arama metni oluştur
+                let searchText = '';
+                if (option.label) {
+                  searchText = option.label.toString();
+                } else if (option.children) {
                   try {
-                    childText = JSON.stringify(option.children);
+                    searchText = option.children.toString();
                   } catch (e) {
-                    childText = '';
-                  }
-                } else {
-                  try {
-                    childText = option.children.toString();
-                  } catch (e) {
-                    childText = '';
+                    searchText = '';
                   }
                 }
                 
-                // Arama metni için hem kod hem de açıklama kontrol edilir
-                const searchText = String(option.label || childText);
                 return searchText.toLowerCase().includes(input.toLowerCase());
               }}
             >
-              {(currAccType === 1 ? vendors : customers).map((item, index) => {
-                const code = item.customerCode || item.currAccCode || item.code || '';
-                const name = item.customerName || item.currAccDescription || item.name || item.description || `Müşteri ${code}`;
-                const displayText = `${code} - ${name}`;
-                
-                return (
-                  <Option 
-                    key={code || `item-${index}`} 
-                    value={code || ''}
-                    label={displayText}
-                  >
-                    {displayText}
-                  </Option>
-                );
-              })}
+              {currencies?.length > 0 ? 
+                currencies.map((currency, index) => {
+                  // TRY için varsayılan ve koyu stil
+                  const isTRY = currency.code === 'TRY' || currency.currencyCode === 'TRY';
+                  const style = isTRY ? { fontWeight: 'bold' } : {};
+                  
+                  // Kod ve açıklama için uygun alanları kullan
+                  const code = currency.code || currency.currencyCode;
+                  const name = currency.name || currency.description || currency.currencyDescription || currency.currencyName;
+                  
+                  return (
+                    <Option 
+                      key={code || `currency-${index}`} 
+                      value={code}
+                      style={style}
+                    >
+                      {code} - {name}
+                    </Option>
+                  );
+                }) : 
+                <Option disabled value="">Para birimi listesi yüklenemedi</Option>
+              }
             </Select>
+          </Form.Item>
+          {isCustomerCurrency && (
+            <Text type="secondary" style={{ marginTop: -16, display: 'block' }}>
+              Müşteri Para Birimi seçili
+            </Text>
+          )}
+        </Col>
+
+        <Col xs={24} sm={12} md={8} lg={6}>
+          <Form.Item
+            name="exchangeRateSource"
+            label="Döviz Kuru Kaynağı"
+          >
+            <Radio.Group 
+              onChange={handleExchangeRateSourceChange}
+              optionType="button"
+              buttonStyle="solid"
+              size="small"
+              style={{ textAlign: 'left' }}
+            >
+              <Radio.Button value="TCMB">TCMB</Radio.Button>
+              <Radio.Button value="SERBEST_PIYASA">S.PİYASA</Radio.Button>
+              <Radio.Button value="MANUEL">Manuel</Radio.Button>
+            </Radio.Group>
           </Form.Item>
         </Col>
 
-        <Col xs={24} sm={12} md={8}>
+        <Col xs={24} sm={12} md={8} lg={6}>
+          <Form.Item
+            name="exchangeRate"
+            label="Döviz Kuru"
+            rules={[{ required: true, message: 'Döviz kuru gerekli' }]}
+          >
+            <Input 
+              type="number" 
+              step="0.0001" 
+              min="0" 
+              disabled={exchangeRateDisabled} 
+              onChange={(e) => {
+                const value = parseFloat(e.target.value);
+                if (!isNaN(value) && onExchangeRateChange) {
+                  onExchangeRateChange(value);
+                }
+              }}
+            />
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} sm={12} md={8} lg={6}>
           <Form.Item
             name="officeCode"
             label="Ofis"
-            rules={[{ required: true, message: 'Lütfen ofis seçiniz' }]}
+            rules={[{ required: true, message: 'Lütfen ofis seçin' }]}
           >
             <Select
               showSearch
-              placeholder="Ofis seçiniz"
+              placeholder="Ofis seçin"
               optionFilterProp="children"
               filterOption={(input, option) => {
-                if (!input || input.length < 3 || !option || !option.children) return true;
+                // Hem müşteri kodu hem müşteri adında arama yapabilmek için
+                if (!input || !option) return true;
                 
-                let childText = '';
-                if (typeof option.children === 'string') {
-                  childText = option.children;
-                } else if (React.isValidElement(option.children)) {
-                  childText = (option.children as any).props.children?.toString() || '';
+                // Option label veya children'dan arama metni oluştur
+                let searchText = '';
+                if (option.label) {
+                  searchText = option.label.toString();
+                } else if (option.children) {
+                  try {
+                    searchText = option.children.toString();
+                  } catch (e) {
+                    searchText = '';
+                  }
                 }
                 
-                return childText.toLowerCase().includes(input.toLowerCase());
+                return searchText.toLowerCase().includes(input.toLowerCase());
               }}
             >
-              {offices.map((office, index) => (
-                <Option key={office.officeCode || `office-${index}`} value={office.officeCode || ''}>{office.officeCode} - {office.officeName || office.officeDescription}</Option>
-              ))}
+              {offices?.length > 0 ? 
+                offices.map((office, index) => (
+                  <Option key={index} value={office.officeCode}>
+                    {office.officeName}
+                  </Option>
+                )) : 
+                <Option disabled value="">Ofis listesi yüklenemedi</Option>
+              }
             </Select>
           </Form.Item>
         </Col>
 
-        <Col xs={24} sm={12} md={8}>
+        <Col xs={24} sm={12} md={8} lg={6}>
           <Form.Item
             name="warehouseCode"
             label="Depo"
-            rules={[{ required: true, message: 'Lütfen depo seçiniz' }]}
+            rules={[{ required: true, message: 'Lütfen depo seçin' }]}
           >
             <Select
               showSearch
-              placeholder="Depo seçiniz"
+              placeholder="Depo seçin"
               optionFilterProp="children"
               filterOption={(input, option) => {
-                if (!input || input.length < 3 || !option || !option.children) return true;
+                // Hem müşteri kodu hem müşteri adında arama yapabilmek için
+                if (!input || !option) return true;
                 
-                let childText = '';
-                if (typeof option.children === 'string') {
-                  childText = option.children;
-                } else if (React.isValidElement(option.children)) {
-                  childText = (option.children as any).props.children?.toString() || '';
+                // Option label veya children'dan arama metni oluştur
+                let searchText = '';
+                if (option.label) {
+                  searchText = option.label.toString();
+                } else if (option.children) {
+                  try {
+                    searchText = option.children.toString();
+                  } catch (e) {
+                    searchText = '';
+                  }
                 }
                 
-                return childText.toLowerCase().includes(input.toLowerCase());
+                return searchText.toLowerCase().includes(input.toLowerCase());
               }}
             >
-              {warehouses.map((warehouse, index) => (
-                <Option key={warehouse.warehouseCode || `warehouse-${index}`} value={warehouse.warehouseCode || ''}>{warehouse.warehouseCode} - {warehouse.warehouseName || warehouse.warehouseDescription}</Option>
-              ))}
+              {warehouses?.length > 0 ? 
+                warehouses.map((warehouse, index) => (
+                  <Option key={index} value={warehouse.warehouseCode}>
+                    {warehouse.warehouseName}
+                  </Option>
+                )) : 
+                <Option disabled value="">Depo listesi yüklenemedi</Option>
+              }
             </Select>
           </Form.Item>
         </Col>
+      </Row>
 
-        <Form.Item
-          name="companyCode"
-          hidden
-          initialValue="1"
-        >
-          <Input />
-        </Form.Item>
+      <Row gutter={24}>
+        <Col span={24}>
+          <Divider orientation="left">Müşteri/Tedarikçi Bilgileri</Divider>
+        </Col>
+      </Row>
 
-        <Col xs={24} sm={12} md={8}>
+      <Row gutter={24}>
+        {(invoiceType === InvoiceType.WHOLESALE_SALES || invoiceType === InvoiceType.EXPENSE_SALES) && (
+          <Col xs={24} sm={12}>
+            <Form.Item
+              name="currAccCode"
+              label="Müşteri"
+              rules={[{ required: true, message: 'Lütfen müşteri seçin' }]}
+            >
+              <Select
+                showSearch
+                placeholder="Müşteri seçin"
+                optionFilterProp="children"
+                filterOption={(input, option) => {
+                  // Hem müşteri kodu hem müşteri adında arama yapabilmek için
+                  if (!input || !option) return true;
+                  
+                  // Option label veya children'dan arama metni oluştur
+                  let searchText = '';
+                  if (option.label) {
+                    searchText = option.label.toString();
+                  } else if (option.children) {
+                    try {
+                      searchText = option.children.toString();
+                    } catch (e) {
+                      searchText = '';
+                    }
+                  }
+                  
+                  return searchText.toLowerCase().includes(input.toLowerCase());
+                }}
+                onChange={(value) => {
+                  if (!value) return;
+                  
+                  console.log('Seçilen müşteri kodu:', value);
+                  
+                  // Form alanını güncelle (artık currAccCode olarak)
+                  form.setFieldsValue({ currAccCode: value });
+                  
+                  // Müşteri adreslerini getir
+                  fetchCustomerAddresses(value as string);
+                  
+                  // Müşteri para birimi kontrolü
+                  if (customers) {
+                    const customer = customers.find(c => c.customerCode === value);
+                    if (customer && customer.currencyCode) {
+                      // Müşterinin para birimi varsa, onu seç
+                      form.setFieldsValue({ currencyCode: customer.currencyCode });
+                      setIsCustomerCurrency(true);
+                      
+                      // Döviz kurunu getir
+                      fetchExchangeRate(customer.currencyCode);
+                    } else {
+                      setIsCustomerCurrency(false);
+                    }
+                  }
+                }}
+              >
+                {customers?.length > 0 ? 
+                  customers
+                    .filter(customer => customer.currAccTypeCode === 3) // Sadece müşterileri göster (CurrAccTypeCode=3)
+                    .map((customer, index) => {
+                      const code = customer.customerCode || customer.currAccCode || '';
+                      const name = customer.customerName || customer.currAccDescription || '';
+                      const displayText = `${code} - ${name}`;
+                      
+                      return (
+                        <Option 
+                          key={code || `customer-${index}`} 
+                          value={code}
+                          label={displayText} // Arama için etiket
+                        >
+                          {displayText}
+                        </Option>
+                      );
+                    }) : 
+                  <Option disabled value="">Müşteri listesi yüklenemedi</Option>
+                }
+              </Select>
+            </Form.Item>
+          </Col>
+        )}
+
+        {(invoiceType === InvoiceType.WHOLESALE_PURCHASE || invoiceType === InvoiceType.EXPENSE_PURCHASE) && (
+          <Col xs={24} sm={12}>
+            <Form.Item
+              name="currAccCode"
+              label="Tedarikçi"
+              rules={[{ required: true, message: 'Lütfen tedarikçi seçin' }]}
+            >
+              <Select
+                showSearch
+                placeholder="Tedarikçi seçin"
+                optionFilterProp="children"
+                filterOption={(input, option) => {
+                  // Hem müşteri kodu hem müşteri adında arama yapabilmek için
+                  if (!input || !option) return true;
+                  
+                  // Option label veya children'dan arama metni oluştur
+                  let searchText = '';
+                  if (option.label) {
+                    searchText = option.label.toString();
+                  } else if (option.children) {
+                    try {
+                      searchText = option.children.toString();
+                    } catch (e) {
+                      searchText = '';
+                    }
+                  }
+                  
+                  return searchText.toLowerCase().includes(input.toLowerCase());
+                }}
+                onChange={(value) => {
+                  if (!value) return;
+                  
+                  console.log('Seçilen tedarikçi kodu:', value);
+                  
+                  // Form alanını güncelle (artık currAccCode olarak)
+                  form.setFieldsValue({ currAccCode: value });
+                  
+                  // Tedarikçi adreslerini getir
+                  fetchVendorAddresses(value as string);
+                  
+                  // Tedarikçi para birimi kontrolü
+                  if (vendors) {
+                    const vendor = vendors.find(v => v.vendorCode === value);
+                    if (vendor && vendor.currencyCode) {
+                      // Tedarikçinin para birimi varsa, onu seç
+                      form.setFieldsValue({ currencyCode: vendor.currencyCode });
+                      setIsVendorCurrency(true);
+                      
+                      // Döviz kurunu getir
+                      fetchExchangeRate(vendor.currencyCode);
+                    } else {
+                      setIsVendorCurrency(false);
+                    }
+                  }
+                }}
+              >
+                {vendors?.length > 0 ? 
+                  vendors
+                    .filter(vendor => vendor.currAccTypeCode === 1) // Sadece tedarikçileri göster (CurrAccTypeCode=1)
+                    .map((vendor, index) => {
+                      const code = vendor.vendorCode || vendor.currAccCode || '';
+                      const name = vendor.vendorName || vendor.currAccDescription || '';
+                      const displayText = `${code} - ${name}`;
+                      
+                      return (
+                        <Option 
+                          key={code || `vendor-${index}`} 
+                          value={code}
+                          label={displayText} // Arama için etiket
+                        >
+                          {displayText}
+                        </Option>
+                      );
+                    }) : 
+                  <Option disabled value="">Tedarikçi listesi yüklenemedi</Option>
+                }
+              </Select>
+            </Form.Item>
+          </Col>
+        )}
+
+        <Col xs={24} sm={12}>
           <Form.Item
-            name="isReturn"
-            label="İade Faturası"
-            valuePropName="checked"
+            name="shipmentMethodCode"
+            label="Sevkiyat Yöntemi"
           >
-            <Switch
-              checked={isReturn}
-              onChange={setIsReturn}
-              checkedChildren="Evet"
-              unCheckedChildren="Hayır"
-            />
+            <Select
+              showSearch
+              placeholder="Sevkiyat yöntemi seçin"
+              optionFilterProp="children"
+              loading={loadingShipmentMethods}
+              onChange={(value) => {
+                if (!value) return;
+                console.log('Sevkiyat yöntemi seçildi:', value);
+                // Seçilen değeri doğrudan form alanına ata
+                form.setFieldsValue({ shipmentMethodCode: value });
+                
+                // Form alanının güncel değerini kontrol et
+                setTimeout(() => {
+                  const currentValue = form.getFieldValue('shipmentMethodCode');
+                  console.log('Sevkiyat yöntemi form alanı güncel değeri:', currentValue);
+                }, 100);
+              }}
+              filterOption={(input, option) => {
+                // Hem kod hem açıklamada arama yapabilmek için
+                if (!input || !option) return true;
+                
+                // Option label veya children'dan arama metni oluştur
+                let searchText = '';
+                if (option.label) {
+                  searchText = option.label.toString();
+                } else if (option.children) {
+                  try {
+                    searchText = option.children.toString();
+                  } catch (e) {
+                    searchText = '';
+                  }
+                }
+                
+                return searchText.toLowerCase().includes(input.toLowerCase());
+              }}
+            >
+              <Option value="">Sevkiyat yöntemi seçin</Option>
+              {shipmentMethods?.length > 0 ? 
+                shipmentMethods.map((method, index) => (
+                  <Option key={index} value={method.shipmentMethodCode}>
+                    {method.shipmentMethodDescription || method.description || `${method.shipmentMethodName} (${method.shipmentMethodCode})`}
+                  </Option>
+                )) : 
+                <Option disabled value="">Sevkiyat yöntemi bulunamadı</Option>
+              }
+            </Select>
           </Form.Item>
         </Col>
-
-        <Col xs={24} sm={12} md={8}>
-          <Form.Item
-            name="isEInvoice"
-            label={
-              <span>
-                E-Fatura
-                <Tooltip title="E-Fatura olarak işaretlenirse GİB'e gönderilecektir">
-                  <InfoCircleOutlined style={{ marginLeft: 8 }} />
-                </Tooltip>
-              </span>
-            }
-            valuePropName="checked"
-          >
-            <Switch
-              checked={isEInvoice}
-              onChange={setIsEInvoice}
-              checkedChildren="Evet"
-              unCheckedChildren="Hayır"
-            />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} sm={12} md={8}>
+      </Row>
+      
+      <Row gutter={16}>
+        <Col span={12}>
           <Form.Item
             name="shippingPostalAddressID"
             label="Teslimat Adresi"
-            rules={[{ required: true, message: 'Teslimat adresi seçilmesi zorunludur!' }]}
+            rules={[{ required: true, message: 'Lütfen teslimat adresi seçin!' }]}
           >
             <Select
               showSearch
-              placeholder="Teslimat adresi seçiniz"
+              placeholder="Teslimat adresi seçin"
               optionFilterProp="children"
               loading={loadingAddresses}
-              disabled={customerAddresses.length === 0}
-              filterOption={(input, option) => {
-                if (!option || !option.children) return false;
-                return option.children.toString().toLowerCase().includes(input.toLowerCase());
+              onChange={(value) => {
+                if (!value) return;
+                console.log('Teslimat adresi seçildi:', value);
+                // Seçilen değeri doğrudan form alanına ata
+                form.setFieldsValue({ shippingPostalAddressID: value });
+                
+                // Form alanının güncel değerini kontrol et
+                setTimeout(() => {
+                  const currentValue = form.getFieldValue('shippingPostalAddressID');
+                  console.log('Teslimat adresi form alanı güncel değeri:', currentValue);
+                }, 100);
               }}
-            >
-              {customerAddresses.map((address) => (
-                <Option key={address.postalAddressId} value={address.postalAddressId}>
-                  {address.addressName ? `${address.addressName} - ` : ''}
-                  {address.address1}
-                  {address.address2 ? `, ${address.address2}` : ''}
-                  {address.cityName ? `, ${address.cityName}` : ''}
-                  {address.countryName ? ` / ${address.countryName}` : ''}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} sm={12} md={8}>
-          <Form.Item
-            name="billingPostalAddressID"
-            label="Fatura Adresi"
-            rules={[{ required: true, message: 'Fatura adresi seçilmesi zorunludur!' }]}
-          >
-            <Select
-              showSearch
-              placeholder="Fatura adresi seçiniz"
-              optionFilterProp="children"
-              loading={loadingAddresses}
-              disabled={customerAddresses.length === 0}
               filterOption={(input, option) => {
-                if (!option || !option.children) return false;
-                return option.children.toString().toLowerCase().includes(input.toLowerCase());
+                // Hem müşteri kodu hem müşteri adında arama yapabilmek için
+                if (!input || !option) return true;
+                
+                // Option label veya children'dan arama metni oluştur
+                let searchText = '';
+                if (option.label) {
+                  searchText = option.label.toString();
+                } else if (option.children) {
+                  try {
+                    searchText = option.children.toString();
+                  } catch (e) {
+                    searchText = '';
+                  }
+                }
+                
+                return searchText.toLowerCase().includes(input.toLowerCase());
               }}
+              notFoundContent={loadingAddresses ? <Spin size="small" /> : null}
             >
-              {customerAddresses.map((address) => (
-                <Option key={address.postalAddressId} value={address.postalAddressId}>
-                  {address.addressName ? `${address.addressName} - ` : ''}
-                  {address.address1}
-                  {address.address2 ? `, ${address.address2}` : ''}
-                  {address.cityName ? `, ${address.cityName}` : ''}
-                  {address.countryName ? ` / ${address.countryName}` : ''}
-                </Option>
-              ))}
+              {customerAddresses?.length > 0 ? 
+                customerAddresses.map((address, index) => (
+                  <Option key={index} value={address.postalAddressId}>
+                    {address.addressName ? `${address.addressName} - ` : ""}{address.address1}
+                    {address.cityName && `, ${address.cityName}`}
+                    {address.countryName && `, ${address.countryName}`}
+                  </Option>
+                )) : 
+                <Option disabled value="">Adres listesi bulunamadı</Option>
+              }
             </Select>
           </Form.Item>
         </Col>
         
-        <Col xs={24} sm={12} md={8}>
+        <Col span={12}>
           <Form.Item
-            name="ShipmentMethodCode"
-            label="Sevkiyat Yöntemi"
-            extra="Sevkiyat yöntemi seçimi zorunlu değildir."
+            name="billingPostalAddressID"
+            label="Fatura Adresi"
+            rules={[{ required: true, message: 'Lütfen fatura adresi seçin!' }]}
           >
             <Select
               showSearch
-              placeholder="Sevkiyat yöntemi seçiniz"
+              placeholder="Fatura adresi seçin"
               optionFilterProp="children"
-              loading={loadingShipmentMethods}
-              allowClear
-              filterOption={(input, option) => {
-                if (!option || !option.children) return false;
-                return option.children.toString().toLowerCase().includes(input.toLowerCase());
+              loading={loadingAddresses}
+              onChange={(value) => {
+                if (!value) return;
+                console.log('Fatura adresi seçildi:', value);
+                // Seçilen değeri doğrudan form alanına ata
+                form.setFieldsValue({ billingPostalAddressID: value });
+                
+                // Form alanının güncel değerini kontrol et
+                setTimeout(() => {
+                  const currentValue = form.getFieldValue('billingPostalAddressID');
+                  console.log('Fatura adresi form alanı güncel değeri:', currentValue);
+                }, 100);
               }}
+              filterOption={(input, option) => {
+                // Hem müşteri kodu hem müşteri adında arama yapabilmek için
+                if (!input || !option) return true;
+                
+                // Option label veya children'dan arama metni oluştur
+                let searchText = '';
+                if (option.label) {
+                  searchText = option.label.toString();
+                } else if (option.children) {
+                  try {
+                    searchText = option.children.toString();
+                  } catch (e) {
+                    searchText = '';
+                  }
+                }
+                
+                return searchText.toLowerCase().includes(input.toLowerCase());
+              }}
+              notFoundContent={loadingAddresses ? <Spin size="small" /> : null}
             >
-              {shipmentMethods && shipmentMethods.length > 0 ? (
-                shipmentMethods.map((method) => (
-                  <Option key={method.shipmentMethodCode} value={method.shipmentMethodCode}>
-                    {method.shipmentMethodDescription || method.shipmentMethodName}
+              {customerAddresses?.length > 0 ? 
+                customerAddresses.map((address, index) => (
+                  <Option key={index} value={address.postalAddressId}>
+                    {address.addressName ? `${address.addressName} - ` : ""}{address.address1}
+                    {address.cityName && `, ${address.cityName}`}
+                    {address.countryName && `, ${address.countryName}`}
                   </Option>
-                ))
-              ) : (
-                <Option value="" disabled>
-                  Sevkiyat yöntemi bulunamadı
-                </Option>
-              )}
+                )) : 
+                <Option disabled value="">Adres listesi bulunamadı</Option>
+              }
             </Select>
           </Form.Item>
         </Col>
+      </Row>
 
+      <Row gutter={16}>
         <Col xs={24}>
           <Form.Item
             name="notes"
@@ -835,7 +1128,37 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Form.Item>
         </Col>
       </Row>
-    </Form>
+
+      <Row gutter={16}>
+        <Col xs={12} sm={6}>
+          <Form.Item
+            name="isReturn"
+            valuePropName="checked"
+          >
+            <Switch 
+              checkedChildren="İade" 
+              unCheckedChildren="Normal" 
+              checked={isReturn}
+              onChange={(checked) => setIsReturn(checked)}
+            />
+          </Form.Item>
+        </Col>
+        
+        <Col xs={12} sm={6}>
+          <Form.Item
+            name="isEInvoice"
+            valuePropName="checked"
+          >
+            <Switch 
+              checkedChildren="E-Fatura" 
+              unCheckedChildren="Normal Fatura" 
+              checked={isEInvoice}
+              onChange={(checked) => setIsEInvoice(checked)}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+    </>
   );
 };
 

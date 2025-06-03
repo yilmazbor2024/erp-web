@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, Form, Button, Tabs, message, Row, Col, Input, InputRef, Radio, InputNumber, Select } from 'antd';
 import type { RadioChangeEvent } from 'antd';
 import { PlusOutlined, ArrowLeftOutlined, ArrowRightOutlined, SaveOutlined, InfoCircleOutlined, BarcodeOutlined, CheckOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
 import axios from 'axios';
 import { exchangeRateApi, ExchangeRateSource } from '../../services/exchangeRateApi';
@@ -129,9 +129,34 @@ interface InvoiceFormProps {
 // const { TabPane } = Tabs; // Artık kullanılmıyor
 
 const InvoiceForm = ({ 
-  type = InvoiceType.WHOLESALE_SALES, 
+  type, 
   onSuccess 
 }: InvoiceFormProps) => {
+  // URL parametrelerini al ve navigasyon için hook
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const urlType = queryParams.get('type');
+  
+  // URL'den gelen parametreye göre fatura tipini belirleyen fonksiyon
+  const determineInvoiceType = (): InvoiceType => {
+    if (urlType) {
+      switch(urlType) {
+        case 'wholesale':
+          return InvoiceType.WHOLESALE_SALES;
+        case 'wholesale-purchase':
+          return InvoiceType.WHOLESALE_PURCHASE;
+        case 'expense-purchase':
+          return InvoiceType.EXPENSE_PURCHASE;
+        case 'expense-sales':
+          return InvoiceType.EXPENSE_SALES;
+        default:
+          return type || InvoiceType.WHOLESALE_SALES;
+      }
+    }
+    return type || InvoiceType.WHOLESALE_SALES;
+  };
+  
   // Form ve yükleme durumu
   const [form] = Form.useForm();
   const [loading, setLoading] = useState<boolean>(false);
@@ -148,11 +173,14 @@ const InvoiceForm = ({
       exchangeRateSource: 'TCMB'
     });
   }, [form]);
-  // Zaten mevcut olan değişkeni tekrar tanımlamaya gerek yok
+  // Fatura tipi için URL parametresini kullan
   
   // Sekme kontrolü için state
   const [activeTab, setActiveTab] = useState<string>('1'); // 1: BAŞLIK, 
   const [headerFormValid, setHeaderFormValid] = useState<boolean>(false); // Form validasyonu için state - başlangıçta kesinlikle false olarak ayarla
+  
+  // Fatura tipini belirle
+  const [selectedInvoiceType, setSelectedInvoiceType] = useState<InvoiceType>(determineInvoiceType());
   
   // Veri state'leri
   const [customers, setCustomers] = useState<any[]>([]);
@@ -163,9 +191,10 @@ const InvoiceForm = ({
   const [units, setUnits] = useState<any[]>([]);
   const [currencies, setCurrencies] = useState<any[]>([]);
   const [invoiceDetails, setInvoiceDetails] = useState<InvoiceDetail[]>([]);
-  const [selectedInvoiceType, setSelectedInvoiceType] = useState<InvoiceType>(type);
+  
+  // Fatura tipine göre müşteri/tedarikçi tipini belirle
   const [currAccType, setCurrAccType] = useState<CurrAccType>(
-    type === InvoiceType.WHOLESALE_PURCHASE || type === InvoiceType.EXPENSE_PURCHASE
+    selectedInvoiceType === InvoiceType.WHOLESALE_PURCHASE || selectedInvoiceType === InvoiceType.EXPENSE_PURCHASE
       ? CurrAccType.VENDOR 
       : CurrAccType.CUSTOMER
   );
@@ -205,6 +234,14 @@ const InvoiceForm = ({
   // Toplam tutar state'leri için tryEquivalentTotal ekleyelim
   const [tryEquivalentTotal, setTryEquivalentTotal] = useState<number>(0);
   
+  // Form bağlantısını kontrol et
+  useEffect(() => {
+    console.log('Form nesnesi kontrolü:', form);
+    if (!form) {
+      console.error('Form nesnesi bulunamadı!');
+    }
+  }, [form]);
+
   // Döviz kurlarını yükle
   const loadExchangeRates = async () => {
     try {
@@ -754,43 +791,56 @@ const InvoiceForm = ({
         try {
           setLoadingCustomers(true);
           console.log('Müşteri listesi yükleniyor...');
-          // CurrAccTypeCode=3 olan müşterileri getir
+          
+          // Müşteri verilerini API'den çek (currAccTypeCode=3: Müşteri)
           const customerResponse = await customerApi.getCustomers({ currAccTypeCode: 3 });
           
-          if (customerResponse && customerResponse.success) {
-            // API yanıt yapısını kontrol et
-            const customerData = customerResponse.data || [];
-            console.log(`${customerData ? customerData.length : 0} müşteri yüklendi.`);
-            
-            if (customerData && customerData.length > 0) {
-              // Müşteri verilerini standartlaştır
-              const formattedCustomers = customerData.map((customer: any) => {
-                // Müşteri kodu için öncelik sırası
-                const code = customer.customerCode || customer.currAccCode || customer.code || '';
-                // Müşteri adı için öncelik sırası
-                const name = customer.customerName || customer.currAccDescription || customer.name || customer.description || `Müşteri ${code}`;
-                
-                return {
-                  ...customer,
-                  code,
-                  name,
-                  currAccTypeCode: customer.currAccTypeCode || customer.customerTypeCode || 3
-                };
-              });
+          if (customerResponse && customerResponse.data) {
+            try {
+              // API'den gelen veriyi işle
+              const customerData = customerResponse.data;
+              console.log('API\'den gelen ham müşteri verileri:', customerData);
               
-              setCustomers(formattedCustomers);
-              console.log('Formatı standartlaştırılmış müşteriler:', formattedCustomers);
-            } else {
+              if (customerData && customerData.length > 0) {
+                // Müşteri verilerini standart bir formata dönüştür
+                const formattedCustomers = customerData.map((customer: any) => {
+                  // Müşteri kodu için öncelik sırası
+                  const code = customer.customerCode || customer.currAccCode || customer.code || '';
+                  // Müşteri adı için öncelik sırası
+                  const name = customer.customerName || customer.currAccDesc || customer.name || customer.description || `Müşteri ${code}`;
+                  
+                  return {
+                    ...customer,
+                    code,
+                    name,
+                    currAccCode: code,
+                    currAccDesc: name,
+                    currAccTypeCode: customer.currAccTypeCode || customer.customerTypeCode || 3
+                  };
+                });
+                
+                console.log('Formatı standartlaştırılmış müşteriler:', formattedCustomers);
+                setCustomers(formattedCustomers);
+                console.log(`${formattedCustomers.length} müşteri başarıyla yüklendi.`);
+              } else {
+                console.warn('Müşteri verisi boş geldi');
+                setCustomers([]);
+                message.warning('Müşteri listesi boş veya yüklenemedi.');
+              }
+            } catch (error) {
+              console.error('Müşteri verileri işlenirken hata oluştu:', error);
               setCustomers([]);
-              console.warn('Müşteri verisi boş geldi');
+              message.error('Müşteri verileri işlenirken hata oluştu.');
             }
           } else {
+            console.error('Müşteri verileri alınamadı veya boş geldi');
             setCustomers([]);
-            console.warn('Müşteri API yanıtı başarısız:', customerResponse);
+            message.warning('Müşteri verileri alınamadı.');
           }
         } catch (error) {
-          console.error('Müşteri yükleme hatası:', error);
+          console.error('Müşteri verileri yüklenirken hata oluştu:', error);
           setCustomers([]);
+          message.error('Müşteri verileri yüklenirken hata oluştu.');
         } finally {
           setLoadingCustomers(false);
         }
@@ -801,24 +851,56 @@ const InvoiceForm = ({
         try {
           setLoadingVendors(true);
           console.log('Tedarikçi listesi yükleniyor...');
-          const vendorResponse = await vendorApi.getVendors();
           
-          if (vendorResponse && vendorResponse.success) {
-            // API yanıt yapısını kontrol et
-            const vendorData = vendorResponse.data || [];
-            console.log(`${vendorData ? vendorData.length : 0} tedarikçi yüklendi.`);
-            
-            if (vendorData && vendorData.length > 0) {
-              setVendors([...vendorData]);
-            } else {
+          // Tedarikçi verilerini API'den çek (currAccTypeCode=1: Tedarikçi)
+          const vendorResponse = await vendorApi.getVendors({ currAccTypeCode: 1 });
+          
+          if (vendorResponse && vendorResponse.data) {
+            try {
+              // API'den gelen veriyi işle
+              const vendorData = vendorResponse.data;
+              console.log('API\'den gelen ham tedarikçi verileri:', vendorData);
+              
+              if (vendorData && vendorData.length > 0) {
+                // Tedarikçi verilerini standart bir formata dönüştür
+                const formattedVendors = vendorData.map((vendor: any) => {
+                  // Tedarikçi kodu için öncelik sırası
+                  const code = vendor.vendorCode || vendor.currAccCode || vendor.code || '';
+                  // Tedarikçi adı için öncelik sırası
+                  const name = vendor.vendorName || vendor.currAccDesc || vendor.name || vendor.description || `Tedarikçi ${code}`;
+                  
+                  return {
+                    ...vendor,
+                    code,
+                    name,
+                    currAccCode: code,
+                    currAccDesc: name,
+                    currAccTypeCode: vendor.currAccTypeCode || vendor.vendorTypeCode || 1
+                  };
+                });
+                
+                console.log('Formatı standartlaştırılmış tedarikçiler:', formattedVendors);
+                setVendors(formattedVendors);
+                console.log(`${formattedVendors.length} tedarikçi başarıyla yüklendi.`);
+              } else {
+                console.warn('Tedarikçi verisi boş geldi');
+                setVendors([]);
+                message.warning('Tedarikçi listesi boş veya yüklenemedi.');
+              }
+            } catch (error) {
+              console.error('Tedarikçi verileri işlenirken hata oluştu:', error);
               setVendors([]);
+              message.error('Tedarikçi verileri işlenirken hata oluştu.');
             }
           } else {
+            console.error('Tedarikçi verileri alınamadı veya boş geldi');
             setVendors([]);
+            message.warning('Tedarikçi verileri alınamadı.');
           }
         } catch (error) {
-          console.error('Tedarikçi yükleme hatası:', error);
+          console.error('Tedarikçi verileri yüklenirken hata oluştu:', error);
           setVendors([]);
+          message.error('Tedarikçi verileri yüklenirken hata oluştu.');
         } finally {
           setLoadingVendors(false);
         }
@@ -834,7 +916,7 @@ const InvoiceForm = ({
           if (officeResponse && officeResponse.success) {
             // API yanıt yapısını kontrol et
             const officeData = officeResponse.data || [];
-            console.log(`${officeData.length} ofis yüklendi.`);
+            console.log(`${officeData.length} ofis yüklendi`);
             
             if (officeData && officeData.length > 0) {
               setOffices([...officeData]);
@@ -866,7 +948,7 @@ const InvoiceForm = ({
           if (warehouseResponse && warehouseResponse.success) {
             // API yanıt yapısını kontrol et
             const warehouseData = warehouseResponse.data || [];
-            console.log(`${warehouseData.length} depo yüklendi.`);
+            console.log(`${warehouseData.length} depo yüklendi`);
             
             if (warehouseData && warehouseData.length > 0) {
               setWarehouses([...warehouseData]);
@@ -1009,6 +1091,8 @@ const InvoiceForm = ({
     try {
       setLoading(true);
       console.log('Form Bileşeni Yüklendi:', invoiceTypeDescriptions[type as keyof typeof invoiceTypeDescriptions]);
+      
+      // Form bağlantısı kontrolü burada yapılmaz
       
       // Veri yükleme işlemi
       await loadData();
@@ -1401,7 +1485,7 @@ const onFinish = async (values: any) => {
       const netAmount = detail.netAmount || subtotalAmount + vatAmount || 0;
       
       // Backend'in beklediği formatta detay oluştur
-      const formattedDetail: InvoiceDetailRequest = {
+       const formattedDetail: InvoiceDetailRequest = {
         itemCode: detail.itemCode,
         // Ürün varyant bilgilerini ekle
         colorCode: detail.colorCode || 'STD',  // Varsayılan olarak STD renk kodu
@@ -1423,26 +1507,28 @@ const onFinish = async (values: any) => {
         exchangeRate: detail.exchangeRate || values.exchangeRate || 1
       };
       
+      // Formatlanan detayı diziye ekle
       formattedDetails.push(formattedDetail);
     }
     
     console.log('Formatlanan fatura detayları:', formattedDetails);
     
-    const requestData: CreateInvoiceRequest = {
-      invoiceNumber: values.invoiceNumber || 'Otomatik',
-      invoiceTypeCode: values.invoiceTypeCode || invoiceTypeCode,
-      invoiceDate: values.invoiceDate.format('YYYY-MM-DD'),
-      invoiceTime: values.invoiceDate.format('HH:mm:ss'),
-      currAccCode: values.currAccCode,
-      currAccTypeCode: currAccTypeCode,
-      docCurrencyCode: values.docCurrencyCode || 'TRY',
-      companyCode: values.companyCode || '1',
-      officeCode: values.officeCode,
-      warehouseCode: values.warehouseCode,
+    // API isteği hazırla
+    const requestData: any = {
+      invoiceNumber: values.invoiceNumber || 'Otomatik oluşturulacak',
+      invoiceTypeCode: invoiceTypeCode,
+      invoiceDate: values.invoiceDate ? dayjs(values.invoiceDate).format('YYYY-MM-DD') : '',
+      invoiceTime: '00:00:00', // Sabit saat
+      currAccCode: values.currAccCode, // Müşteri/Tedarikçi kodu
+      currAccTypeCode: currAccTypeCode, // Müşteri/Tedarikçi tipi kodu
+      docCurrencyCode: values.currencyCode || 'TRY',
+      companyCode: '1', // Sabit şirket kodu
+      officeCode: values.officeCode || 'M',
+      warehouseCode: values.warehouseCode || '101',
       isReturn: values.isReturn || false,
       isEInvoice: values.isEInvoice || false,
       notes: values.notes || '',
-      processCode: invoiceTypeCode,
+      processCode: invoiceTypeCode, // İşlem kodu fatura tipi ile aynı
       totalAmount: totalAmount,
       discountAmount: discountAmount,
       subtotalAmount: subtotalAmount,
@@ -1452,9 +1538,16 @@ const onFinish = async (values: any) => {
       tryEquivalentTotal: values.tryEquivalentTotal,
       shippingPostalAddressID: values.shippingPostalAddressID, // Teslimat adresi ID'si
       billingPostalAddressID: values.billingPostalAddressID,   // Fatura adresi ID'si
-      ShipmentMethodCode: values.ShipmentMethodCode,           // Sevkiyat yöntemi kodu (opsiyonel) - form alanı ve backend'de büyük harfle başlıyor
       details: formattedDetails // Formatlanan detayları kullan
     };
+    
+    // Sevkiyat yöntemi seçildiyse ekle, boşsa gönderme
+    if (values.shipmentMethodCode && values.shipmentMethodCode !== '') {
+      console.log('Sevkiyat yöntemi seçildi:', values.shipmentMethodCode);
+      requestData.ShipmentMethodCode = values.shipmentMethodCode;
+    } else {
+      console.log('Sevkiyat yöntemi seçilmedi, API isteğinde gönderilmeyecek');
+    }
     
     // Müşteri veya tedarikçi kodunu ekle
     if (currAccTypeCode === CurrAccType.CUSTOMER) {
@@ -1587,7 +1680,14 @@ const openBarcodeModal = () => {
 
 // Bileşen render
 return (
-  <Card>
+  <Card
+    title={invoiceTypeDescriptions[selectedInvoiceType] || 'Fatura Oluştur'}
+    extra={
+      <Button type="default" onClick={() => navigate('/invoice')}>
+        <ArrowLeftOutlined /> Listeye Dön
+      </Button>
+    }
+  >
     <Form
       form={form}
       layout="vertical"
@@ -1686,7 +1786,6 @@ return (
                   warehouses={warehouses}
                   currencies={currencies}
                   loadingCurrencies={loadingCurrencies}
-                  currAccType={currAccType}
                   isReturn={isReturn}
                   setIsReturn={setIsReturn}
                   isEInvoice={isEInvoice}
@@ -1694,6 +1793,7 @@ return (
                   onCurrencyChange={handleCurrencyChange}
                   onExchangeRateChange={handleExchangeRateChange}
                   onExchangeRateSourceChange={handleExchangeRateSourceChange}
+                  invoiceType={selectedInvoiceType}
                 />
                 <div style={{ marginTop: '20px', textAlign: 'right' }}>
                   <Button 
