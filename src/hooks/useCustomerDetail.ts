@@ -15,6 +15,22 @@ export const useCustomerDetail = ({ customerCode }: UseCustomerDetailParams) => 
         throw new Error('Müşteri kodu gereklidir');
       }
       
+      // Özel durum: "create" kelimesi bir müşteri kodu değil, yeni müşteri oluşturma sayfası için kullanılıyor
+      if (customerCode === 'create' || customerCode === 'new') {
+        console.log('Special case: "create" or "new" detected, returning empty customer template');
+        return {
+          customerCode: '',
+          customerName: '',
+          isIndividual: false,
+          taxOffice: '',
+          taxNumber: '',
+          address: '',
+          phone: '',
+          email: '',
+          // Diğer boş alanlar buraya eklenebilir
+        };
+      }
+      
       console.log('Fetching customer details for:', customerCode);
       
       try {

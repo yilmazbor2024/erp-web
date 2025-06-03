@@ -30,6 +30,7 @@ import CustomerCreate from './pages/Customers/CustomerCreate';
 import CustomerEdit from './pages/Customers/CustomerEdit';
 import CustomerView from './pages/Customers/CustomerView';
 import CustomerDetail from './pages/Customers/CustomerDetail';
+import CustomerRegistration from './pages/Customers/CustomerRegistration';
 
 // Vendor pages
 import VendorList from './pages/Vendors/VendorList';
@@ -123,6 +124,16 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               
+              {/* Müşteri Kayıt Sayfası - Token ile erişilebilir */}
+              <Route path="/customer-registration" element={<CustomerRegistration />} />
+              
+              {/* Başarılı Kayıt Sayfası */}
+              <Route path="/registration-success" element={<div style={{padding: '50px', textAlign: 'center'}}>
+                <h1>Kayıt Başarılı!</h1>
+                <p>Müşteri kaydınız başarıyla oluşturulmuştur. Teşekkür ederiz.</p>
+                <button onClick={() => window.location.href = '/'}>Ana Sayfaya Dön</button>
+              </div>} />
+              
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
@@ -137,13 +148,16 @@ function App() {
                 <Route path="customers">
                   <Route index element={<AuthGuard><CustomersPage /></AuthGuard>} />
                   <Route path="new" element={<AuthGuard><CustomerCreate /></AuthGuard>} />
-                  <Route path=":customerCode" element={<AuthGuard><CustomerView /></AuthGuard>} />
+                  <Route path="create" element={<AuthGuard><CustomerCreate /></AuthGuard>} />
                   <Route path="edit/:customerCode" element={<AuthGuard><CustomerEdit /></AuthGuard>} />
                   
                   {/* Adresler, İletişim ve E-posta alt sayfaları */}
                   <Route path=":customerCode/addresses" element={<AuthGuard><CustomerDetail tab="addresses" /></AuthGuard>} />
                   <Route path=":customerCode/contacts" element={<AuthGuard><CustomerDetail tab="contacts" /></AuthGuard>} />
                   <Route path=":customerCode/emails" element={<AuthGuard><CustomerDetail tab="emails" /></AuthGuard>} />
+                  
+                  {/* Dinamik müşteri kodu route'u en sonda olmalı */}
+                  <Route path=":customerCode" element={<AuthGuard><CustomerView /></AuthGuard>} />
                 </Route>
                 
                 {/* Invoice Routes - New Structure */}
