@@ -43,8 +43,10 @@ const mapTypeToInvoiceTypeCode = (type: string | null): string => {
       return 'WS'; // Toptan Satış
     case 'wholesale-purchase':
       return 'BP'; // Toptan Alış
-    case 'expense':
-      return ''; // Masraf Faturası için boş döndür, özel filtreleme yapacağız
+    case 'expense-purchase':
+      return 'EP'; // Masraf Alış Faturası
+    case 'expense-sales':
+      return 'EXP'; // Masraf Satış Faturası
     default:
       return '';
   }
@@ -89,14 +91,8 @@ const InvoiceListPage: React.FC = () => {
         // CompanyCode, StoreCode ve WarehouseCode backend tarafında varsayılan değerlerle doldurulacak
       };
       
-      // Masraf faturaları için özel filtreleme
-      if (typeParam === 'expense') {
-        // Masraf faturaları için hem EP hem de EXP kodlarını destekle
-        requestParams.processCodeList = ['EP', 'EXP'];
-      } else {
-        // Diğer fatura tipleri için normal ProcessCode kullan
-        requestParams.processCode = mapTypeToInvoiceTypeCode(typeParam);
-      }
+      // Fatura tipi için ProcessCode ayarla
+      requestParams.processCode = mapTypeToInvoiceTypeCode(typeParam);
       
       console.log('API request params:', requestParams);
       
@@ -333,31 +329,42 @@ const InvoiceListPage: React.FC = () => {
           </Col>
           <Col>
             <Space>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => handleCreateInvoice()}
-              >
-                Yeni Fatura
-              </Button>
-              <Button
-                type="primary"
-                onClick={() => handleCreateInvoice('wholesale')}
-              >
-                Toptan Satış Faturası
-              </Button>
-              <Button
-                type="primary"
-                onClick={() => handleCreateInvoice('wholesale-purchase')}
-              >
-                Toptan Alış Faturası
-              </Button>
-              <Button
-                type="primary"
-                onClick={() => handleCreateInvoice('expense')}
-              >
-                Masraf Faturası
-              </Button>
+              {typeParam === 'wholesale' && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => handleCreateInvoice('wholesale')}
+                >
+                  Satış Fatura Ekle
+                </Button>
+              )}
+              {typeParam === 'wholesale-purchase' && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => handleCreateInvoice('wholesale-purchase')}
+                >
+                  Alış Faturası Ekle
+                </Button>
+              )}
+              {typeParam === 'expense-purchase' && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => handleCreateInvoice('expense-purchase')}
+                >
+                  Masraf Alış Faturası Ekle
+                </Button>
+              )}
+              {typeParam === 'expense-sales' && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => handleCreateInvoice('expense-sales')}
+                >
+                  Masraf Satış Faturası Ekle
+                </Button>
+              )}
             </Space>
           </Col>
         </Row>
