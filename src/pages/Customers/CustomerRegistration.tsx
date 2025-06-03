@@ -19,9 +19,14 @@ import {
   SelectChangeEvent,
   Checkbox,
   Switch,
-  Divider
+  Divider,
+  Menu,
+  Tooltip,
+  IconButton,
+  AlertColor,
+  Grid
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { customerApi } from '../../services/api';
 import { useTheme } from '@mui/material/styles';
 import { useMediaQuery } from '@mui/material';
@@ -30,21 +35,121 @@ import { API_BASE_URL } from '../../config/constants';
 import { useTaxOffices } from '../../hooks/useTaxOffices';
 import { useCurrencies } from '../../hooks/useCurrencies';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
+
+interface FormData {
+  customerType: string;
+  companyName: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  country: string;
+  taxOffice: string;
+  taxNumber: string;
+  identityNumber: string;
+  currency: string;
+  paymentMethod: string;
+  termsAccepted: boolean;
+  customerCode: string;
+  customerName: string;
+  isIndividual: boolean;
+}
+
+interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: AlertColor;
+}
+
+// Dil seçenekleri için bayrak ikonları (emoji olarak)
+const languageOptions = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'tr', name: 'Türkçe', flag: '🇹🇷' },
+  { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+  { code: 'ru', name: 'Русский', flag: '🇷🇺' }
+];
 
 // Müşteri kayıt formu (QR kod ile)
 const CustomerRegistration = () => {
   const navigate = useNavigate();
-  const [searchParams] = useState(new URLSearchParams(window.location.search));
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
   const [token, setToken] = useState<string | null>(searchParams.get('token'));
   const [tokenValid, setTokenValid] = useState<boolean>(false);
   const [tokenValidating, setTokenValidating] = useState<boolean>(true);
+  const [tokenExpiryTime, setTokenExpiryTime] = useState<Date | null>(null);
+  const [remainingTime, setRemainingTime] = useState<number>(600); // 10 dakika = 600 saniye
   const { isAuthenticated, login } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
+  // Çeviri hook'unu kullan
+  const { t, i18n } = useTranslation();
+  
+  // Dil seçimi için menü durumu
+  const [languageMenuAnchor, setLanguageMenuAnchor] = useState<null | HTMLElement>(null);
+  const languageMenuOpen = Boolean(languageMenuAnchor);
+  
+  // Dil menüsünü açma/kapama işleyicileri
+  const handleLanguageMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setLanguageMenuAnchor(event.currentTarget);
+  };
+  
+  const handleLanguageMenuClose = () => {
+    setLanguageMenuAnchor(null);
+  };
+  
+  // Dil değiştirme işleyicisi
+  const changeLanguage = (languageCode: string) => {
+    i18n.changeLanguage(languageCode);
+    handleLanguageMenuClose();
+  };
+  
+  // Geçerli dili al
+  const currentLanguage = languageOptions.find(lang => lang.code === i18n.language) || languageOptions[0];
+  
+  // Kalan süreyi takip et
+  useEffect(() => {
+    // Token geçerli değilse veya süre dolmuşsa zamanlayıcıyı çalıştırma
+    if (!tokenValid || !tokenExpiryTime) return;
+    
+    const timer = setInterval(() => {
+      const now = new Date();
+      const remainingSecs = Math.floor((tokenExpiryTime.getTime() - now.getTime()) / 1000);
+      
+      if (remainingSecs <= 0) {
+        // Süre doldu, token'ı geçersiz kıl
+        setTokenValid(false);
+        setRemainingTime(0);
+        setSnackbar({
+          open: true,
+          message: t('customerRegistration.tokenValidation.expired'),
+          severity: 'error'
+        });
+        clearInterval(timer);
+      } else {
+        // Kalan süreyi güncelle
+        setRemainingTime(remainingSecs);
+      }
+    }, 1000); // Her saniye güncelle
+    
+    // Temizleme fonksiyonu
+    return () => clearInterval(timer);
+  }, [tokenValid, tokenExpiryTime, t]);
+  
+  // Kalan süreyi formatla (dk:sn)
+  const formatRemainingTime = () => {
+    const minutes = Math.floor(remainingTime / 60);
+    const seconds = remainingTime % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
 
   // Form state
   const [formData, setFormData] = useState({
-    formType: 'quick',
+    formType: 'quick', // Sadece hızlı form kullanılacak, seçenek kaldırıldı
     customerType: '3',
     isIndividual: false,
     country: 'TR',
@@ -101,43 +206,88 @@ const CustomerRegistration = () => {
   
   // Token doğrulama
   useEffect(() => {
-    const validateToken = async () => {
-      if (!token) {
-        setTokenValidating(false);
-        setTokenValid(false);
-        setSnackbar({
-          open: true,
-          message: 'Token bulunamadı. Geçerli bir kayıt linki kullanın.',
-          severity: 'error'
-        });
-        return;
-      }
-      
+    // Önce localStorage'dan kayıtlı token geçerlilik süresini kontrol et
+    const savedTokenData = localStorage.getItem(`token_expiry_${token}`);
+    
+    if (savedTokenData) {
       try {
-        setTokenValidating(true);
+        const parsedData = JSON.parse(savedTokenData);
+        const expiryTime = new Date(parsedData.expiryTime);
+        const now = new Date();
+        
+        // Token hala geçerli mi kontrol et
+        if (expiryTime > now) {
+          setTokenValid(true);
+          setTokenExpiryTime(expiryTime);
+          const remainingSecs = Math.floor((expiryTime.getTime() - now.getTime()) / 1000);
+          setRemainingTime(remainingSecs);
+          setTokenValidating(false);
+          return; // Eğer localStorage'dan geçerli bir token bulunduysa, API isteği yapma
+        } else {
+          // Süresi dolmuş tokeni localStorage'dan temizle
+          localStorage.removeItem(`token_expiry_${token}`);
+        }
+      } catch (error) {
+        console.error('Token verisi ayrıştırılırken hata oluştu:', error);
+        localStorage.removeItem(`token_expiry_${token}`);
+      }
+    }
+    
+    // localStorage'da geçerli bir token yoksa, API'den doğrula
+    const validateToken = async () => {
+      try {
         const response = await axios.get(`${API_BASE_URL}/api/v1/Customer/validate-token/${token}`);
         
         if (response.data && response.data.success) {
           setTokenValid(true);
+          
+          // Token geçerlilik süresini ayarla (10 dakika)
+          const expiryTime = new Date();
+          expiryTime.setMinutes(expiryTime.getMinutes() + 10);
+          setTokenExpiryTime(expiryTime);
+          
+          // Kalan süreyi hesapla (saniye cinsinden)
+          const remainingSecs = Math.floor((expiryTime.getTime() - new Date().getTime()) / 1000);
+          setRemainingTime(remainingSecs);
+          
+          // Token bilgilerini localStorage'a kaydet
+          localStorage.setItem(`token_expiry_${token}`, JSON.stringify({
+            expiryTime: expiryTime.toISOString(),
+            tokenValid: true
+          }));
+          
           // Eğer token bir müşteri koduna bağlıysa, müşteri bilgilerini yükle
           if (response.data.customerCode) {
             // Burada müşteri bilgilerini yükleme işlemi yapılabilir
             console.log('Müşteri kodu:', response.data.customerCode);
           }
-        } else {
-          setTokenValid(false);
+          
+          // Başarılı doğrulama mesajı göster
           setSnackbar({
             open: true,
-            message: response.data?.message || 'Geçersiz veya süresi dolmuş token.',
+            message: t('customerRegistration.tokenValidation.success'),
+            severity: 'success'
+          });
+        } else {
+          setTokenValid(false);
+          setTokenExpiryTime(null);
+          setRemainingTime(0);
+          localStorage.removeItem(`token_expiry_${token}`);
+          setSnackbar({
+            open: true,
+            message: response.data?.message || t('customerRegistration.tokenValidation.invalid'),
             severity: 'error'
           });
         }
       } catch (error) {
         console.error('Token doğrulama hatası:', error);
         setTokenValid(false);
+        setTokenExpiryTime(null);
+        setRemainingTime(0);
+        localStorage.removeItem(`token_expiry_${token}`);
         setSnackbar({
           open: true,
-          message: 'Token doğrulanırken bir hata oluştu.',
+          message: t('customerRegistration.tokenValidation.invalid'),
           severity: 'error'
         });
       } finally {
@@ -146,7 +296,7 @@ const CustomerRegistration = () => {
     };
     
     validateToken();
-  }, [token]);
+  }, [token, t]);
 
   // Referans verileri yükle
   useEffect(() => {
@@ -331,7 +481,7 @@ const CustomerRegistration = () => {
   // Form sıfırlama fonksiyonu
   const resetForm = () => {
     setFormData({
-      formType: 'quick',
+      formType: 'quick', // Sadece hızlı form kullanılacak
       customerType: '3',
       isIndividual: false,
       region: '', 
@@ -692,50 +842,94 @@ const CustomerRegistration = () => {
   return (
     <Container maxWidth="md">
       <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
-        <Typography variant="h5" gutterBottom>QR Kod ile Müşteri Kaydı</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h5" gutterBottom>
+              {t('customerRegistration.title')}
+            </Typography>
+            
+            {/* Token geçerlilik süresi göstergesi */}
+            {tokenValid && tokenExpiryTime && (
+              <Box 
+                sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  backgroundColor: remainingTime < 60 ? 'error.light' : remainingTime < 180 ? 'warning.light' : 'success.light',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  color: remainingTime < 60 ? 'error.contrastText' : remainingTime < 180 ? 'warning.contrastText' : 'success.contrastText',
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
+                  {t('customerRegistration.tokenValidation.remainingTime')}: {formatRemainingTime()}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+          
+          {/* Dil seçim menüsü */}
+          <Box>
+            <Tooltip title={t('customerRegistration.languageSelector')}>
+              <Button
+                onClick={handleLanguageMenuOpen}
+                startIcon={<span style={{ fontSize: '1.2rem' }}>{currentLanguage.flag}</span>}
+                variant="outlined"
+                size="small"
+              >
+                {currentLanguage.name}
+              </Button>
+            </Tooltip>
+            <Menu
+              anchorEl={languageMenuAnchor}
+              open={languageMenuOpen}
+              onClose={handleLanguageMenuClose}
+            >
+              {languageOptions.map((lang) => (
+                <MenuItem 
+                  key={lang.code} 
+                  onClick={() => changeLanguage(lang.code)}
+                  selected={lang.code === i18n.language}
+                >
+                  <span style={{ marginRight: '8px' }}>{lang.flag}</span> {lang.name}
+                </MenuItem>
+              ))}
+            </Menu>
+          </Box>
+        </Box>
         
         {/* Token doğrulama durumu */}
         {tokenValidating ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
             <CircularProgress />
-            <Typography variant="body1" sx={{ ml: 2 }}>Kayıt linki doğrulanıyor...</Typography>
+            <Typography variant="body1" sx={{ ml: 2 }}>
+              {t('customerRegistration.tokenValidation.checking')}
+            </Typography>
           </Box>
         ) : !tokenValid ? (
           <Box sx={{ my: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
             <Typography variant="body1" color="error.dark">
-              Geçersiz veya süresi dolmuş kayıt linki. Lütfen geçerli bir kayıt linki kullanın.
+              {t('customerRegistration.tokenValidation.invalid')}
             </Typography>
           </Box>
         ) : null}
         <Box component="form" noValidate sx={{ mt: 2 }} onSubmit={handleSubmit} style={{ opacity: tokenValidating || !tokenValid ? 0.5 : 1 }}>
           {/* Form içeriği token geçerli değilse devre dışı */}
           <fieldset disabled={tokenValidating || !tokenValid} style={{ border: 'none', padding: 0, margin: 0 }}>
-          <FormControl component="fieldset" sx={{ mb: 2 }}>
-            <RadioGroup
-              row
-              name="formType"
-              value={formData.formType}
-              onChange={(e) => setFormData(prev => ({...prev, formType: e.target.value}))}
-            >
-              <FormControlLabel value="quick" control={<Radio />} label="Hızlı" />
-              <FormControlLabel value="detailed" control={<Radio />} label="Detaylı" />
-            </RadioGroup>
-          </FormControl>
           
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
             <TextField
               fullWidth
-              label="Müşteri Kodu (Opsiyonel)"
+              label={t('customerRegistration.form.customerCode.label')}
               name="customerCode"
               value={formData.customerCode}
               onChange={handleInputChange}
-              helperText="Boş bırakılırsa otomatik oluşturulur (121.XXXX)"
+              helperText={t('customerRegistration.form.customerCode.helper')}
               sx={{ flex: '1 1 100%' }}
             />
             <TextField
               fullWidth
               required
-              label="Müşteri Ünvanı"
+              label={t('customerRegistration.form.customerName.label')}
               name="customerName"
               value={formData.customerName}
               onChange={handleInputChange}
@@ -744,7 +938,8 @@ const CustomerRegistration = () => {
             />
           </Box>
 
-          {formData.formType === 'detailed' && (
+          {/* Detaylı form seçeneği kaldırıldı */}
+          {false && (
             <Box sx={{ mb: 3 }}>
               <FormControlLabel
                 control={
@@ -766,7 +961,7 @@ const CustomerRegistration = () => {
                     name="isIndividual"
                   />
                 }
-                label="Gerçek Kişi/Şahıs"
+                label={t('customerRegistration.form.isIndividual.label')}
               />
             </Box>
           )}
@@ -777,7 +972,7 @@ const CustomerRegistration = () => {
               <TextField
                 fullWidth
                 required
-                label="Ad"
+                label={t('customerRegistration.form.firstName.label')}
                 name="firstName"
                 value={formData.firstName}
                 onChange={(e) => {
@@ -798,7 +993,7 @@ const CustomerRegistration = () => {
               <TextField
                 fullWidth
                 required
-                label="Soyad"
+                label={t('customerRegistration.form.lastName.label')}
                 name="lastName"
                 value={formData.lastName}
                 onChange={(e) => {
@@ -819,7 +1014,7 @@ const CustomerRegistration = () => {
               <TextField
                 fullWidth
                 required
-                label="T.C. Kimlik No"
+                label={t('customerRegistration.form.identityNum.label')}
                 name="identityNum"
                 value={formData.identityNum}
                 onChange={handleInputChange}
@@ -836,14 +1031,14 @@ const CustomerRegistration = () => {
                 <Box sx={{ flex: '1 1 45%', minWidth: '200px', display: 'flex', flexDirection: 'column', gap: 1 }}>
                   <TextField
                     fullWidth
-                    label="Vergi Dairesi Kodu"
+                    label={t('customerRegistration.taxOfficeCode')}
                     value={formData.taxOffice}
                     disabled
-                    helperText="Seçildi"
+                    helperText={t('customerRegistration.selected')}
                   />
                   <TextField
                     fullWidth
-                    label="Vergi Dairesi Adı"
+                    label={t('customerRegistration.taxOfficeName')}
                     value={taxOfficesDataFromHook?.find(office => office.taxOfficeCode === formData.taxOffice)?.taxOfficeDescription || ''}
                     disabled
                   />
@@ -853,22 +1048,22 @@ const CustomerRegistration = () => {
                     onClick={() => setFormData({...formData, taxOffice: ''})}
                     sx={{ alignSelf: 'flex-start' }}
                   >
-                    Değiştir
+                    {t('customerRegistration.buttons.change')}
                   </Button>
                 </Box>
               ) : (
                 // Vergi dairesi seçilmemişse, seçim listesini göster
                 <FormControl fullWidth required sx={{ flex: '1 1 45%', minWidth: '200px' }}>
-                  <InputLabel>Vergi Dairesi</InputLabel>
+                  <InputLabel>{t('customerRegistration.form.taxOffice.label')}</InputLabel>
                   <Select
                     name="taxOffice"
                     value={formData.taxOffice || ''}
-                    label="Vergi Dairesi"
+                    label={t('customerRegistration.form.taxOffice.label')}
                     onChange={handleSelectChange}
                     disabled={isLoadingTaxOfficesHook}
                   >
                     {isLoadingTaxOfficesHook ? (
-                      <MenuItem value="" disabled>Yükleniyor...</MenuItem>
+                      <MenuItem value="" disabled>{t('customerRegistration.loading')}</MenuItem>
                     ) : taxOfficesDataFromHook && taxOfficesDataFromHook.length > 0 ? (
                       taxOfficesDataFromHook.map((office: any) => (
                         <MenuItem key={office.taxOfficeCode} value={office.taxOfficeCode}>
@@ -876,7 +1071,7 @@ const CustomerRegistration = () => {
                         </MenuItem>
                       ))
                     ) : (
-                      <MenuItem value="" disabled>Vergi dairesi bulunamadı</MenuItem>
+                      <MenuItem value="" disabled>{t('customerRegistration.form.taxOffice.notFound')}</MenuItem>
                     )}
                   </Select>
                 </FormControl>
@@ -884,7 +1079,7 @@ const CustomerRegistration = () => {
               <TextField
                 fullWidth
                 required
-                label="Vergi No"
+                label={t('customerRegistration.form.taxNumber.label')}
                 name="taxNumber"
                 value={formData.taxNumber}
                 onChange={handleInputChange}
@@ -904,12 +1099,12 @@ const CustomerRegistration = () => {
                       name="isSubjectToEInvoice"
                     />
                   }
-                  label="E-fatura Tabi"
+                  label={t('customerRegistration.form.isSubjectToEInvoice.label')}
                 />
                 {formData.isSubjectToEInvoice && (
                   <TextField
                     type="date"
-                    label="E-fatura Başlangıç Tarihi"
+                    label={t('customerRegistration.eInvoiceStartDate')}
                     value={formData.eInvoiceStartDate ? formData.eInvoiceStartDate.toISOString().split('T')[0] : ''}
                     onChange={(e) => handleDateChange('eInvoiceStartDate', e.target.value)}
                     InputLabelProps={{ shrink: true }}
@@ -926,12 +1121,12 @@ const CustomerRegistration = () => {
                       name="isSubjectToEShipment"
                     />
                   }
-                  label="E-İrsaliye Tabi"
+                  label={t('customerRegistration.form.isSubjectToEShipment.label')}
                 />
                 {formData.isSubjectToEShipment && (
                   <TextField
                     type="date"
-                    label="E-İrsaliye Başlangıç Tarihi"
+                    label={t('customerRegistration.eShipmentStartDate')}
                     value={formData.eShipmentStartDate ? formData.eShipmentStartDate.toISOString().split('T')[0] : ''}
                     onChange={(e) => handleDateChange('eShipmentStartDate', e.target.value)}
                     InputLabelProps={{ shrink: true }}
@@ -943,15 +1138,15 @@ const CustomerRegistration = () => {
           )}
 
           <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle1" gutterBottom>Adres Bilgileri</Typography>
+          <Typography variant="subtitle1" gutterBottom>{t('customerRegistration.addressInfo')}</Typography>
 
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
             <FormControl fullWidth required sx={{ flex: '1 1 45%', minWidth: '200px' }}>
-              <InputLabel>Ülke</InputLabel>
+              <InputLabel>{t('customerRegistration.form.country.label')}</InputLabel>
               <Select
                 name="country"
                 value={formData.country || ''}
-                label="Ülke"
+                label={t('customerRegistration.form.country.label')}
                 onChange={handleSelectChange}
               >
                 {countries.length > 0 ? (
@@ -961,7 +1156,7 @@ const CustomerRegistration = () => {
                     </MenuItem>
                   ))
                 ) : (
-                  <MenuItem value="TR">Türkiye</MenuItem>
+                  <MenuItem value="TR">{t('customerRegistration.countries.turkey')}</MenuItem>
                 )}
               </Select>
             </FormControl>
@@ -969,11 +1164,11 @@ const CustomerRegistration = () => {
             {formData.country === 'TR' && (
               <>
                 <FormControl fullWidth sx={{ flex: '1 1 45%', minWidth: '200px' }}>
-                  <InputLabel>Bölge</InputLabel>
+                  <InputLabel>{t('customerRegistration.form.region.label')}</InputLabel>
                   <Select
                     name="region"
                     value={formData.region || ''}
-                    label="Bölge"
+                    label={t('customerRegistration.form.region.label')}
                     onChange={handleSelectChange}
                   >
                     {regions.map(r => (
@@ -982,11 +1177,11 @@ const CustomerRegistration = () => {
                   </Select>
                 </FormControl>
                 <FormControl fullWidth sx={{ flex: '1 1 45%', minWidth: '200px' }}>
-                  <InputLabel>Şehir</InputLabel>
+                  <InputLabel>{t('customerRegistration.form.city.label')}</InputLabel>
                   <Select
                     name="city"
                     value={formData.city || ''}
-                    label="Şehir"
+                    label={t('customerRegistration.form.city.label')}
                     onChange={handleSelectChange}
                   >
                     {cities.map(c => (
@@ -995,11 +1190,11 @@ const CustomerRegistration = () => {
                   </Select>
                 </FormControl>
                 <FormControl fullWidth sx={{ flex: '1 1 45%', minWidth: '200px' }}>
-                  <InputLabel>İlçe</InputLabel>
+                  <InputLabel>{t('customerRegistration.form.district.label')}</InputLabel>
                   <Select
                     name="district"
                     value={formData.district || ''}
-                    label="İlçe"
+                    label={t('customerRegistration.form.district.label')}
                     onChange={handleSelectChange}
                   >
                     {districts.map(d => (
@@ -1011,7 +1206,7 @@ const CustomerRegistration = () => {
             )}
             <TextField
               fullWidth
-              label="Adres"
+              label={t('customerRegistration.form.address.label')}
               name="address"
               value={formData.address}
               onChange={handleInputChange}
@@ -1024,11 +1219,11 @@ const CustomerRegistration = () => {
           {/* Para Birimi Seçimi */}
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
             <FormControl fullWidth sx={{ flex: '1 1 45%', minWidth: '200px' }}>
-              <InputLabel>Para Birimi</InputLabel>
+              <InputLabel>{t('customerRegistration.currency.label')}</InputLabel>
               <Select
                 name="exchangeTypeCode"
                 value={(isLoadingCurrenciesHook || !currenciesDataFromHook || currenciesDataFromHook.length === 0) ? '' : formData.exchangeTypeCode}
-                label="Para Birimi"
+                label={t('customerRegistration.currency.label')}
                 onChange={handleSelectChange}
                 disabled={isLoadingCurrenciesHook}
                 MenuProps={{
@@ -1050,20 +1245,20 @@ const CustomerRegistration = () => {
                     </MenuItem>
                   ))
                 ) : (
-                  <MenuItem value="" disabled>Para birimi bulunamadı</MenuItem>
+                  <MenuItem value="" disabled>{t('customerRegistration.currency.notFound')}</MenuItem>
                 )}
               </Select>
             </FormControl>
           </Box>
 
           <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle1" gutterBottom>İletişim Bilgileri</Typography>
+          <Typography variant="subtitle1" gutterBottom>{t('customerRegistration.contactInfo')}</Typography>
 
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
             <TextField
               fullWidth
               required
-              label="Telefon"
+              label={t('customerRegistration.form.phone.label')}
               name="phone"
               value={formData.phone}
               onChange={handleInputChange}
@@ -1072,7 +1267,7 @@ const CustomerRegistration = () => {
             <TextField
               fullWidth
               required
-              label="E-posta"
+              label={t('customerRegistration.form.email.label')}
               name="email"
               type="email"
               value={formData.email}
@@ -1089,7 +1284,7 @@ const CustomerRegistration = () => {
               sx={{ mr: 1 }}
               onClick={() => navigate('/customers')}
             >
-              İptal
+              {t('customerRegistration.buttons.cancel')}
             </Button>
             <Button
               type="submit"
@@ -1097,7 +1292,7 @@ const CustomerRegistration = () => {
               color="primary"
               disabled={isLoading}
             >
-              {isLoading ? <CircularProgress size={24} /> : 'Kaydet'}
+              {isLoading ? <CircularProgress size={24} /> : t('customerRegistration.buttons.submit')}
             </Button>
           </Box>
           </fieldset>

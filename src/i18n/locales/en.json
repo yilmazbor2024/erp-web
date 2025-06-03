@@ -1,0 +1,123 @@
+{
+  "customerRegistration": {
+    "title": "Customer Registration",
+    "subtitle": "Fill the form to register",
+    "tokenValidation": {
+      "validating": "Validating registration link...",
+      "invalid": "Invalid or expired registration link. Please use a valid registration link.",
+      "success": "Registration link successfully validated.",
+      "checking": "Checking token...",
+      "expired": "Token has expired. Please request a new registration link.",
+      "error": "Token validation error occurred.",
+      "remainingTime": "Remaining time"
+    },
+    "form": {
+      "customerCode": {
+        "label": "Customer Code (Optional)",
+        "helper": "Will be auto-generated if left empty (121.XXXX)"
+      },
+      "customerName": {
+        "label": "Customer Name",
+        "helper": ""
+      },
+      "isIndividual": {
+        "label": "Individual Person"
+      },
+      "firstName": {
+        "label": "First Name",
+        "helper": ""
+      },
+      "lastName": {
+        "label": "Last Name",
+        "helper": ""
+      },
+      "taxOffice": {
+        "label": "Tax Office",
+        "helper": ""
+      },
+      "taxNumber": {
+        "label": "Tax Number",
+        "helper": ""
+      },
+      "identityNum": {
+        "label": "Identity Number",
+        "helper": ""
+      },
+      "country": {
+        "label": "Country",
+        "helper": ""
+      },
+      "region": {
+        "label": "Region",
+        "helper": ""
+      },
+      "city": {
+        "label": "City",
+        "helper": ""
+      },
+      "district": {
+        "label": "District",
+        "helper": ""
+      },
+      "address": {
+        "label": "Address",
+        "helper": ""
+      },
+      "phone": {
+        "label": "Phone",
+        "helper": ""
+      },
+      "email": {
+        "label": "Email",
+        "helper": ""
+      },
+      "contactName": {
+        "label": "Contact Name",
+        "helper": ""
+      },
+      "customerType": {
+        "label": "Customer Type",
+        "options": {
+          "1": "Individual",
+          "2": "Corporate",
+          "3": "Both"
+        }
+      },
+      "isSubjectToEInvoice": {
+        "label": "Subject to E-Invoice"
+      },
+      "isSubjectToEShipment": {
+        "label": "Subject to E-Shipment"
+      }
+    },
+    "buttons": {
+      "submit": "Submit",
+      "reset": "Reset Form",
+      "cancel": "Cancel",
+      "change": "Change"
+    },
+    "notifications": {
+      "success": "Customer created successfully",
+      "error": "Error creating customer",
+      "partialSuccess": "Customer created successfully, but some information could not be added",
+      "allSuccess": "Customer created successfully and all information saved"
+    },
+    "remainingTime": "Registration link validity: {{time}}",
+    "languageSelector": "Language",
+    "addressInfo": "Address Information",
+    "contactInfo": "Contact Information",
+    "loading": "Loading...",
+    "selected": "Selected",
+    "taxOfficeCode": "Tax Office Code",
+    "taxOfficeName": "Tax Office Name",
+    "eInvoiceStartDate": "E-Invoice Start Date",
+    "eShipmentStartDate": "E-Shipment Start Date",
+    "countries": {
+      "turkey": "Turkey"
+    },
+    "currency": {
+      "label": "Currency",
+      "notFound": "Currency not found"
+    }
+  }
+}

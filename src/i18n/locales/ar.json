@@ -1,0 +1,123 @@
+{
+  "customerRegistration": {
+    "title": "تسجيل العملاء",
+    "subtitle": "املأ النموذج للتسجيل",
+    "tokenValidation": {
+      "validating": "جاري التحقق من رابط التسجيل...",
+      "invalid": "رابط تسجيل غير صالح أو منتهي الصلاحية. يرجى استخدام رابط تسجيل صالح.",
+      "success": "تم التحقق من رابط التسجيل بنجاح.",
+      "checking": "جاري التحقق من الرمز...",
+      "expired": "انتهت صلاحية الرمز. يرجى طلب رابط تسجيل جديد.",
+      "error": "حدث خطأ في التحقق من الرمز.",
+      "remainingTime": "الوقت المتبقي"
+    },
+    "form": {
+      "customerCode": {
+        "label": "رمز العميل (اختياري)",
+        "helper": "سيتم إنشاؤه تلقائيًا إذا تُرك فارغًا (121.XXXX)"
+      },
+      "customerName": {
+        "label": "اسم العميل",
+        "helper": ""
+      },
+      "isIndividual": {
+        "label": "شخص فردي"
+      },
+      "firstName": {
+        "label": "الاسم الأول",
+        "helper": ""
+      },
+      "lastName": {
+        "label": "اسم العائلة",
+        "helper": ""
+      },
+      "taxOffice": {
+        "label": "مكتب الضرائب",
+        "helper": ""
+      },
+      "taxNumber": {
+        "label": "الرقم الضريبي",
+        "helper": ""
+      },
+      "identityNum": {
+        "label": "رقم الهوية",
+        "helper": ""
+      },
+      "country": {
+        "label": "البلد",
+        "helper": ""
+      },
+      "region": {
+        "label": "المنطقة",
+        "helper": ""
+      },
+      "city": {
+        "label": "المدينة",
+        "helper": ""
+      },
+      "district": {
+        "label": "الحي",
+        "helper": ""
+      },
+      "address": {
+        "label": "العنوان",
+        "helper": ""
+      },
+      "phone": {
+        "label": "الهاتف",
+        "helper": ""
+      },
+      "email": {
+        "label": "البريد الإلكتروني",
+        "helper": ""
+      },
+      "contactName": {
+        "label": "اسم جهة الاتصال",
+        "helper": ""
+      },
+      "customerType": {
+        "label": "نوع العميل",
+        "options": {
+          "1": "فردي",
+          "2": "شركة",
+          "3": "كلاهما"
+        }
+      },
+      "isSubjectToEInvoice": {
+        "label": "خاضع للفاتورة الإلكترونية"
+      },
+      "isSubjectToEShipment": {
+        "label": "خاضع للشحن الإلكتروني"
+      }
+    },
+    "buttons": {
+      "submit": "إرسال",
+      "reset": "إعادة تعيين النموذج",
+      "cancel": "إلغاء",
+      "change": "تغيير"
+    },
+    "notifications": {
+      "success": "تم إنشاء العميل بنجاح",
+      "error": "خطأ في إنشاء العميل",
+      "partialSuccess": "تم إنشاء العميل بنجاح، ولكن تعذر إضافة بعض المعلومات",
+      "allSuccess": "تم إنشاء العميل بنجاح وحفظ جميع المعلومات"
+    },
+    "remainingTime": "صلاحية رابط التسجيل: {{time}}",
+    "languageSelector": "اللغة",
+    "addressInfo": "معلومات العنوان",
+    "contactInfo": "معلومات الاتصال",
+    "loading": "جاري التحميل...",
+    "selected": "تم الاختيار",
+    "taxOfficeCode": "رمز مكتب الضرائب",
+    "taxOfficeName": "اسم مكتب الضرائب",
+    "eInvoiceStartDate": "تاريخ بدء الفاتورة الإلكترونية",
+    "eShipmentStartDate": "تاريخ بدء الشحن الإلكتروني",
+    "countries": {
+      "turkey": "تركيا"
+    },
+    "currency": {
+      "label": "العملة",
+      "notFound": "لم يتم العثور على العملة"
+    }
+  }
+}

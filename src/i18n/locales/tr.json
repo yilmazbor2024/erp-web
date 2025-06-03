@@ -1,0 +1,123 @@
+{
+  "customerRegistration": {
+    "title": "Müşteri Kaydı",
+    "subtitle": "Kayıt olmak için formu doldurunuz",
+    "tokenValidation": {
+      "validating": "Kayıt linki doğrulanıyor...",
+      "invalid": "Geçersiz veya süresi dolmuş kayıt linki. Lütfen geçerli bir kayıt linki kullanın.",
+      "success": "Kayıt linki başarıyla doğrulandı.",
+      "checking": "Token doğrulanıyor...",
+      "expired": "Token süresi doldu. Lütfen yeni bir kayıt linki talep edin.",
+      "error": "Token doğrulama hatası oluştu.",
+      "remainingTime": "Kalan süre"
+    },
+    "form": {
+      "customerCode": {
+        "label": "Müşteri Kodu (Opsiyonel)",
+        "helper": "Boş bırakılırsa otomatik oluşturulur (121.XXXX)"
+      },
+      "customerName": {
+        "label": "Müşteri Ünvanı",
+        "helper": ""
+      },
+      "isIndividual": {
+        "label": "Gerçek Kişi"
+      },
+      "firstName": {
+        "label": "Ad",
+        "helper": ""
+      },
+      "lastName": {
+        "label": "Soyad",
+        "helper": ""
+      },
+      "taxOffice": {
+        "label": "Vergi Dairesi",
+        "helper": ""
+      },
+      "taxNumber": {
+        "label": "Vergi Numarası",
+        "helper": ""
+      },
+      "identityNum": {
+        "label": "TC Kimlik No",
+        "helper": ""
+      },
+      "country": {
+        "label": "Ülke",
+        "helper": ""
+      },
+      "region": {
+        "label": "Bölge",
+        "helper": ""
+      },
+      "city": {
+        "label": "İl",
+        "helper": ""
+      },
+      "district": {
+        "label": "İlçe",
+        "helper": ""
+      },
+      "address": {
+        "label": "Adres",
+        "helper": ""
+      },
+      "phone": {
+        "label": "Telefon",
+        "helper": ""
+      },
+      "email": {
+        "label": "E-posta",
+        "helper": ""
+      },
+      "contactName": {
+        "label": "İletişim Kişisi",
+        "helper": ""
+      },
+      "customerType": {
+        "label": "Müşteri Tipi",
+        "options": {
+          "1": "Bireysel",
+          "2": "Kurumsal",
+          "3": "Her İkisi"
+        }
+      },
+      "isSubjectToEInvoice": {
+        "label": "E-Fatura Mükellefi"
+      },
+      "isSubjectToEShipment": {
+        "label": "E-İrsaliye Mükellefi"
+      }
+    },
+    "buttons": {
+      "submit": "Kaydet",
+      "reset": "Formu Sıfırla",
+      "cancel": "İptal",
+      "change": "Değiştir"
+    },
+    "notifications": {
+      "success": "Müşteri başarıyla oluşturuldu",
+      "error": "Müşteri oluşturulurken hata oluştu",
+      "partialSuccess": "Müşteri başarıyla oluşturuldu, ancak bazı bilgiler eklenemedi",
+      "allSuccess": "Müşteri başarıyla oluşturuldu ve tüm bilgiler kaydedildi"
+    },
+    "remainingTime": "Kayıt linki geçerlilik süresi: {{time}}",
+    "languageSelector": "Dil",
+    "addressInfo": "Adres Bilgileri",
+    "contactInfo": "İletişim Bilgileri",
+    "loading": "Yükleniyor...",
+    "selected": "Seçildi",
+    "taxOfficeCode": "Vergi Dairesi Kodu",
+    "taxOfficeName": "Vergi Dairesi Adı",
+    "eInvoiceStartDate": "E-fatura Başlangıç Tarihi",
+    "eShipmentStartDate": "E-İrsaliye Başlangıç Tarihi",
+    "countries": {
+      "turkey": "Türkiye"
+    },
+    "currency": {
+      "label": "Para Birimi",
+      "notFound": "Para birimi bulunamadı"
+    }
+  }
+}
