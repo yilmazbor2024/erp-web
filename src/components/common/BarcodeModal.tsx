@@ -64,6 +64,8 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
   const [searchByProduct, setSearchByProduct] = useState<boolean>(false); // false: barkod/varyant ile arama, true: ürün kodu/açıklaması ile arama
   const [localInventoryStock, setLocalInventoryStock] = useState<InventoryStock[]>([]);
   const [localLoadingInventory, setLocalLoadingInventory] = useState<boolean>(false);
+  const [fetchStock, setFetchStock] = useState<boolean>(false); // Stok bilgisi getirme seçeneği - varsayılan kapalı
+  const [fetchPrice, setFetchPrice] = useState<boolean>(false); // Fiyat bilgisi getirme seçeneği - varsayılan kapalı
   
   // Toplu fiyat güncelleme fonksiyonu
   const updateAllPrices = () => {
@@ -126,6 +128,12 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     itemDim1Code?: string;
     showOnlyPositiveStock?: boolean;
   }) => {
+    // Eğer stok getirme seçeneği işaretli değilse, boş dizi döndür
+    if (!fetchStock) {
+      console.log('Stok getirme seçeneği kapalı, stok verileri yüklenmeyecek');
+      return [];
+    }
+    
     setLocalLoadingInventory(true);
     console.log('Stok verileri yükleniyor:', params);
     
@@ -304,7 +312,10 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     try {
       // Tüm varyantları sırayla ekle
       for (const variant of productVariants) {
-        await getProductPrice(variant);
+        // Fiyat getirme seçeneği işaretliyse fiyat bilgisini getir
+        if (fetchPrice) {
+          await getProductPrice(variant);
+        }
       }
       message.success(`${productVariants.length} ürün varyantı listeye eklendi`);
     } catch (error) {
@@ -354,6 +365,27 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
               </div>
             )}
             <Text>Ürün Kodu/Açıklaması ile Ara</Text>
+          </Space>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col span={12}>
+          <Space>
+            <Switch
+              checked={fetchStock}
+              onChange={setFetchStock}
+            />
+            <Text>Stok Bilgisi Getir</Text>
+          </Space>
+        </Col>
+        <Col span={12}>
+          <Space>
+            <Switch
+              checked={fetchPrice}
+              onChange={setFetchPrice}
+            />
+            <Text>Fiyat Bilgisi Getir</Text>
           </Space>
         </Col>
       </Row>
@@ -547,12 +579,42 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
                   <Button 
                     type="primary" 
                     size="small"
+                    icon={<PlusOutlined />}
+                    loading={loading}
                     onClick={async () => {
                       try {
-                        await getProductPrice(record);
+                        // Fiyat getirme seçeneği işaretliyse fiyat bilgisini getir
+                        if (fetchPrice) {
+                          await getProductPrice(record);
+                        } else {
+                          // Fiyat getirme seçeneği işaretli değilse, fiyat bilgisi olmadan ekle
+                          // Burada getProductPrice fonksiyonunu çağırmadan ürünü eklemek için
+                          // gerekli işlemleri yapmanız gerekebilir
+                          // Bu örnekte, fiyat bilgisi olmadan ürünü eklemek için
+                          // scannedItems state'ine doğrudan ekleme yapıyoruz
+                          const existingIndex = scannedItems.findIndex(item => 
+                            item.variant.barcode === record.barcode || 
+                            (item.variant.productCode === record.productCode && 
+                             item.variant.colorCode === record.colorCode && 
+                             item.variant.itemDim1Code === record.itemDim1Code)
+                          );
+                          
+                          if (existingIndex >= 0) {
+                            // Ürün zaten listede, miktarını artır
+                            updateScannedItemQuantity(existingIndex, scannedItems[existingIndex].quantity + 1);
+                          } else {
+                            // Yeni ürün, listeye ekle
+                            const newItem: ScannedItem = {
+                              variant: record,
+                              quantity: 1
+                            };
+                            scannedItems.push(newItem);
+                          }
+                        }
+                        message.success('Ürün listeye eklendi');
                       } catch (error) {
-                        console.error('Ürün fiyatı alınırken hata:', error);
-                        message.error('Ürün fiyatı alınırken bir hata oluştu.');
+                        console.error('Ürün eklenirken hata:', error);
+                        message.error('Ürün eklenirken bir hata oluştu.');
                       }
                     }}
                   >
@@ -567,8 +629,11 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
 
       {scannedItems.length > 0 && (
         <>
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Title level={5}>Taranan Ürünler</Title>
+            <Tag color="blue" style={{ fontSize: '14px' }}>
+              Toplam: {scannedItems.length} ürün | {scannedItems.reduce((sum, item) => sum + item.quantity, 0)} adet
+            </Tag>
           </div>
           
           <Table
