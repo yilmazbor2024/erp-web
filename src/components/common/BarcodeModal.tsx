@@ -74,16 +74,29 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       return;
     }
 
-    // Tüm ürünlerin fiyatını güncelle
+    // KDV dahil fiyat girilmişse, KDV hariç fiyata çevir
+    let newPrice = bulkPrice;
+    if (isPriceIncludeVat) {
+      newPrice = bulkPrice / (1 + (bulkVatRate / 100));
+    }
+
+    // 1. Taranan ürünlerin (scannedItems) fiyatını güncelle
     scannedItems.forEach((item, index) => {
-      // KDV dahil fiyat girilmişse, KDV hariç fiyata çevir
-      let newPrice = bulkPrice;
-      if (isPriceIncludeVat) {
-        newPrice = bulkPrice / (1 + (bulkVatRate / 100));
-      }
       updateScannedItemPrice(index, newPrice);
       item.variant.vatRate = bulkVatRate;
     });
+
+    // 2. Bulunan ürün tablosundaki satırların (productVariants) fiyatını güncelle
+    const updatedVariants = productVariants.map(variant => {
+      return {
+        ...variant,
+        salesPrice1: newPrice,
+        vatRate: bulkVatRate
+      };
+    });
+    
+    // Güncellenmiş varyantları state'e kaydet
+    setProductVariants([...updatedVariants]);
 
     message.success('Tüm ürünlerin fiyatları güncellendi');
   };
@@ -631,9 +644,14 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
         <>
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Title level={5}>Taranan Ürünler</Title>
-            <Tag color="blue" style={{ fontSize: '14px' }}>
-              Toplam: {scannedItems.length} ürün | {scannedItems.reduce((sum, item) => sum + item.quantity, 0)} adet
-            </Tag>
+            <Space>
+              <Tag color="blue" style={{ fontSize: '14px' }}>
+                Toplam: {scannedItems.length} ürün | {scannedItems.reduce((sum, item) => sum + item.quantity, 0)} adet
+              </Tag>
+              <Tag color="green" style={{ fontSize: '14px' }}>
+                Toplam Tutar: {scannedItems.reduce((sum, item) => sum + (item.variant.salesPrice1 || 0) * item.quantity, 0).toFixed(2)} TL
+              </Tag>
+            </Space>
           </div>
           
           <Table
