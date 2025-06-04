@@ -23,6 +23,7 @@ import inventoryApi, { InventoryStock } from '../../services/inventoryApi';
 import { customerApi, vendorApi, officeApi, warehouseApi, currencyApi } from '../../services/entityApi';
 import productApi, { ProductVariant } from '../../services/productApi';
 import productPriceListApi from '../../services/productPriceListApi';
+import taxApi, { TaxType } from '../../services/taxApi';
 import { InvoiceType } from '../../types/invoice';
 
 // Enum ve Tipler
@@ -208,6 +209,8 @@ const InvoiceForm = ({
   const [loadingProducts, setLoadingProducts] = useState<boolean>(false);
   const [loadingUnits, setLoadingUnits] = useState<boolean>(false);
   const [loadingCurrencies, setLoadingCurrencies] = useState<boolean>(false);
+  const [taxTypes, setTaxTypes] = useState<TaxType[]>([]);
+  const [loadingTaxTypes, setLoadingTaxTypes] = useState<boolean>(false);
   
   // Barkod tarama ile ilgili state'ler
   const [barcodeModalVisible, setBarcodeModalVisible] = useState<boolean>(false);
@@ -1071,10 +1074,34 @@ const InvoiceForm = ({
         loadPromises.push(loadVendors());
       }
       
+      // Vergi tiplerini yükle
+      const loadTaxTypes = async () => {
+        try {
+          setLoadingTaxTypes(true);
+          console.log('Vergi tipleri yükleniyor...');
+          
+          const taxTypesResponse = await taxApi.getAllTaxTypes();
+          if (taxTypesResponse) {
+            setTaxTypes(taxTypesResponse);
+            console.log('Vergi tipleri başarıyla yüklendi:', taxTypesResponse);
+          } else {
+            console.warn('Vergi tipleri boş döndü');
+            setTaxTypes([]);
+          }
+        } catch (error) {
+          console.error('Vergi tipleri yüklenirken hata oluştu:', error);
+          message.error('Vergi tipleri yüklenirken bir hata oluştu');
+          setTaxTypes([]);
+        } finally {
+          setLoadingTaxTypes(false);
+        }
+      };
+      
       // Diğer verileri yükle
       loadPromises.push(loadOffices());
       loadPromises.push(loadWarehouses());
       loadPromises.push(loadCurrencies());
+      loadPromises.push(loadTaxTypes());
       
       // Tüm veri yükleme işlemlerini paralel olarak çalıştır
       await Promise.all(loadPromises);
@@ -1794,6 +1821,8 @@ return (
                   onExchangeRateChange={handleExchangeRateChange}
                   onExchangeRateSourceChange={handleExchangeRateSourceChange}
                   invoiceType={selectedInvoiceType}
+                  taxTypes={taxTypes}
+                  loadingTaxTypes={loadingTaxTypes}
                 />
                 <div style={{ marginTop: '20px', textAlign: 'right' }}>
                   <Button 

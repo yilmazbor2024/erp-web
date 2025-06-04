@@ -7,6 +7,7 @@ import type { RadioChangeEvent } from 'antd';
 import { shipmentApi } from '../../services/api';
 import { customerService } from '../../services/customerService';
 import { exchangeRateService } from '../../services/exchangeRateService';
+import { TaxType } from '../../services/taxApi';
 
 const { Option } = Select;
 const { Text, Title } = Typography;
@@ -35,6 +36,8 @@ interface InvoiceHeaderProps {
   onExchangeRateChange?: (rate: number) => void;
   onExchangeRateSourceChange?: (e: RadioChangeEvent) => void;
   invoiceType: InvoiceType;
+  taxTypes?: TaxType[];
+  loadingTaxTypes?: boolean;
 }
 
 interface CustomerAddress {
@@ -76,7 +79,9 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   onCurrencyChange,
   onExchangeRateChange,
   onExchangeRateSourceChange,
-  invoiceType
+  invoiceType,
+  taxTypes = [],
+  loadingTaxTypes = false
 }) => {
   // State tanımlamaları
   const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
@@ -1119,7 +1124,46 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       </Row>
 
       <Row gutter={16}>
-        <Col xs={24}>
+        <Col xs={24} sm={12}>
+          <Form.Item
+            name="taxTypeCode"
+            label="Vergi Tipi"
+            rules={[{ required: true, message: 'Lütfen vergi tipi seçin!' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Vergi tipi seçin"
+              optionFilterProp="children"
+              loading={loadingTaxTypes}
+              filterOption={(input, option) => {
+                if (!input || !option) return true;
+                let searchText = '';
+                if (option.label) {
+                  searchText = option.label.toString();
+                } else if (option.children) {
+                  try {
+                    searchText = option.children.toString();
+                  } catch (e) {
+                    searchText = '';
+                  }
+                }
+                return searchText.toLowerCase().includes(input.toLowerCase());
+              }}
+              notFoundContent={loadingTaxTypes ? <Spin size="small" /> : <Empty description="Vergi tipi bulunamadı" />}
+            >
+              {taxTypes?.length > 0 ? 
+                taxTypes.filter(tax => !tax.isBlocked).map((tax) => (
+                  <Option key={tax.taxTypeCode} value={tax.taxTypeCode}>
+                    {tax.taxTypeDescription || tax.taxTypeCode}
+                  </Option>
+                )) : 
+                <Option disabled value="">Vergi tipi bulunamadı</Option>
+              }
+            </Select>
+          </Form.Item>
+        </Col>
+        
+        <Col xs={24} sm={12}>
           <Form.Item
             name="notes"
             label="Notlar"
