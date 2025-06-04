@@ -120,6 +120,23 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   useEffect(() => {
     fetchShipmentMethods();
   }, []);
+  
+  // Vergi tiplerini izle ve "Vergisiz" seçeneğini varsayılan olarak ayarla
+  useEffect(() => {
+    if (taxTypes?.length > 0) {
+      // "Vergisiz" vergi tipini bul
+      const taxFreeType = taxTypes.find(tax => 
+        tax.taxTypeDescription?.toLowerCase() === 'vergisiz' || 
+        tax.taxTypeCode?.toLowerCase() === 'vergisiz'
+      );
+      
+      // Eğer "Vergisiz" vergi tipi varsa, onu varsayılan olarak ayarla
+      if (taxFreeType) {
+        form.setFieldsValue({ taxTypeCode: taxFreeType.taxTypeCode });
+        console.log('Varsayılan vergi tipi ayarlandı:', taxFreeType.taxTypeCode);
+      }
+    }
+  }, [taxTypes]);
 
   // Müşteri adreslerini getir
   const fetchCustomerAddresses = async (customerId: string) => {
