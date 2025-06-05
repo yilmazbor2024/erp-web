@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../config/constants';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Box, 
@@ -35,7 +36,12 @@ import {
   FormHelperText,
   Stepper,
   Step,
-  StepLabel
+  StepLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from '@mui/material';
 import { 
   ArrowBack as ArrowBackIcon, 
@@ -44,7 +50,9 @@ import {
   Phone as PhoneIcon,
   Smartphone as SmartphoneIcon,
   Home as HomeIcon,
-  Email as EmailIcon
+  Email as EmailIcon,
+  QrCode as QrCodeIcon,
+  Link as LinkIcon
 } from '@mui/icons-material';
 
 import { useCustomerDetail } from '../../hooks/useCustomerDetail';
@@ -239,11 +247,23 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddressForm, setShowAddressForm] = useState(false);
-  const [notification, setNotification] = useState({ 
-    open: false, 
-    message: '', 
-    type: 'success' as 'success' | 'error' 
+  const [notification, setNotification] = useState<{
+    open: boolean;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    open: false,
+    message: '',
+    type: 'info'
   });
+  
+  // Geçici link ve QR kod state'i
+  const [tempLink, setTempLink] = useState<string>('');
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+  const [showQrCode, setShowQrCode] = useState<boolean>(false);
+  const [linkExpiryTime, setLinkExpiryTime] = useState<Date | null>(null);
+  const [qrDialogOpen, setQrDialogOpen] = useState<boolean>(false);
+  const [remainingTime, setRemainingTime] = useState<number>(0);
   const [error, setError] = useState<Error | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -887,6 +907,84 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
     return Object.keys(newErrors).length === 0;
   };
 
+  // Geçici müşteri kayıt linki oluşturma
+  const handleCreateTempLink = async () => {
+    try {
+      setIsLoading(true);
+      
+      // API'ye istek gönder - ortam değişkeni kullanarak
+      const response = await fetch(`${API_BASE_URL}/api/v1/Customer/create-temp-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          customerCode: formData.customerCode,
+          expiryMinutes: 10 // 10 dakika geçerli
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Geçici link oluşturulurken bir hata oluştu');
+      }
+      
+      const data = await response.json();
+      
+      // Gelen veriyi state'e kaydet
+      setTempLink(data.tempLink);
+      setQrCodeUrl(data.qrCodeUrl);
+      setShowQrCode(true);
+      
+      // Bitiş zamanını hesapla ve kaydet
+      const expiryTime = new Date();
+      expiryTime.setMinutes(expiryTime.getMinutes() + 10);
+      setLinkExpiryTime(expiryTime);
+      setRemainingTime(10 * 60); // 10 dakika = 600 saniye
+      
+      // QR kod modalını aç
+      setQrDialogOpen(true);
+      
+      // Geri sayım timer'ı başlat
+      const timer = setInterval(() => {
+        setRemainingTime(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      
+      setNotification({
+        open: true,
+        message: 'Geçici müşteri kayıt linki oluşturuldu!',
+        type: 'success'
+      });
+    } catch (error) {
+      console.error('Geçici link oluşturma hatası:', error);
+      setNotification({
+        open: true,
+        message: error instanceof Error ? error.message : 'Geçici link oluşturulurken bir hata oluştu',
+        type: 'error'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Kalan süreyi formatla (dakika:saniye)
+  const formatRemainingTime = () => {
+    const minutes = Math.floor(remainingTime / 60);
+    const seconds = remainingTime % 60;
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  };
+  
+  // QR kod modalını kapat
+  const handleCloseQrDialog = () => {
+    setQrDialogOpen(false);
+  };
+  
   // Form gönderimi
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1211,10 +1309,10 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
                         value={comm.communicationTypeCode}
                         onChange={(e) => handleUpdateCommunication(index, 'communicationTypeCode', e.target.value)}
                       >
-                        <MenuItem value="PHONE">Telefon</MenuItem>
-                        <MenuItem value="EMAIL">E-posta</MenuItem>
-                        <MenuItem value="MOBILE">Cep Telefonu</MenuItem>
-                        <MenuItem value="FAX">Faks</MenuItem>
+                        <MenuItem key="PHONE" value="PHONE">Telefon</MenuItem>
+                        <MenuItem key="EMAIL" value="EMAIL">E-posta</MenuItem>
+                        <MenuItem key="MOBILE" value="MOBILE">Cep Telefonu</MenuItem>
+                        <MenuItem key="FAX" value="FAX">Faks</MenuItem>
                       </Select>
                     </FormControl>
                   </TableCell>
@@ -1290,10 +1388,10 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
                         value={address.addressTypeCode}
                         onChange={(e) => handleUpdateAddress(index, 'addressTypeCode', e.target.value)}
                       >
-                        <MenuItem value="WORK">İş Adresi</MenuItem>
-                        <MenuItem value="HOME">Ev Adresi</MenuItem>
-                        <MenuItem value="SHIPPING">Sevkiyat Adresi</MenuItem>
-                        <MenuItem value="BILLING">Fatura Adresi</MenuItem>
+                        <MenuItem key="WORK" value="WORK">İş Adresi</MenuItem>
+                        <MenuItem key="HOME" value="HOME">Ev Adresi</MenuItem>
+                        <MenuItem key="SHIPPING" value="SHIPPING">Sevkiyat Adresi</MenuItem>
+                        <MenuItem key="BILLING" value="BILLING">Fatura Adresi</MenuItem>
                       </Select>
                     </FormControl>
                   </TableCell>
@@ -1313,7 +1411,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
                           label="Ülke"
                           disabled
                         >
-                          <MenuItem value="TR">Türkiye</MenuItem>
+                          <MenuItem key="TR" value="TR">Türkiye</MenuItem>
                         </Select>
                       </FormControl>
                       
@@ -1447,9 +1545,9 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
                         value={contact.contactTypeCode}
                         onChange={(e) => handleUpdateContact(index, 'contactTypeCode', e.target.value)}
                       >
-                        <MenuItem value="PRIMARY">Birincil Kişi</MenuItem>
-                        <MenuItem value="SECONDARY">İkincil Kişi</MenuItem>
-                        <MenuItem value="AUTHORIZED">Yetkili Kişi</MenuItem>
+                        <MenuItem key="PRIMARY" value="PRIMARY">Birincil Kişi</MenuItem>
+                        <MenuItem key="SECONDARY" value="SECONDARY">İkincil Kişi</MenuItem>
+                        <MenuItem key="AUTHORIZED" value="AUTHORIZED">Yetkili Kişi</MenuItem>
                       </Select>
                     </FormControl>
                   </TableCell>
@@ -1524,14 +1622,16 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
           </Box>
           
           {!isNew && !isEdit && (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={() => navigate(`/customers/${effectiveCustomerCode}/edit`)}
-              startIcon={<EditIcon />}
-            >
-              Düzenle
-            </Button>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                onClick={() => navigate(`/customers/${effectiveCustomerCode}/edit`)}
+                startIcon={<EditIcon />}
+              >
+                Düzenle
+              </Button>
+            </Box>
           )}
         </Box>
 
@@ -1599,11 +1699,16 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
                 navigate(`/customers/${effectiveCustomerCode}/${newValue === "customer" ? "" : newValue}`);
               }}
             >
-              <Tab value="customer" label="Müşteri Bilgileri" />
+              <Tab value="customer" label="Genel" />
               <Tab value="addresses" label="Adresler" />
-              <Tab value="contacts" label="İletişim Kişileri" />
-              <Tab value="emails" label="E-postalar" />
+              <Tab value="contacts" label="Kişiler" />
+              <Tab value="emails" label="E-Postalar" />
             </Tabs>
+
+            {activeTab === "customer" && renderBasicInfoForm()}
+            {activeTab === "addresses" && renderAddressForm()}
+            {activeTab === "contacts" && renderContactForm()}
+            {activeTab === "emails" && renderCommunicationForm()}
           </div>
         )}
 
@@ -1635,6 +1740,8 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
               </Button>
             )}
             
+
+            
             <Snackbar 
               open={notification.open} 
               autoHideDuration={6000} 
@@ -1644,9 +1751,67 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
                 {notification.message}
               </Alert>
             </Snackbar>
+            
+            {/* QR Kod Modal */}
+            <Dialog
+              open={qrDialogOpen}
+              onClose={handleCloseQrDialog}
+              maxWidth="sm"
+              fullWidth
+            >
+              <DialogTitle>Geçici Müşteri Kayıt Linki</DialogTitle>
+              <DialogContent>
+                {qrCodeUrl && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, my: 2 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Aşağıdaki QR kodu taratarak veya linki kullanarak geçici müşteri kayıt formuna ulaşabilirsiniz.
+                    </Typography>
+                    
+                    <Box sx={{ border: '1px solid #ccc', p: 2, borderRadius: 1, mb: 2 }}>
+                      <img src={qrCodeUrl} alt="QR Kod" style={{ width: '100%', maxWidth: '250px' }} />
+                    </Box>
+                    
+                    <TextField
+                      fullWidth
+                      label="Kayıt Linki"
+                      value={tempLink}
+                      InputProps={{
+                        readOnly: true,
+                      }}
+                      variant="outlined"
+                      sx={{ mb: 2 }}
+                    />
+                    
+                    <Button 
+                      variant="outlined" 
+                      onClick={() => {
+                        navigator.clipboard.writeText(tempLink);
+                        setNotification({
+                          open: true,
+                          message: 'Link panoya kopyalandı!',
+                          type: 'success'
+                        });
+                      }}
+                    >
+                      Linki Kopyala
+                    </Button>
+                    
+                    <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
+                      Bu link {formatRemainingTime()} dakika daha geçerlidir.
+                    </Typography>
+                  </Box>
+                )}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={handleCloseQrDialog} color="primary">
+                  Kapat
+                </Button>
+              </DialogActions>
+            </Dialog>
           </>
         )}
       </Paper>
+
     </Container>
   );
 };

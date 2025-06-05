@@ -26,6 +26,7 @@ interface BarcodeModalProps {
   setProductVariants: (variants: ProductVariant[]) => void;
   inputRef: React.RefObject<InputRef>;
   scannedItems: ScannedItem[];
+  setScannedItems: (items: ScannedItem[]) => void; // ScannedItems state'ini güncellemek için eklendi
   addAllToInvoice: () => void;
   isPriceIncludeVat: boolean;
   getProductPrice: (variant: ProductVariant) => Promise<void>;
@@ -49,6 +50,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
   setProductVariants,
   inputRef,
   scannedItems,
+  setScannedItems,
   addAllToInvoice,
   isPriceIncludeVat,
   getProductPrice,
@@ -80,24 +82,30 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       newPrice = bulkPrice / (1 + (bulkVatRate / 100));
     }
 
-    // 1. Taranan ürünlerin (scannedItems) fiyatını güncelle
-    scannedItems.forEach((item, index) => {
-      updateScannedItemPrice(index, newPrice);
-      item.variant.vatRate = bulkVatRate;
-    });
-
-    // 2. Bulunan ürün tablosundaki satırların (productVariants) fiyatını güncelle
-    const updatedVariants = productVariants.map(variant => {
-      return {
-        ...variant,
+    // 1. Tüm taranan ürünlerin yeni fiyat ve KDV oranlarını içeren bir kopya oluştur
+    const updatedScannedItems = scannedItems.map(item => ({
+      ...item,
+      variant: {
+        ...item.variant,
         salesPrice1: newPrice,
         vatRate: bulkVatRate
-      };
-    });
+      }
+    }));
+    
+    // Yeni oluşturulan listeyi state'e kaydet
+    setScannedItems(updatedScannedItems);
+    
+    // 2. Bulunan ürün tablosundaki satırların (productVariants) fiyatını güncelle
+    const updatedVariants = productVariants.map(variant => ({
+      ...variant,
+      salesPrice1: newPrice,
+      vatRate: bulkVatRate
+    }));
     
     // Güncellenmiş varyantları state'e kaydet
     setProductVariants([...updatedVariants]);
 
+    console.log('Toplu fiyat güncelleme yapıldı:', updatedScannedItems);
     message.success('Tüm ürünlerin fiyatları güncellendi');
   };
   // Modal açıldığında input'a odaklan
@@ -621,7 +629,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
                               variant: record,
                               quantity: 1
                             };
-                            scannedItems.push(newItem);
+                            setScannedItems([...scannedItems, newItem]);
                           }
                         }
                         message.success('Ürün listeye eklendi');

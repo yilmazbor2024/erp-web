@@ -1,12 +1,7 @@
 // API Configuration
 // Tüm API bilgileri ve önemli değerler burada toplanıyor
 
-// GEÇİCİ ACİL DURUM ÇÖZÜMÜ: API_BASE_URL'yi doğrudan ayarlama
-export const API_BASE_URL = 'http://localhost:5180';
-export const API_URL = API_BASE_URL; // ProductPriceListApi için eklendi
-console.log(`[WORKAROUND] API_BASE_URL hardcoded to: ${API_BASE_URL}`);
-
-/* // Önceki tüm dinamik mantık geçici olarak devre dışı bırakıldı
+// Ortam değişkenlerinden API URL'sini al
 let resolvedApiBaseUrl: string;
 
 if (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.trim() !== '') {
@@ -19,7 +14,7 @@ if (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.trim() !== ''
       'PRODUCTION BUILD CRITICAL ERROR: REACT_APP_API_URL ortam değişkeni tanımsız veya boş! ' +
       'Lütfen .env.production dosyasında doğru şekilde ayarlandığından ve build scriptinin (örn: env-cmd ile) bunu yüklediğinden emin olun.'
     );
-    resolvedApiBaseUrl = 'http://ERROR_REACT_APP_API_URL_NOT_SET_IN_PRODUCTION';
+    resolvedApiBaseUrl = 'http://b2b.edikravat.tr';
   } else {
     // Geliştirme ortamında localhost'a fallback yap
     console.warn(
@@ -31,8 +26,18 @@ if (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.trim() !== ''
 }
 
 export const API_BASE_URL = resolvedApiBaseUrl;
+export const API_URL = API_BASE_URL; // ProductPriceListApi için eklendi
 console.log(`API_BASE_URL set to: ${API_BASE_URL} (NODE_ENV: ${process.env.NODE_ENV})`);
-*/
+
+// Frontend URL'si (barkod oluşturma vb. için)
+let frontendBaseUrl: string;
+if (process.env.NODE_ENV === 'production') {
+  frontendBaseUrl = 'http://edikravat.tr';
+} else {
+  frontendBaseUrl = 'http://localhost:3000';
+}
+
+export const FRONTEND_URL = frontendBaseUrl;
 
 // API Endpoints
 export const API_ENDPOINTS = {

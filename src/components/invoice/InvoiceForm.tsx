@@ -209,8 +209,14 @@ const InvoiceForm = ({
   const [loadingProducts, setLoadingProducts] = useState<boolean>(false);
   const [loadingUnits, setLoadingUnits] = useState<boolean>(false);
   const [loadingCurrencies, setLoadingCurrencies] = useState<boolean>(false);
+  const [loadingInvoiceDetails, setLoadingInvoiceDetails] = useState<boolean>(false);
+  
+  // Vergi tipleri
   const [taxTypes, setTaxTypes] = useState<TaxType[]>([]);
   const [loadingTaxTypes, setLoadingTaxTypes] = useState<boolean>(false);
+  
+  // Vergi tipi modu (normal veya vergisiz)
+  const [taxTypeMode, setTaxTypeMode] = useState<string>('normal');
   
   // Barkod tarama ile ilgili state'ler
   const [barcodeModalVisible, setBarcodeModalVisible] = useState<boolean>(false);
@@ -521,7 +527,8 @@ const InvoiceForm = ({
   // Satır tutarlarını hesapla
   const calculateLineAmounts = (detail: InvoiceDetail, currencyCode?: string): InvoiceDetail => {
     const quantity = parseFloat(detail.quantity?.toString() || '0');
-    const vatRate = parseFloat(detail.vatRate?.toString() || '0');
+    // Vergi tipi vergisiz ise KDV oranını 0 olarak ayarla, değilse detaydan al
+    const vatRate = taxTypeMode === 'vergisiz' ? 0 : parseFloat(detail.vatRate?.toString() || '0');
     const discountRate = parseFloat(detail.discountRate?.toString() || '0');
     let unitPrice = parseFloat(detail.unitPrice?.toString() || '0');
     
@@ -714,7 +721,8 @@ const InvoiceForm = ({
             
             // Varyantın fiyat ve KDV bilgilerini güncelle
             variant.salesPrice1 = priceItem.birimFiyat || 0;
-            variant.vatRate = 10; // Varsayılan KDV oranı 10
+            // Vergi tipi vergisiz ise KDV 0, değilse 10
+            variant.vatRate = taxTypeMode === 'vergisiz' ? 0 : 10;
             console.log('Fiyat listesinden fiyat bilgisi güncellendi:', variant.salesPrice1);
             fiyatBulundu = true;
           }
@@ -740,7 +748,8 @@ const InvoiceForm = ({
             
             // Varyantın fiyat ve KDV bilgilerini güncelle
             variant.salesPrice1 = firstPrice.birimFiyat || 0;
-            variant.vatRate = firstPrice.vatRate || 10;
+            // Vergi tipi vergisiz ise KDV 0, değilse API'den gelen değer veya 10
+            variant.vatRate = taxTypeMode === 'vergisiz' ? 0 : (firstPrice.vatRate || 10);
             console.log('Eski yöntemle fiyat bilgisi güncellendi:', variant.salesPrice1, 'KDV:', variant.vatRate);
             fiyatBulundu = true;
           }
@@ -765,7 +774,7 @@ const InvoiceForm = ({
       console.error('Ürün fiyatı getirilirken hata oluştu:', error);
       // Hata olsa bile varyantı varsayılan değerlerle ekle
       variant.salesPrice1 = 0;
-      variant.vatRate = 10;
+      variant.vatRate = taxTypeMode === 'vergisiz' ? 0 : 10;
       addVariantToScannedList(variant);
       
       // Bilgilendirme mesajı göster
@@ -1246,7 +1255,7 @@ const addInvoiceDetail = () => {
     quantity: 1,
     unitOfMeasureCode: 'AD',// Ürün varyant detayından gelmeli
     unitPrice: 0, //Eğer varsa barkod modaldan fiyat listesinden gelmeli
-    vatRate: 10, //Eğer varsa barkod modaldan fiyat listesinden gelmeli
+    vatRate: taxTypeMode === 'vergisiz' ? 0 : 10, // Vergi tipi vergisiz ise KDV 0, değilse 10
     discountRate: 0,
     totalAmount: 0,
     discountAmount: 0,
@@ -1378,6 +1387,42 @@ useEffect(() => {
   // Ant Design Form'da subscribe metodu olmadığı için onValuesChange kullanılacak
 }, [form]);
 
+// Vergi tipi değiştiğinde çağrılacak fonksiyon
+const handleTaxTypeChange = (taxMode: string) => {
+  console.log('Vergi tipi modu değişti:', taxMode);
+  setTaxTypeMode(taxMode);
+  
+  // Eğer "vergisiz" seçildiyse tüm fatura satırlarındaki KDV oranını 0 yap
+  if (taxMode === 'vergisiz') {
+    const updatedDetails = invoiceDetails.map(detail => {
+      // KDV oranını 0 olarak ayarla
+      const updatedDetail = { ...detail, vatRate: 0 };
+      
+      // Döviz kuru bilgisini ekle
+      if (currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode]) {
+        updatedDetail.exchangeRate = exchangeRates[currentCurrencyCode];
+      }
+      
+      // Hesaplamaları yap
+      return calculateLineAmounts(updatedDetail, currentCurrencyCode);
+    });
+    
+    setInvoiceDetails(updatedDetails);
+    updateTotals(updatedDetails);
+    console.log('Tüm KDV oranları 0 olarak ayarlandı');
+    
+    // Taranan ürünlerin KDV oranlarını da güncelle
+    if (scannedItems.length > 0) {
+      const updatedScannedItems = scannedItems.map(item => {
+        item.variant.vatRate = 0;
+        return item;
+      });
+      setScannedItems(updatedScannedItems);
+      console.log('Taranan ürünlerin KDV oranları 0 olarak ayarlandı');
+    }
+  }
+};
+
 // Satır güncelleme fonksiyonu
 const updateInvoiceDetail = (id: string, field: string, value: any) => {
   if (!id || !field) {
@@ -1395,20 +1440,27 @@ const updateInvoiceDetail = (id: string, field: string, value: any) => {
       // Döviz kuru bilgisini ekle
       const detailWithExchangeRate = {
         ...detail,
-        exchangeRate: detail.currencyCode && detail.currencyCode !== 'TRY' ? 
-          exchangeRates[detail.currencyCode] : undefined
+        exchangeRate: currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode] ? 
+          exchangeRates[currentCurrencyCode] : 1
       };
+      
+      // Hesaplamaları yap
       return calculateLineAmounts(detailWithExchangeRate, currentCurrencyCode);
     });
     
     setInvoiceDetails(updatedDetails);
     updateTotals(updatedDetails);
   } else {
-    // Diğer alanlar için normal güncelleme
+    // Tek bir satırı güncelle
     const updatedDetails = invoiceDetails.map(detail => {
       if (detail.id === id) {
         // Güncellenmiş detay
         const updatedDetail = { ...detail, [field]: value };
+        
+        // Eğer vergi tipi "vergisiz" ise ve vatRate alanı güncelleniyorsa, 0 olarak zorla
+        if (taxTypeMode === 'vergisiz' && field === 'vatRate') {
+          updatedDetail.vatRate = 0;
+        }
         
         // Döviz kuru bilgisini ekle
         if (currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode]) {
@@ -1780,6 +1832,8 @@ return (
           // Sekme değişiminde zorunlu alanları kontrol et - Para Birimi zorunlu değil
           if (key === '2' || key === '3') {
             const values = form.getFieldsValue(['invoiceDate', 'currAccCode', 'officeCode', 'warehouseCode']);
+            
+            // Tüm gerekli alanlar doldurulmuşsa headerFormValid'i true yap
             const isValid = !!(values.invoiceDate && 
               values.currAccCode && 
               values.officeCode && 
@@ -1820,6 +1874,7 @@ return (
                   onCurrencyChange={handleCurrencyChange}
                   onExchangeRateChange={handleExchangeRateChange}
                   onExchangeRateSourceChange={handleExchangeRateSourceChange}
+                  onTaxTypeChange={handleTaxTypeChange}
                   invoiceType={selectedInvoiceType}
                   taxTypes={taxTypes}
                   loadingTaxTypes={loadingTaxTypes}
@@ -1941,6 +1996,7 @@ return (
         setProductVariants([]);
         setScannedItems([]);
       }}
+      setScannedItems={setScannedItems}
       barcodeInput={barcodeInput}
       setBarcodeInput={setBarcodeInput}
       onSearch={searchProductVariantsByBarcode}
@@ -2004,16 +2060,19 @@ return (
         // Seçili para birimini al
         const currencyCode = form.getFieldValue('docCurrencyCode');
         
-        // Taranan ürünleri fatura detaylarına ekle
+        // Taranan ürünleri fatura satırlarına ekle
         const newDetails = scannedItems.map(item => {
-          const variant = item.variant;
+          const { variant, quantity } = item;
+          
+          // Varyant bilgilerinden InvoiceDetail nesnesi oluştur
           const detail: InvoiceDetail = {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            id: uuidv4(),
             itemCode: variant.productCode,
-            quantity: item.quantity,
-            unitOfMeasureCode: variant.unitOfMeasureCode1, // unitOfMeasureCode1 kullanılıyor
-            unitPrice: variant.salesPrice1,
-            vatRate: variant.vatRate || 10, // null olabilir, varsayılan değer eklendi
+            quantity: quantity,
+            unitOfMeasureCode: variant.unitOfMeasureCode1 || 'AD',
+            unitPrice: variant.salesPrice1 || 0,
+            vatRate: taxTypeMode === 'vergisiz' ? 0 : (variant.vatRate || 10), // null olabilir, varsayılan değer eklendi
+            discountRate: 0,
             description: variant.productDescription,
             productDescription: variant.productDescription,
             colorCode: variant.colorCode,

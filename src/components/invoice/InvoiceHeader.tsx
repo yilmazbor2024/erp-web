@@ -35,6 +35,7 @@ interface InvoiceHeaderProps {
   onCurrencyChange?: (currencyCode: string) => void;
   onExchangeRateChange?: (rate: number) => void;
   onExchangeRateSourceChange?: (e: RadioChangeEvent) => void;
+  onTaxTypeChange?: (taxTypeMode: string) => void;
   invoiceType: InvoiceType;
   taxTypes?: TaxType[];
   loadingTaxTypes?: boolean;
@@ -79,6 +80,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   onCurrencyChange,
   onExchangeRateChange,
   onExchangeRateSourceChange,
+  onTaxTypeChange,
   invoiceType,
   taxTypes = [],
   loadingTaxTypes = false
@@ -134,9 +136,38 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       if (taxFreeType) {
         form.setFieldsValue({ taxTypeCode: taxFreeType.taxTypeCode });
         console.log('Varsayılan vergi tipi ayarlandı:', taxFreeType.taxTypeCode);
+        // Varsayılan olarak "Vergisiz" seçildiğinde KDV oranlarını sıfırla
+        handleTaxTypeChange(taxFreeType.taxTypeCode);
       }
     }
   }, [taxTypes]);
+  
+  // Vergi tipi değiştiğinde çalışacak fonksiyon
+  const handleTaxTypeChange = (taxTypeCode: string) => {
+    console.log('Vergi tipi değişti:', taxTypeCode);
+    
+    // Seçilen vergi tipini bul
+    const selectedTaxType = taxTypes?.find(tax => tax.taxTypeCode === taxTypeCode);
+    
+    // Eğer "Vergisiz" seçildiyse tüm fatura satırlarındaki KDV oranını 0 yap
+  // Kesin kontrol: TaxTypeCode = 4 ve bsTaxTypeDesc = "Vergisiz"
+  if (selectedTaxType && 
+      (selectedTaxType.taxTypeCode === '4' || 
+       selectedTaxType.taxTypeDescription === 'Vergisiz')) {
+      
+      console.log('Vergisiz seçildi, tüm KDV oranları 0 olarak ayarlanıyor');
+      
+      // InvoiceForm bileşeninden gelen onTaxTypeChange fonksiyonunu çağır
+      if (onTaxTypeChange) {
+        onTaxTypeChange('vergisiz');
+      }
+    } else {
+      // Başka bir vergi tipi seçildiyse, normal KDV oranlarını kullan
+      if (onTaxTypeChange) {
+        onTaxTypeChange('normal');
+      }
+    }
+  };
 
   // Müşteri adreslerini getir
   const fetchCustomerAddresses = async (customerId: string) => {
@@ -1152,6 +1183,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               placeholder="Vergi tipi seçin"
               optionFilterProp="children"
               loading={loadingTaxTypes}
+              onChange={(value) => handleTaxTypeChange(value)}
               filterOption={(input, option) => {
                 if (!input || !option) return true;
                 let searchText = '';

@@ -1,2 +1,3 @@
 // API yapılandırma dosyası
-export const API_BASE_URL = 'http://localhost:5180';
+// Ortam değişkeninden API URL'sini al
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://b2b.edikravat.tr';
