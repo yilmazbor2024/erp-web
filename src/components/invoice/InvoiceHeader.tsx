@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import moment from 'moment';
-import { Form, Input, DatePicker, Select, Row, Col, Typography, Button, Spin, Divider, message, Radio, Switch, Tooltip, Space, Empty } from 'antd';
+import { Form, Input, DatePicker, Select, Row, Col, Typography, Button, Spin, Divider, message, Radio, Switch, Tooltip, Space, Empty, InputNumber } from 'antd';
 import { SearchOutlined, PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { RadioChangeEvent } from 'antd';
@@ -534,13 +534,78 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     if (onExchangeRateSourceChange) onExchangeRateSourceChange(e);
   };
 
-  // Tarih değiştiğinde döviz kurunu güncelle
+  // Ödeme tipi değiştiğinde çalışacak fonksiyon
+  const handlePaymentTypeChange = (value: string) => {
+    if (value === 'pesin') {
+      // Peşin seçilirse vade gün sıfırla ve vade tarihi fatura tarihine eşitle
+      form.setFieldsValue({
+        dueDays: 0,
+        dueDate: form.getFieldValue('invoiceDate')
+      });
+    }
+    // Form alanlarını yeniden render etmek için form'u güncelle
+    form.setFields([{
+      name: 'paymentType',
+      value
+    }]);
+  };
+
+  // Vade gün değiştiğinde çalışacak fonksiyon
+  const handleDueDaysChange = (value: number | null) => {
+    const invoiceDate = form.getFieldValue('invoiceDate');
+    if (invoiceDate && value !== null && value > 0) {
+      // Vade günü kadar fatura tarihine ekle
+      const dueDate = dayjs(invoiceDate).add(value, 'day');
+      form.setFieldsValue({
+        dueDate: dueDate,
+        paymentType: 'vadeli' // Vade gün 0'dan farklı ise ödeme tipini vadeli yap
+      });
+    } else {
+      // Vade gün 0 veya null ise vade tarihi fatura tarihine eşit olsun
+      form.setFieldsValue({
+        dueDate: invoiceDate,
+        paymentType: 'pesin' // Vade gün 0 ise ödeme tipini peşin yap
+      });
+    }
+  };
+
+  // Tarih değiştiğinde döviz kurunu güncelle ve vade tarihini güncelle
   const handleDateChange = (date: any) => {
     if (!date) return;
     
+    // Döviz kurunu güncelle
     const currencyCode = form.getFieldValue('currencyCode');
     if (currencyCode) {
       fetchExchangeRate();
+    }
+    
+    // Ödeme tipine göre vade tarihini güncelle
+    const paymentType = form.getFieldValue('paymentType');
+    if (paymentType === 'pesin') {
+      // Peşin ise vade tarihi fatura tarihine eşit olsun
+      form.setFieldsValue({
+        dueDate: date
+      });
+    } else {
+      // Vadeli ise, vade gününe göre vade tarihini güncelle
+      const dueDays = form.getFieldValue('dueDays') || 0;
+      if (dueDays > 0) {
+        const dueDate = dayjs(date).add(dueDays, 'day');
+        form.setFieldsValue({
+          dueDate: dueDate
+        });
+      } else {
+        // Vade gün 0 ise, mevcut tarih ile vade tarihi arasındaki gün farkını hesapla
+        const currentDueDate = form.getFieldValue('dueDate');
+        if (currentDueDate) {
+          const daysDiff = dayjs(currentDueDate).diff(date, 'day');
+          if (daysDiff > 0) {
+            form.setFieldsValue({
+              dueDays: daysDiff
+            });
+          }
+        }
+      }
     }
   };
 
@@ -599,10 +664,14 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   // Component mount olduğunda form başlangıç değerlerini ayarla
   useEffect(() => {
     if (form) {
+      const today = dayjs();
       // Form başlangıç değerlerini ayarla
       form.setFieldsValue({
         exchangeRateSource: 'TCMB', // TCMB varsayılan olarak seçili
-        invoiceDate: dayjs() // Bugünün tarihi
+        invoiceDate: today, // Bugünün tarihi
+        paymentType: 'pesin', // Varsayılan ödeme tipi peşin
+        dueDays: 0, // Varsayılan vade günü 0
+        dueDate: today // Varsayılan vade tarihi bugün
       });
     }
   }, [form]);
@@ -610,59 +679,62 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   return (
     <>
       
-      <Row gutter={24}>
+      <Row gutter={[24, 12]} style={{ marginBottom: '16px' }}>
         <Col span={24}>
-          <Title level={5}>Fatura Bilgileri</Title>
+          <Title level={5} style={{ marginBottom: '8px' }}>Fatura Bilgileri</Title>
         </Col>
-      </Row>
 
-      <Row gutter={24}>
-        <Col xs={24} sm={12} md={8} lg={6}>
+        {/* Fatura Türü Seçenekleri - Yan yana ve kompakt */}
+        <Col xs={12} sm={4} md={2} lg={2}>
           <Form.Item
-            name="invoiceDate"
-            label="Fatura Tarihi"
-            rules={[{ required: true, message: 'Lütfen fatura tarihini seçin' }]}
+            name="isReturn"
+            valuePropName="checked"
+            label="Fatura Türü"
+            style={{ marginBottom: '8px' }}
           >
-            <DatePicker 
-              style={{ width: '100%' }} 
-              format="DD.MM.YYYY" 
-              placeholder="Tarih seçin"
-              onChange={handleDateChange}
+            <Switch 
+              checkedChildren="İade" 
+              unCheckedChildren="Normal" 
+              checked={isReturn}
+              onChange={(checked) => setIsReturn(checked)}
+              size="small"
+            />
+          </Form.Item>
+        </Col>
+        
+        <Col xs={12} sm={4} md={2} lg={2}>
+          <Form.Item
+            name="isEInvoice"
+            valuePropName="checked"
+            label="Belge Türü"
+            style={{ marginBottom: '8px' }}
+          >
+            <Switch 
+              checkedChildren="E-Fatura" 
+              unCheckedChildren="Normal" 
+              checked={isEInvoice}
+              onChange={(checked) => setIsEInvoice(checked)}
+              size="small"
             />
           </Form.Item>
         </Col>
 
-        <Col xs={24} sm={12} md={8} lg={6}>
+        <Col xs={12} sm={4} md={3} lg={3}>
           <Form.Item
-            name="invoiceNumber"
-            label="Fatura Numarası"
-            tooltip="Fatura numarası sistem tarafından otomatik oluşturulacak"
-          >
-            <Input 
-              placeholder="WS-7-XXXX" 
-              disabled 
-              style={{ backgroundColor: '#f5f5f5' }} 
-            />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} sm={12} md={8} lg={6}>
-          <Form.Item
-            name="currencyCode"
-            label="Para Birimi"
-            rules={[{ required: true, message: 'Lütfen para birimini seçin' }]}
+            name="taxTypeCode"
+            label="Vergi Tipi"
+            rules={[{ required: true, message: 'Lütfen vergi tipi seçin!' }]}
+            style={{ marginBottom: '8px' }}
           >
             <Select
               showSearch
-              placeholder="Para birimi seçin"
+              placeholder="Vergi tipi seçin"
               optionFilterProp="children"
-              onChange={handleCurrencyChange}
-              loading={loadingCurrencies}
+              loading={loadingTaxTypes}
+              onChange={(value) => handleTaxTypeChange(value)}
+              size="small"
               filterOption={(input, option) => {
-                // Hem müşteri kodu hem müşteri adında arama yapabilmek için
                 if (!input || !option) return true;
-                
-                // Option label veya children'dan arama metni oluştur
                 let searchText = '';
                 if (option.label) {
                   searchText = option.label.toString();
@@ -673,32 +745,314 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                     searchText = '';
                   }
                 }
-                
                 return searchText.toLowerCase().includes(input.toLowerCase());
               }}
+              notFoundContent={loadingTaxTypes ? <Spin size="small" /> : <Empty description="Vergi tipi bulunamadı" />}
             >
-              {currencies?.length > 0 ? 
-                currencies.map((currency, index) => {
-                  // TRY için varsayılan ve koyu stil
-                  const isTRY = currency.code === 'TRY' || currency.currencyCode === 'TRY';
-                  const style = isTRY ? { fontWeight: 'bold' } : {};
-                  
-                  // Kod ve açıklama için uygun alanları kullan
-                  const code = currency.code || currency.currencyCode;
-                  const name = currency.name || currency.description || currency.currencyDescription || currency.currencyName;
-                  
-                  return (
-                    <Option 
-                      key={code || `currency-${index}`} 
-                      value={code}
-                      style={style}
-                    >
-                      {code} - {name}
-                    </Option>
-                  );
-                }) : 
-                <Option disabled value="">Para birimi listesi yüklenemedi</Option>
+              {taxTypes?.length > 0 ? 
+                taxTypes.filter(tax => !tax.isBlocked).map((tax) => (
+                  <Option key={tax.taxTypeCode} value={tax.taxTypeCode}>
+                    {tax.taxTypeDescription || tax.taxTypeCode}
+                  </Option>
+                )) : 
+                <Option disabled value="">Vergi tipi bulunamadı</Option>
               }
+            </Select>
+          </Form.Item>
+        </Col>
+        
+        <Col xs={12} sm={6} md={4} lg={4}>
+          <Form.Item
+            name="invoiceDate"
+            label="Fatura Tarihi"
+            rules={[{ required: true, message: 'Lütfen fatura tarihini seçin' }]}
+            style={{ marginBottom: '8px' }}
+          >
+            <DatePicker 
+              style={{ width: '100%' }} 
+              format="DD.MM.YYYY" 
+              placeholder="Tarih seçin"
+              onChange={handleDateChange}
+              size="small"
+            />
+          </Form.Item>
+        </Col>
+
+        <Col xs={12} sm={6} md={4} lg={4}>
+          <Form.Item
+            name="invoiceNumber"
+            label="Fatura No:"
+            tooltip="Fatura numarası sistem tarafından otomatik oluşturulacak"
+            style={{ marginBottom: '8px' }}
+          >
+            <Input 
+              placeholder="WS-7-XX" 
+              disabled 
+              style={{ backgroundColor: '#f5f5f5' }} 
+              size="small"
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      {/* Fatura Bilgileri - Mobil Uyumlu Tasarım */}
+      <div className="invoice-header-mobile-friendly" style={{ marginBottom: '8px' }}>
+        <style dangerouslySetInnerHTML={{ __html: `
+          /* Form öğelerinin genel stil ayarları */
+          .invoice-header-mobile-friendly .ant-form-item {
+            margin-bottom: 12px;
+          }
+          
+          /* Form etiketlerinin stil ayarları */
+          .invoice-header-mobile-friendly .ant-form-item-label {
+            padding-bottom: 4px;
+          }
+          
+          .invoice-header-mobile-friendly .ant-form-item-label > label {
+            font-size: 14px;
+            height: 20px;
+            line-height: 20px;
+          }
+          
+          /* Tüm form bileşenleri için ortak stil ayarları */
+          .invoice-header-mobile-friendly .ant-picker,
+          .invoice-header-mobile-friendly .ant-input,
+          .invoice-header-mobile-friendly .ant-input-number,
+          .invoice-header-mobile-friendly .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+            border-radius: 6px;
+            height: 32px !important;
+            box-sizing: border-box;
+            padding: 0 11px;
+            border: 1px solid #d9d9d9;
+          }
+          
+          /* Radio.Button için özel stil */
+          .invoice-header-mobile-friendly .ant-radio-group {
+            width: 100%;
+            display: flex;
+            height: 32px;
+          }
+          
+          .invoice-header-mobile-friendly .ant-radio-button-wrapper {
+            flex: 1;
+            height: 32px;
+            line-height: 30px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 8px;
+          }
+          
+          /* Input alanı için özel stil */
+          .invoice-header-mobile-friendly .ant-input {
+            line-height: 32px;
+          }
+          
+          /* Input Number için özel stil */
+          .invoice-header-mobile-friendly .ant-input-number {
+            width: 100%;
+          }
+          
+          .invoice-header-mobile-friendly .ant-input-number .ant-input-number-input {
+            height: 30px;
+            line-height: 30px;
+            padding: 0 11px;
+          }
+          
+          /* Select için özel stil */
+          .invoice-header-mobile-friendly .ant-select-single .ant-select-selector {
+            padding: 0 11px;
+            display: flex;
+            align-items: center;
+          }
+          
+          .invoice-header-mobile-friendly .ant-select-single .ant-select-selector .ant-select-selection-item {
+            line-height: 30px;
+            height: 30px;
+            padding-right: 18px;
+          }
+          
+          /* DatePicker için özel stil */
+          .invoice-header-mobile-friendly .ant-picker {
+            padding: 0 11px;
+            display: flex;
+            align-items: center;
+          }
+          
+          .invoice-header-mobile-friendly .ant-picker-input {
+            display: flex;
+            align-items: center;
+            width: 100%;
+          }
+          
+          .invoice-header-mobile-friendly .ant-picker-input > input {
+            height: 30px;
+            line-height: 30px;
+            padding: 0;
+            font-size: 14px;
+          }
+          
+          /* Satır ve sütun boşlukları */
+          .invoice-header-mobile-friendly .ant-row {
+            margin-bottom: 0 !important;
+          }
+          
+          /* Form öğeleri arasındaki boşlukları ayarla */
+          .invoice-header-mobile-friendly .ant-col {
+            padding: 0 4px;
+          }
+          
+          /* Mobil görünüm için özel stiller */
+          @media (max-width: 576px) {
+            .invoice-header-mobile-friendly .ant-form-item {
+              margin-bottom: 8px;
+            }
+            
+            .invoice-header-mobile-friendly .ant-form-item-label > label {
+              font-size: 13px;
+            }
+            
+            .invoice-header-mobile-friendly .ant-form-item-label {
+              padding-bottom: 2px;
+            }
+          }
+        `}} />
+        
+        {/* Tek satırda - Fatura Tarihi, Fatura No, Ödeme Tipi, Vade Gün, Vade Tarihi, Para Birimi */}
+        <Row gutter={[24, 12]}>
+          {/* Fatura Tarihi ve Fatura No alanları üst kısma taşındı */}
+          
+          <Col xs={12} sm={6} md={3} lg={3}>
+            <Form.Item
+              name="paymentType"
+              label="Ödeme Tipi"
+              rules={[{ required: true, message: 'Lütfen ödeme tipini seçin' }]}
+              style={{ marginBottom: '8px' }}
+            >
+              <Select
+                placeholder="Ödeme tipi seçin"
+                onChange={handlePaymentTypeChange}
+                size="small"
+              >
+                <Option value="pesin">Peşin</Option>
+                <Option value="vadeli">Vadeli</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+          
+          <Col xs={12} sm={6} md={3} lg={3}>
+            <Form.Item
+              shouldUpdate={(prevValues, currentValues) => prevValues.paymentType !== currentValues.paymentType}
+            >
+              {({ getFieldValue }) => (
+                <Form.Item
+                  name="dueDays"
+                  label="Vade Gün"
+                  tooltip="Peşin ödemede 0, vadeli ödemede vade gün sayısını girin"
+                  style={{ marginBottom: '8px' }}
+                >
+                  <InputNumber
+                    min={0}
+                    max={365}
+                    style={{ width: '100%' }}
+                    placeholder="Vade gün sayısı"
+                    onChange={handleDueDaysChange}
+                    disabled={getFieldValue('paymentType') === 'pesin'}
+                    size="small"
+                  />
+                </Form.Item>
+              )}
+            </Form.Item>
+          </Col>
+          
+          <Col xs={12} sm={6} md={3} lg={3}>
+            <Form.Item
+              shouldUpdate={(prevValues, currentValues) => 
+                prevValues.paymentType !== currentValues.paymentType || 
+                prevValues.dueDays !== currentValues.dueDays ||
+                prevValues.invoiceDate !== currentValues.invoiceDate
+              }
+            >
+              {({ getFieldValue }) => (
+                <Form.Item
+                  name="dueDate"
+                  label="Vade Tarihi"
+                  dependencies={['paymentType', 'dueDays', 'invoiceDate']}
+                  tooltip="Peşin ödemede fatura tarihi ile aynı, vadeli ödemede vade gün sayısı kadar sonrası"
+                  style={{ marginBottom: '8px' }}
+                >
+                  <DatePicker 
+                    style={{ width: '100%' }} 
+                    format="DD.MM.YYYY" 
+                    placeholder="Vade tarihi"
+                    disabled={getFieldValue('paymentType') === 'pesin'}
+                    size="small"
+                  />
+                </Form.Item>
+              )}
+            </Form.Item>
+          </Col>
+
+          <Col xs={12} sm={6} md={3} lg={3}>
+            <Form.Item
+              name="exchangeRateSource"
+              label="Döviz Kuru Kaynağı"
+              style={{ marginBottom: '8px' }}
+            >
+              <Radio.Group 
+                onChange={handleExchangeRateSourceChange}
+                optionType="button"
+                buttonStyle="solid"
+                size="small"
+                style={{ 
+                  width: '100%', 
+                  display: 'flex',
+                  height: '32px'
+                }}
+              >
+                <Radio.Button value="TCMB" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>TCMB</Radio.Button>
+                <Radio.Button value="SERBEST_PIYASA" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>S.PİYASA</Radio.Button>
+                <Radio.Button value="MANUEL" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>Manuel</Radio.Button>
+              </Radio.Group>
+            </Form.Item>
+          </Col>
+
+          <Col xs={12} sm={6} md={3} lg={3}>
+            <Form.Item
+              name="currencyCode"
+              label="Para Birimi"
+              rules={[{ required: true, message: 'Lütfen para birimi seçin' }]}
+              style={{ marginBottom: '8px' }}
+            >
+              <Select
+                showSearch
+                placeholder="Para birimi seçin"
+                optionFilterProp="children"
+                filterOption={(input, option) => {
+                  if (!input || !option) return true;
+                  let searchText = '';
+                  if (option.label) {
+                    searchText = option.label.toString();
+                  } else if (option.children) {
+                    try {
+                      searchText = option.children.toString();
+                    } catch (e) {
+                      searchText = '';
+                    }
+                  }
+                  return searchText.toLowerCase().includes(input.toLowerCase());
+                }}
+                notFoundContent={loadingCurrencies ? <Spin size="small" /> : <Empty description="Para birimi bulunamadı" />}
+              >
+                {currencies?.length > 0 ? 
+                  currencies.map((currency) => (
+                    <Option key={currency.currencyCode} value={currency.currencyCode}>
+                      {currency.currencyCode} - {currency.currencyName}
+                    </Option>
+                  )) : 
+                  <Option disabled value="">Para birimi bulunamadı</Option>
+                }
             </Select>
           </Form.Item>
           {isCustomerCurrency && (
@@ -707,31 +1061,16 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
             </Text>
           )}
         </Col>
+        </Row>
+      </div>
 
-        <Col xs={24} sm={12} md={8} lg={6}>
-          <Form.Item
-            name="exchangeRateSource"
-            label="Döviz Kuru Kaynağı"
-          >
-            <Radio.Group 
-              onChange={handleExchangeRateSourceChange}
-              optionType="button"
-              buttonStyle="solid"
-              size="small"
-              style={{ textAlign: 'left' }}
-            >
-              <Radio.Button value="TCMB">TCMB</Radio.Button>
-              <Radio.Button value="SERBEST_PIYASA">S.PİYASA</Radio.Button>
-              <Radio.Button value="MANUEL">Manuel</Radio.Button>
-            </Radio.Group>
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} sm={12} md={8} lg={6}>
+      <Row gutter={[24, 12]}>
+        <Col xs={12} sm={6} md={6} lg={6}>
           <Form.Item
             name="exchangeRate"
             label="Döviz Kuru"
             rules={[{ required: true, message: 'Döviz kuru gerekli' }]}
+            style={{ marginBottom: '8px' }}
           >
             <Input 
               type="number" 
@@ -748,11 +1087,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Form.Item>
         </Col>
 
-        <Col xs={24} sm={12} md={8} lg={6}>
+        <Col xs={12} sm={6} md={6} lg={6}>
           <Form.Item
             name="officeCode"
             label="Ofis"
             rules={[{ required: true, message: 'Lütfen ofis seçin' }]}
+            style={{ marginBottom: '8px' }}
           >
             <Select
               showSearch
@@ -1059,7 +1399,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         <Col span={12}>
           <Form.Item
             name="shippingPostalAddressID"
-            label="Teslimat Adresi"
+            label="Teslimat Adr."
             rules={[{ required: true, message: 'Lütfen teslimat adresi seçin!' }]}
           >
             <Select
@@ -1116,7 +1456,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         <Col span={12}>
           <Form.Item
             name="billingPostalAddressID"
-            label="Fatura Adresi"
+            label="Fatura Adr."
             rules={[{ required: true, message: 'Lütfen fatura adresi seçin!' }]}
           >
             <Select
@@ -1174,46 +1514,6 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       <Row gutter={16}>
         <Col xs={24} sm={12}>
           <Form.Item
-            name="taxTypeCode"
-            label="Vergi Tipi"
-            rules={[{ required: true, message: 'Lütfen vergi tipi seçin!' }]}
-          >
-            <Select
-              showSearch
-              placeholder="Vergi tipi seçin"
-              optionFilterProp="children"
-              loading={loadingTaxTypes}
-              onChange={(value) => handleTaxTypeChange(value)}
-              filterOption={(input, option) => {
-                if (!input || !option) return true;
-                let searchText = '';
-                if (option.label) {
-                  searchText = option.label.toString();
-                } else if (option.children) {
-                  try {
-                    searchText = option.children.toString();
-                  } catch (e) {
-                    searchText = '';
-                  }
-                }
-                return searchText.toLowerCase().includes(input.toLowerCase());
-              }}
-              notFoundContent={loadingTaxTypes ? <Spin size="small" /> : <Empty description="Vergi tipi bulunamadı" />}
-            >
-              {taxTypes?.length > 0 ? 
-                taxTypes.filter(tax => !tax.isBlocked).map((tax) => (
-                  <Option key={tax.taxTypeCode} value={tax.taxTypeCode}>
-                    {tax.taxTypeDescription || tax.taxTypeCode}
-                  </Option>
-                )) : 
-                <Option disabled value="">Vergi tipi bulunamadı</Option>
-              }
-            </Select>
-          </Form.Item>
-        </Col>
-        
-        <Col xs={24} sm={12}>
-          <Form.Item
             name="notes"
             label="Notlar"
           >
@@ -1222,35 +1522,9 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         </Col>
       </Row>
 
-      <Row gutter={16}>
-        <Col xs={12} sm={6}>
-          <Form.Item
-            name="isReturn"
-            valuePropName="checked"
-          >
-            <Switch 
-              checkedChildren="İade" 
-              unCheckedChildren="Normal" 
-              checked={isReturn}
-              onChange={(checked) => setIsReturn(checked)}
-            />
-          </Form.Item>
-        </Col>
-        
-        <Col xs={12} sm={6}>
-          <Form.Item
-            name="isEInvoice"
-            valuePropName="checked"
-          >
-            <Switch 
-              checkedChildren="E-Fatura" 
-              unCheckedChildren="Normal Fatura" 
-              checked={isEInvoice}
-              onChange={(checked) => setIsEInvoice(checked)}
-            />
-          </Form.Item>
-        </Col>
-      </Row>
+
+
+      {/* Switch bileşenleri Fatura Bilgileri bölümüne taşındı */}
     </>
   );
 };
