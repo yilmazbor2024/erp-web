@@ -1022,12 +1022,15 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               label="Para Birimi"
               rules={[{ required: true, message: 'Lütfen para birimi seçin' }]}
               style={{ marginBottom: '8px' }}
+              tooltip="İşlem yapacağınız para birimini seçin"
             >
               <Select
                 showSearch
                 placeholder="Para birimi seçin"
                 optionFilterProp="children"
                 onChange={handleCurrencyChange}
+                style={{ width: '100%' }}
+                size="small"
                 filterOption={(input, option) => {
                   if (!input || !option) return true;
                   let searchText = '';
@@ -1042,7 +1045,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                   }
                   return searchText.toLowerCase().includes(input.toLowerCase());
                 }}
-                notFoundContent={loadingCurrencies ? <Spin size="small" /> : <Empty description="Para birimi bulunamadı" />}
+                notFoundContent={loadingCurrencies ? <Spin size="small" /> : <Empty description="Para birimi bulunamadı" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
               >
                 {currencies?.length > 0 ? 
                   currencies.map((currency) => (
@@ -1055,7 +1058,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               </Select>
             </Form.Item>
             {isCustomerCurrency && (
-              <Text type="secondary" style={{ marginTop: -16, display: 'block' }}>
+              <Text type="secondary" style={{ marginTop: -16, display: 'block', fontSize: '12px' }}>
                 Müşteri Para Birimi seçili
               </Text>
             )}
