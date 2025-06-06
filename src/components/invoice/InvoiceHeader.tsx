@@ -1029,6 +1029,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 showSearch
                 placeholder="Para birimi seçin"
                 optionFilterProp="children"
+                onChange={handleCurrencyChange}
                 filterOption={(input, option) => {
                   if (!input || !option) return true;
                   let searchText = '';
@@ -1054,13 +1055,13 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                   <Option disabled value="">Para birimi bulunamadı</Option>
                 }
               </Select>
-          </Form.Item>
-          {isCustomerCurrency && (
-            <Text type="secondary" style={{ marginTop: -16, display: 'block' }}>
-              Müşteri Para Birimi seçili
-            </Text>
-          )}
-        </Col>
+            </Form.Item>
+            {isCustomerCurrency && (
+              <Text type="secondary" style={{ marginTop: -16, display: 'block' }}>
+                Müşteri Para Birimi seçili
+              </Text>
+            )}
+          </Col>
         </Row>
       </div>
 
