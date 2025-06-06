@@ -63,16 +63,29 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
   // Para birimi prop'u değiştiğinde state'i güncelle
   useEffect(() => {
     if (currencyCode && currencyCode !== currency) {
+      console.log('InvoiceLines: Para birimi değişti', currencyCode);
       setCurrency(currencyCode);
       
       // Tüm satırların para birimi kodunu güncelle
       invoiceDetails.forEach(detail => {
         if (detail.currencyCode !== currencyCode) {
           updateInvoiceDetail(detail.id, 'currencyCode', currencyCode);
+          
+          // Aynı zamanda birim fiyat ve tutarları da güncelle
+          const updatedDetail = calculateLineAmounts({...detail, currencyCode});
+          
+          // Tüm güncellenmiş değerleri tek seferde uygula
+          Object.keys(updatedDetail).forEach(key => {
+            if (key !== 'id' && key !== 'itemCode') {
+              // TypeScript tip güvenliği için key'in InvoiceDetail'in bir özelliği olduğunu doğrula
+              const detailKey = key as keyof InvoiceDetail;
+              updateInvoiceDetail(detail.id, detailKey, updatedDetail[detailKey]);
+            }
+          });
         }
       });
     }
-  }, [currencyCode, invoiceDetails]);
+  }, [currencyCode]);
   
   // Para birimi sembolünü belirle
   const getCurrencySymbol = (code: string) => {

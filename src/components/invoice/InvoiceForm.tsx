@@ -321,6 +321,7 @@ const InvoiceForm = ({
   
   // Para birimi değiştiğinde çalışacak fonksiyon
   const handleCurrencyChange = (currencyCode: string) => {
+    console.log('Para birimi değişti:', currencyCode);
     setCurrentCurrencyCode(currencyCode);
     form.setFieldsValue({ 
       currencyCode,
@@ -329,7 +330,18 @@ const InvoiceForm = ({
     
     // Para birimi değiştiğinde her zaman tüm satırların para birimini güncelle
     if (Object.keys(exchangeRates).length > 0 || currencyCode === 'TRY') {
+      // Tüm satırların para birimini güncelle
       updatePricesWithExchangeRate(currencyCode);
+      
+      // Toplamları güncelle
+      const updatedDetails = invoiceDetails.map(detail => ({
+        ...detail,
+        currencyCode: currencyCode
+      }));
+      
+      // Satırları ve toplamları güncelle
+      setInvoiceDetails(updatedDetails);
+      updateTotals(updatedDetails);
     }
   };
   
@@ -377,6 +389,7 @@ const InvoiceForm = ({
   
   // Döviz kuru ile fiyatları güncelle
   const updatePricesWithExchangeRate = (currencyCode: string) => {
+    console.log('updatePricesWithExchangeRate çağrıldı:', currencyCode);
     // TRY için kur her zaman 1'dir
     let rate = 1;
     
@@ -427,13 +440,25 @@ const InvoiceForm = ({
           subtotalAmount,
           vatAmount,
           netAmount,
-          currencyCode: currencyCode,
-          exchangeRate: rate
+          currencyCode: currencyCode, // Para birimi kodunu güncelle
+          exchangeRate: rate // Döviz kurunu güncelle
         };
       });
       
+      // Güncellenmiş satırları state'e kaydet
       setInvoiceDetails(updatedDetails);
+      
+      // Fatura toplamlarını güncelle
       updateTotals(updatedDetails);
+      
+      // Form alanlarını güncelle
+      form.setFieldsValue({
+        exchangeRate: rate,
+        currencyCode: currencyCode
+      });
+      
+      // Konsola bilgi yazdır
+      console.log('Satırlar ve toplamlar güncellendi. Yeni para birimi:', currencyCode, 'Kur:', rate);
     }  
   };
   
