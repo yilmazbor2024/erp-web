@@ -1053,7 +1053,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                   )) : 
                   <Option disabled value="">Para birimi bulunamadı</Option>
                 }
-            </Select>
+              </Select>
           </Form.Item>
           {isCustomerCurrency && (
             <Text type="secondary" style={{ marginTop: -16, display: 'block' }}>
