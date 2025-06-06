@@ -1031,6 +1031,8 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 onChange={handleCurrencyChange}
                 style={{ width: '100%' }}
                 size="small"
+                labelInValue={false}
+                optionLabelProp="label"
                 filterOption={(input, option) => {
                   if (!input || !option) return true;
                   let searchText = '';
@@ -1049,8 +1051,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               >
                 {currencies?.length > 0 ? 
                   currencies.map((currency) => (
-                    <Option key={currency.currencyCode} value={currency.currencyCode}>
-                      {currency.currencyCode} - {currency.currencyName}
+                    <Option 
+                      key={currency.currencyCode} 
+                      value={currency.currencyCode} 
+                      label={`${currency.currencyCode}-${currency.currencyName}`}
+                    >
+                      {currency.currencyCode}-{currency.currencyName}
                     </Option>
                   )) : 
                   <Option disabled value="">Para birimi bulunamadı</Option>
