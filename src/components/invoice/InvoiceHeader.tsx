@@ -995,12 +995,10 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Col>
 
           <Col xs={12} sm={6} md={3} lg={3}>
-            <Form.Item
-              name="exchangeRateSource"
-              label="Döviz Kuru Kaynağı"
-              style={{ marginBottom: '8px' }}
-            >
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ marginBottom: '4px' }}>Döviz Kuru Kaynağı</div>
               <Radio.Group 
+                name="exchangeRateSource"
                 onChange={handleExchangeRateSourceChange}
                 optionType="button"
                 buttonStyle="solid"
@@ -1015,7 +1013,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 <Radio.Button value="SERBEST_PIYASA" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>S.PİYASA</Radio.Button>
                 <Radio.Button value="MANUEL" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>Manuel</Radio.Button>
               </Radio.Group>
-            </Form.Item>
+            </div>
           </Col>
 
           <Col xs={12} sm={6} md={3} lg={3}>
