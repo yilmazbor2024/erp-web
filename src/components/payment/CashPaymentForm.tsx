@@ -3,6 +3,17 @@ import { Form, Input, Select, Row, Col, Typography, Button, Spin, message, Input
 import { SaveOutlined, CloseOutlined, PlusOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config/constants';
+import currencyApi from '../../services/currencyApi';
+
+interface Currency {
+  code: string;
+  name: string;
+  description: string;
+  currencyCode?: string;
+  currencyDescription?: string;
+  isBlocked?: boolean;
+}
+import { exchangeRateApi } from '../../services/exchangeRateApi';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { Option } = Select;
@@ -24,7 +35,11 @@ interface CashPaymentFormProps {
 interface CashAccount {
   cashAccountCode?: string;
   cashAccountName?: string;
+  cashAccountDescription?: string;
   currencyCode?: string;
+  currencyDescription?: string;
+  officeCode?: string;
+  officeDescription?: string;
   code?: string;
   id?: string;
   name?: string;
@@ -59,8 +74,15 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([]);
   const [loadingCashAccounts, setLoadingCashAccounts] = useState<boolean>(false);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const [loadingCurrencies, setLoadingCurrencies] = useState<boolean>(false);
+  const [exchangeRateDisabled, setExchangeRateDisabled] = useState<boolean>(true);
+  
+  // Döviz kuru işlemleri için state'ler
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
+  const [exchangeRateSource, setExchangeRateSource] = useState<string>('CENTRAL_BANK');
 
-  // Toplam ve ödemen tutarlar
+  // Toplam ve ödeme tutarları
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [remainingAmount, setRemainingAmount] = useState<number>(invoiceAmount);
   
@@ -69,6 +91,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   const [currentExchangeRate, setCurrentExchangeRate] = useState<number>(1.0000);
   const [showAdvanceWarning, setShowAdvanceWarning] = useState<boolean>(false);
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
+  const [currentCurrencyCode, setCurrentCurrencyCode] = useState<string>('TRY');
 
   useEffect(() => {
     // Form başlangıç değerlerini ayarla
@@ -79,16 +102,158 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       exchangeRate: 1
     });
     
+    // Başlangıç para birimini ayarla
+    setCurrentCurrencyCode(currencyCode || 'TRY');
+    
     // Kasa hesaplarını yükle
     fetchCashAccounts();
+    fetchCurrencies();
     console.log('Kasa hesapları yükleniyor...');
   }, []);
+  
+  // Form değişikliklerini dinle
+  const handleFormChange = (changedValues: any, allValues: any) => {
+    console.log('Form değişti:', changedValues);
+    
+    // Para birimi değiştiğinde döviz kurunu güncelle
+    if (changedValues.currencyCode) {
+      handleCurrencyChange(changedValues.currencyCode);
+    }
+  };
+  
+  // Döviz kuru kontrolü - Sadece TRY için 1 olarak ayarla
+  const loadExchangeRates = () => {
+    try {
+      // Seçili para birimi
+      const currencyCode = form.getFieldValue('currencyCode');
+      console.log('Para birimi kontrol ediliyor:', currencyCode);
+      
+      // Eğer TRY ise kur 1 olarak ayarla ve inputu devre dışı bırak
+      if (currencyCode === 'TRY') {
+        form.setFieldsValue({ exchangeRate: 1 });
+        setCurrentExchangeRate(1);
+        setExchangeRateDisabled(true);
+        console.log('TRY para birimi seçildi, kur 1 olarak ayarlandı');
+        return;
+      }
+      
+      // TRY değilse input aktif olsun
+      setExchangeRateDisabled(false);
+      console.log('TRY dışında para birimi seçildi, kur manuel girilecek');
+      
+      // Varsayılan değer olarak 0 ayarla
+      if (!form.getFieldValue('exchangeRate')) {
+        form.setFieldsValue({ exchangeRate: 0 });
+        setCurrentExchangeRate(0);
+      }
+    } catch (error) {
+      console.error('Döviz kuru kontrolünde hata:', error);
+    }
+  };
+  
+  // Para birimi değiştiğinde döviz kuru kontrolünü yap
+  useEffect(() => {
+    if (currencies.length > 0) {
+      loadExchangeRates();
+    }
+  }, [currencies]);
+
+  // Para birimlerini getir
+  const fetchCurrencies = async () => {
+    // Eğer zaten para birimleri yüklendiye tekrar yükleme
+    if (currencies.length > 0) {
+      console.log('Para birimleri zaten yüklenmiş, tekrar yüklenmiyor');
+      return;
+    }
+    
+    try {
+      setLoadingCurrencies(true);
+      console.log('Para birimleri yükleniyor...');
+      
+      // API'den para birimlerini getir
+      const currencyData = await currencyApi.getCurrencies();
+      console.log('API yanıtı:', currencyData);
+      
+      if (currencyData && Array.isArray(currencyData) && currencyData.length > 0) {
+        console.log('API\'den para birimleri alındı:', currencyData.length);
+        
+        // API'den gelen para birimlerini standart formata dönüştür
+        const formattedCurrencies = currencyData.map((currency) => {
+          return {
+            code: currency.currencyCode,
+            name: currency.currencyDescription,
+            description: currency.currencyDescription,
+            currencyCode: currency.currencyCode,
+            currencyDescription: currency.currencyDescription,
+            isBlocked: currency.isBlocked || false
+          };
+        });
+        
+        // TRY para birimi yoksa ekle
+        const hasTRY = formattedCurrencies.some((c: Currency) => c.code === 'TRY' || c.currencyCode === 'TRY');
+        if (!hasTRY) {
+          console.log('TRY para birimi bulunamadı, ekleniyor...');
+          formattedCurrencies.unshift({
+            code: 'TRY',
+            name: 'Türk Lirası',
+            description: 'Türk Lirası',
+            currencyCode: 'TRY',
+            currencyDescription: 'Türk Lirası',
+            isBlocked: false
+          });
+        }
+        
+        setCurrencies(formattedCurrencies);
+        console.log('Para birimleri yüklendi:', formattedCurrencies.length);
+      } else {
+        console.warn('API yanıtı boş veya geçersiz format:', currencyData);
+        message.warning('Para birimi listesi boş veya yüklenemedi.');
+        
+        // TRY para birimini ekleyelim en azından
+        const defaultCurrencies = [
+          {
+            code: 'TRY',
+            name: 'Türk Lirası',
+            description: 'Türk Lirası',
+            currencyCode: 'TRY',
+            currencyDescription: 'Türk Lirası',
+            isBlocked: false
+          }
+        ];
+        setCurrencies(defaultCurrencies);
+        console.log('Sadece TRY para birimi yüklendi');
+      }
+      
+      // Döviz kurlarını yükle
+      loadExchangeRates();
+    } catch (error) {
+      console.error('Para birimleri yüklenirken hata:', error);
+      message.error('Para birimleri yüklenemedi.');
+      
+      // Hata durumunda en azından TRY para birimini ekle
+      const fallbackCurrencies = [
+        {
+          code: 'TRY',
+          name: 'Türk Lirası',
+          description: 'Türk Lirası',
+          currencyCode: 'TRY',
+          currencyDescription: 'Türk Lirası',
+          isBlocked: false
+        }
+      ];
+      setCurrencies(fallbackCurrencies);
+      console.log('Hata durumunda sadece TRY para birimi yüklendi');
+    } finally {
+      setLoadingCurrencies(false);
+    }
+  };
 
   // Kasa hesaplarını getir
   const fetchCashAccounts = async () => {
     try {
+      setLoadingCashAccounts(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE_URL}/api/cashaccount/list`, {
+      const response = await axios.get(`${API_BASE_URL}/api/CashAccount`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('Kasa hesapları:', response.data);
@@ -100,13 +265,64 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       } else {
         console.error('Kasa hesapları verisi geçerli bir dizi değil:', response.data);
         message.error('Kasa hesapları verisi geçerli bir format değil');
+        // Test verileri ekle
+        const testAccounts = [
+          { cashAccountCode: '101', cashAccountName: 'MERKEZ TL KASA', cashAccountDescription: 'Merkez ofis TL kasa', currencyCode: 'TRY', currencyDescription: 'Türk Lirası', officeCode: 'M', officeDescription: 'Merkez Ofis' },
+          { cashAccountCode: '102', cashAccountName: 'ŞUBE TL KASA', cashAccountDescription: 'Şube kasa', currencyCode: 'TRY', currencyDescription: 'Türk Lirası', officeCode: 'S', officeDescription: 'Şube Ofis' },
+          { cashAccountCode: '102USD', cashAccountName: 'USD KASA', cashAccountDescription: 'Dolar kasa', currencyCode: 'USD', currencyDescription: 'ABD Doları', officeCode: 'M', officeDescription: 'Merkez Ofis' }
+        ];
+        setCashAccounts(testAccounts);
       }
     } catch (error) {
       console.error('Kasa hesapları yüklenirken hata:', error);
       message.error('Kasa hesapları yüklenemedi');
+      // API çağrısı başarısız olursa test verileri ekle
+      const testAccounts = [
+        { cashAccountCode: '101', cashAccountName: 'MERKEZ TL KASA', cashAccountDescription: 'Merkez ofis TL kasa', currencyCode: 'TRY', currencyDescription: 'Türk Lirası', officeCode: 'M', officeDescription: 'Merkez Ofis' },
+        { cashAccountCode: '102', cashAccountName: 'ŞUBE TL KASA', cashAccountDescription: 'Şube kasa', currencyCode: 'TRY', currencyDescription: 'Türk Lirası', officeCode: 'S', officeDescription: 'Şube Ofis' },
+        { cashAccountCode: '102USD', cashAccountName: 'USD KASA', cashAccountDescription: 'Dolar kasa', currencyCode: 'USD', currencyDescription: 'ABD Doları', officeCode: 'M', officeDescription: 'Merkez Ofis' }
+      ];
+      setCashAccounts(testAccounts);
+    } finally {
+      setLoadingCashAccounts(false);
     }
   };
 
+  // Para birimi değiştiğinde döviz kurunu güncelle
+  const handleCurrencyChange = (value: string) => {
+    console.log('Para birimi değişti:', value);
+    setCurrentCurrencyCode(value);
+    
+    // TRY seçilirse kur 1 olarak ayarla ve döviz kuru alanını devre dışı bırak
+    if (value === 'TRY') {
+      form.setFieldsValue({ exchangeRate: 1 });
+      setCurrentExchangeRate(1);
+      setExchangeRateDisabled(true);
+      return;
+    }
+    
+    // TRY değilse döviz kuru alanını aktif et
+    setExchangeRateDisabled(false);
+    
+    // Mevcut döviz kurları yüklenmişse, seçilen para birimi için kuru ayarla
+    if (Object.keys(exchangeRates).length > 0) {
+      const rate = exchangeRates[value];
+      if (rate) {
+        const formattedRate = parseFloat(rate.toFixed(4));
+        form.setFieldsValue({ exchangeRate: formattedRate });
+        setCurrentExchangeRate(formattedRate);
+        console.log(`${value} için kur ayarlandı: ${formattedRate}`);
+      } else {
+        console.warn(`${value} için kur bulunamadı`);
+        form.setFieldsValue({ exchangeRate: 0 });
+        setCurrentExchangeRate(0);
+      }
+    } else {
+      // Döviz kurları yüklenmemişse yükle
+      loadExchangeRates();
+    }
+  };
+  
   // Tutar değişikliğini işle
   const handleAmountChange = (value: number | null) => {
     const safeValue = value === null ? 0 : value;
@@ -351,13 +567,13 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5' }}>Ödeme Tipi</th>
-                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5' }}>Para Birimi</th>
-                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5' }}>Döviz Kuru</th>
-                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5' }}>Tutar</th>
-                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5' }}>Tutar (TRY)</th>
-                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5' }}>Ödeme Açıkl.</th>
-                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5' }}>Kaldır</th>
+                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5', fontSize: '9.6px' }}>Ödeme Tipi</th>
+                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5', fontSize: '9.6px' }}>Para Birimi</th>
+                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5', fontSize: '9.6px' }}>Döviz Kuru</th>
+                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5', fontSize: '9.6px' }}>Tutar</th>
+                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5', fontSize: '9.6px' }}>Tutar (TRY)</th>
+                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5', fontSize: '9.6px' }}>Ödeme Açıkl.</th>
+                <th style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center', backgroundColor: '#f5f5f5', fontSize: '9.6px' }}>Kaldır</th>
               </tr>
             </thead>
             <tbody>
@@ -372,9 +588,9 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
                   <tr key={row.id}>
                     <td style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center' }}>{row.paymentType}</td>
                     <td style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center' }}>{row.currencyCode}</td>
-                    <td style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'right' }}>{row.exchangeRate.toFixed(4)}</td>
-                    <td style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'right' }}>{row.amount.toFixed(2)}</td>
-                    <td style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'right' }}>{row.tryAmount.toFixed(2)}</td>
+                    <td style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'right' }}>{typeof row.exchangeRate === 'number' ? row.exchangeRate.toFixed(4) : (row.exchangeRate || '0')}</td>
+                    <td style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'right' }}>{typeof row.amount === 'number' ? row.amount.toFixed(2) : (row.amount || '0')}</td>
+                    <td style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'right' }}>{typeof row.tryAmount === 'number' ? row.tryAmount.toFixed(2) : (row.tryAmount || '0')}</td>
                     <td style={{ border: '1px solid #e8e8e8', padding: '8px' }}>{row.description}</td>
                     <td style={{ border: '1px solid #e8e8e8', padding: '8px', textAlign: 'center' }}>
                       <Button 
@@ -390,64 +606,62 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
             </tbody>
           </table>
         </div>
-
-        {/* Tutar ve Ekle butonu */}
-        <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f9f9f9', padding: '10px', border: '1px solid #f0f0f0' }}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{ marginRight: '10px', fontWeight: 'bold' }}>Tutar:</div>
-            <Form.Item
-              name="amount"
-              style={{ margin: 0 }}
-              rules={[{ required: true, message: 'Lütfen tutar girin' }]}
-            >
-              <InputNumber
-                style={{ width: '150px' }}
-                min={0}
-                step={0.01}
-                precision={2}
-                onChange={handleAmountChange}
-                decimalSeparator=","
-                stringMode
-              />
-            </Form.Item>
-            <div style={{ marginLeft: '10px', marginRight: '10px', fontWeight: 'bold' }}>{form.getFieldValue('currencyCode') || currencyCode}</div>
-          </div>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />} 
-            onClick={addPaymentRow}
-            style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-            size="middle"
-          />
-        </div>
         
         {/* Form alanı */}
         <Form
           form={form}
           layout="vertical"
           onFinish={handleSubmit}
+          onValuesChange={handleFormChange}
           initialValues={{
             currencyCode: currencyCode,
             amount: 0,
-            description: `${invoiceNumber} nolu fatura için nakit tahsilat`
+            description: `${invoiceNumber} nolu fatura için nakit tahsilat`,
           }}
           style={{ marginTop: '10px' }}
         >
-          <div style={{ display: 'flex', flexDirection: 'row', gap: '10px' }}>
-            <div style={{ flex: 1 }}>
-              {/* Sol taraf - form alanları */}
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                <Form.Item name="cashAccountCode" label="Kasa Hesabı">
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '20px' }}>
+            {/* Sol taraf - form alanları */}
+            <div style={{ width: '50%' }}>
+              {/* 1. Satır - Kasa Hesabı */}
+              <div style={{ display: 'flex', marginBottom: '10px' }}>
+                <Form.Item name="cashAccountCode" style={{ width: '100%' }}>
                   <Select
                     style={{ width: '100%' }}
                     placeholder="Kasa hesabı seçin"
                     showSearch
                     optionFilterProp="children"
+                    dropdownStyle={{ padding: '0px' }}
+                    dropdownRender={(menu) => (
+                      <>
+                        <div style={{ padding: '0px', backgroundColor: '#f5f5f5', borderBottom: '2px solid #1890ff' }}>
+                          <table style={{ width: '100%', fontSize: '9.6px', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr>
+                                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold', width: '15%', borderRight: '1px solid #e8e8e8' }}>Kod</th>
+                                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold', width: '30%', borderRight: '1px solid #e8e8e8' }}>Açıklama</th>
+                                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold', width: '25%', borderRight: '1px solid #e8e8e8' }}>Para Birimi</th>
+                                <th style={{ padding: '8px', textAlign: 'left', fontWeight: 'bold', width: '30%' }}>Ofis</th>
+                              </tr>
+                            </thead>
+                          </table>
+                        </div>
+                        {menu}
+                      </>
+                    )}
                   >
                     {cashAccounts && cashAccounts.length > 0 ? (
                       cashAccounts.map(account => (
-                        <Option key={account.code || account.id} value={account.code || account.id}>
-                          {account.name} ({account.code || account.id})
+                        <Option 
+                          key={account.cashAccountCode || account.code || account.id} 
+                          value={account.cashAccountCode || account.code || account.id}
+                        >
+                          <div style={{ display: 'flex', padding: '4px 0', borderBottom: '1px solid #f0f0f0' }}>
+                            <div style={{ width: '15%', borderRight: '1px solid #f0f0f0', padding: '4px', fontSize: '9.6px' }}>{account.cashAccountCode || account.code || account.id}</div>
+                            <div style={{ width: '30%', borderRight: '1px solid #f0f0f0', padding: '4px', fontSize: '9.6px' }}>{account.cashAccountDescription || '-'}</div>
+                            <div style={{ width: '25%', borderRight: '1px solid #f0f0f0', padding: '4px', fontSize: '9.6px' }}>{account.currencyCode} - {account.currencyDescription || '-'}</div>
+                            <div style={{ width: '30%', padding: '4px', fontSize: '9.6px' }}>{account.officeCode} - {account.officeDescription || '-'}</div>
+                          </div>
                         </Option>
                       ))
                     ) : (
@@ -455,71 +669,125 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
                     )}
                   </Select>
                 </Form.Item>
-
-                <Form.Item name="currencyCode" label="Para Birimi" initialValue="TRY">
+              </div>
+              
+              {/* 2. Satır - Para Birimi ve Döviz Kuru */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <Form.Item name="currencyCode" initialValue="TRY" style={{ width: '50%' }}>
                   <Select 
                     style={{ width: '100%' }}
-                    onChange={(value) => {
-                      // Para birimi değiştiğinde kur alanını güncelle
-                      if (value === 'TRY') {
-                        form.setFieldsValue({ exchangeRate: 1 });
-                      }
-                    }}
+                    loading={loadingCurrencies}
+                    placeholder="Para birimi seçin"
+                    showSearch
+                    optionFilterProp="children"
+                    onChange={handleCurrencyChange}
                   >
-                    <Option value="TRY">TRY</Option>
-                    <Option value="USD">USD</Option>
-                    <Option value="EUR">EUR</Option>
-                    <Option value="GBP">GBP</Option>
+                    {currencies && currencies.length > 0 ? (
+                      currencies.map(currency => (
+                        <Option key={currency.currencyCode} value={currency.currencyCode}>
+                          {currency.currencyCode} - {currency.currencyDescription}
+                        </Option>
+                      ))
+                    ) : (
+                      // Yedek olarak sabit para birimleri listesi
+                      <>
+                        <Option value="TRY">TRY - Türk Lirası</Option>
+                        <Option value="USD">USD - Amerikan Doları</Option>
+                        <Option value="EUR">EUR - Euro</Option>
+                        <Option value="GBP">GBP - İngiliz Sterlini</Option>
+                      </>
+                    )}
                   </Select>
                 </Form.Item>
 
-                <Form.Item name="exchangeRate" label="Döviz Kuru" initialValue={1}>
-                  <InputNumber
+                <Form.Item name="exchangeRate" initialValue={1} style={{ width: '50%' }}>
+                  <InputNumber 
                     style={{ width: '100%' }}
-                    min={0.01}
-                    step={0.01}
+                    min={0}
                     precision={4}
-                    disabled={form.getFieldValue('currencyCode') === 'TRY'}
-                    decimalSeparator=","
-                    stringMode
+                    step={0.1}
+                    disabled={exchangeRateDisabled}
+                    placeholder="Döviz kurunu manuel girin"
+                    formatter={(value) => {
+                      if (value === null || value === undefined) return '0,0000';
+                      return `${value}`.replace('.', ',');
+                    }}
+                    parser={(value: string | undefined): number => {
+                      if (!value) return 0;
+                      const parsedValue = parseFloat(value.toString().replace(/[^\d.,]/g, '').replace(',', '.'));
+                      return isNaN(parsedValue) ? 0 : parsedValue;
+                    }}
                   />
                 </Form.Item>
               </div>
-
-              <Form.Item
-                name="description"
-                label="Satır Açıklaması"
-              >
-                <Input.TextArea rows={2} />
-              </Form.Item>
+              
+              {/* 3. Satır - Açıklama */}
+              <div style={{ display: 'flex', marginBottom: '10px' }}>
+                <Form.Item
+                  name="description"
+                  style={{ width: '100%' }}
+                >
+                  <Input.TextArea rows={2} />
+                </Form.Item>
+              </div>
+            </div>
+            
+            {/* Sağ taraf - özet bilgiler */}
+            <div style={{ width: '50%', border: '1px solid #f0f0f0', padding: '15px', backgroundColor: '#fafafa', borderRadius: '5px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid #e8e8e8', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Fatura Toplamı:</span>
+                <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'red' }}>{currencyCode} {invoiceAmount?.toFixed(2)}</span>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid #e8e8e8', paddingBottom: '10px' }}>
+                <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Ödenen Tutar:</span>
+                <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'green' }}>{currencyCode} {paidAmount.toFixed(2)}</span>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: paidAmount > invoiceAmount ? '10px' : '0' }}>
+                <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{paidAmount > invoiceAmount ? 'Para Üstü:' : 'Kalan Tutar:'}</span>
+                <span style={{ fontSize: '16px', fontWeight: 'bold', color: paidAmount > invoiceAmount ? 'blue' : 'orange' }}>
+                  {currencyCode} {Math.abs(paidAmount - invoiceAmount).toFixed(2)}
+                </span>
+              </div>
+              
+              {paidAmount > invoiceAmount && (
+                <div style={{ backgroundColor: '#e6f7ff', padding: '10px', borderRadius: '5px', marginTop: '10px', border: '1px solid #91d5ff' }}>
+                  <InfoCircleOutlined style={{ color: '#1890ff', marginRight: '5px' }} />
+                  <span>Fazla ödeme avans olarak kaydedilecektir.</span>
+                </div>
+              )}
             </div>
           </div>
           
-          {/* Özet bilgiler - alt kısım */}
-          <div style={{ marginTop: '20px', border: '1px solid #f0f0f0', padding: '15px', backgroundColor: '#fafafa', borderRadius: '5px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid #e8e8e8', paddingBottom: '10px' }}>
-              <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Fatura Toplamı:</span>
-              <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'red' }}>{currencyCode} {invoiceAmount?.toFixed(2)}</span>
+          {/* Tutar ve Ekle butonu */}
+          <div style={{ marginTop: '20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#f9f9f9', padding: '10px', border: '1px solid #f0f0f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ marginRight: '10px', fontWeight: 'bold' }}>Tutar:</div>
+              <Form.Item
+                name="amount"
+                style={{ margin: 0 }}
+                rules={[{ required: true, message: 'Lütfen tutar girin' }]}
+              >
+                <InputNumber
+                  style={{ width: '150px' }}
+                  min={0}
+                  step={0.01}
+                  precision={2}
+                  onChange={handleAmountChange}
+                  decimalSeparator=","
+                  stringMode
+                />
+              </Form.Item>
+              <div style={{ marginLeft: '10px', marginRight: '10px', fontWeight: 'bold' }}>{form.getFieldValue('currencyCode') || currencyCode}</div>
             </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid #e8e8e8', paddingBottom: '10px' }}>
-              <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Ödenen Tutar:</span>
-              <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'green' }}>{currencyCode} {paidAmount.toFixed(2)}</span>
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: paidAmount > invoiceAmount ? '10px' : '0' }}>
-              <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{paidAmount > invoiceAmount ? 'Para Üstü:' : 'Kalan Tutar:'}</span>
-              <span style={{ fontSize: '16px', fontWeight: 'bold', color: paidAmount > invoiceAmount ? 'blue' : 'orange' }}>
-                {currencyCode} {Math.abs(paidAmount - invoiceAmount).toFixed(2)}
-              </span>
-            </div>
-            
-            {paidAmount > invoiceAmount && (
-              <div style={{ backgroundColor: '#e6f7ff', padding: '10px', borderRadius: '5px', marginTop: '10px', border: '1px solid #91d5ff' }}>
-                <InfoCircleOutlined style={{ color: '#1890ff', marginRight: '5px' }} />
-                <span>Fazla ödeme avans olarak kaydedilecektir.</span>
-              </div>
-            )}
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />} 
+              onClick={addPaymentRow}
+              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+              size="middle"
+            />
           </div>
           
           <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
