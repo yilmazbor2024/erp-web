@@ -995,10 +995,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Col>
 
           <Col xs={12} sm={6} md={3} lg={3}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ marginBottom: '4px' }}>Döviz Kuru Kaynağı</div>
+            <Form.Item
+              name="exchangeRateSource"
+              label="Döviz Kuru Kaynağı"
+              style={{ marginBottom: '8px' }}
+            >
               <Radio.Group 
-                name="exchangeRateSource"
                 onChange={handleExchangeRateSourceChange}
                 optionType="button"
                 buttonStyle="solid"
@@ -1013,7 +1015,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 <Radio.Button value="SERBEST_PIYASA" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>S.PİYASA</Radio.Button>
                 <Radio.Button value="MANUEL" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>Manuel</Radio.Button>
               </Radio.Group>
-            </div>
+            </Form.Item>
           </Col>
 
           <Col xs={12} sm={6} md={3} lg={3}>
@@ -1022,17 +1024,11 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               label="Para Birimi"
               rules={[{ required: true, message: 'Lütfen para birimi seçin' }]}
               style={{ marginBottom: '8px' }}
-              tooltip="İşlem yapacağınız para birimini seçin"
             >
               <Select
                 showSearch
                 placeholder="Para birimi seçin"
                 optionFilterProp="children"
-                onChange={handleCurrencyChange}
-                style={{ width: '100%' }}
-                size="small"
-                labelInValue={false}
-                optionLabelProp="label"
                 filterOption={(input, option) => {
                   if (!input || !option) return true;
                   let searchText = '';
@@ -1047,28 +1043,24 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                   }
                   return searchText.toLowerCase().includes(input.toLowerCase());
                 }}
-                notFoundContent={loadingCurrencies ? <Spin size="small" /> : <Empty description="Para birimi bulunamadı" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                notFoundContent={loadingCurrencies ? <Spin size="small" /> : <Empty description="Para birimi bulunamadı" />}
               >
                 {currencies?.length > 0 ? 
                   currencies.map((currency) => (
-                    <Option 
-                      key={currency.currencyCode} 
-                      value={currency.currencyCode} 
-                      label={`${currency.currencyCode}-${currency.currencyName}`}
-                    >
-                      {currency.currencyCode}-{currency.currencyName}
+                    <Option key={currency.currencyCode} value={currency.currencyCode}>
+                      {currency.currencyCode} - {currency.currencyName}
                     </Option>
                   )) : 
                   <Option disabled value="">Para birimi bulunamadı</Option>
                 }
-              </Select>
-            </Form.Item>
-            {isCustomerCurrency && (
-              <Text type="secondary" style={{ marginTop: -16, display: 'block', fontSize: '12px' }}>
-                Müşteri Para Birimi seçili
-              </Text>
-            )}
-          </Col>
+            </Select>
+          </Form.Item>
+          {isCustomerCurrency && (
+            <Text type="secondary" style={{ marginTop: -16, display: 'block' }}>
+              Müşteri Para Birimi seçili
+            </Text>
+          )}
+        </Col>
         </Row>
       </div>
 
