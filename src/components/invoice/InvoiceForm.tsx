@@ -172,15 +172,25 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     const today = dayjs();
     const todayStr = today.format('YYYY-MM-DD');
     
-    form.setFieldsValue({
-      invoiceDate: today, // Form validasyonu için dayjs nesnesi kullanıyoruz
-      docCurrencyCode: 'TRY',
-      exchangeRate: 1,
-      exchangeRateSource: 'TCMB',
-      officeCode: 'M',
-      warehouseCode: '101',
-      _prevInvoiceDate: todayStr, // Karşılaştırma için string formatı kullanıyoruz
-    });
+    // Form değerlerini setTimeout içinde ayarlayarak döngüsel referans hatasını önlüyoruz
+    setTimeout(() => {
+      form.setFieldsValue({
+        invoiceDate: today, // Form validasyonu için dayjs nesnesi kullanıyoruz
+        docCurrencyCode: 'TRY',
+        exchangeRate: 1,
+        exchangeRateSource: 'TCMB',
+        officeCode: 'M',
+        warehouseCode: '101',
+        currencyCode: 'TRY',
+        currency: 'TRY',
+        invoiceType: selectedInvoiceType,
+        paymentType: '1',
+        discountType: '1',
+        discountRate: 0,
+        vatRate: 18,
+        isPriceIncludeVat: false
+      });
+    }, 0);
   }, [form]);
   // Fatura tipi için URL parametresini kullan
   
