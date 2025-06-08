@@ -40,7 +40,7 @@ interface InvoiceLinesProps {
   calculateLineAmounts: (detail: InvoiceDetail) => InvoiceDetail;
   isPriceIncludeVat: boolean;
   currencyCode?: string;
-  form?: any;
+  // form prop'unu kaldırdık çünkü artık kullanmıyoruz
 }
 
 const InvoiceLines: React.FC<InvoiceLinesProps> = ({
@@ -49,7 +49,7 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
   products,
   loadingProducts,
   showBarcodeModal,
-  form,
+  // form prop'unu kaldırdık
   addInvoiceDetail,
   updateInvoiceDetail,
   removeInvoiceDetail,
@@ -413,7 +413,8 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
 
 return (
   <div className="invoice-lines">
-    <Form form={form} component={false}>
+    {/* Form bileşenini kaldırdık, form instance'ını sadece değerleri okumak için kullanıyoruz */}
+    <div>
       <Row gutter={[8, 8]} style={{ marginBottom: 8 }}>
         <Col span={24}>
           <div style={mobileStyles.buttonContainer}>
@@ -510,7 +511,7 @@ return (
           }}
         />
       </div>
-    </Form>
+    </div>
   </div>
   );
 };

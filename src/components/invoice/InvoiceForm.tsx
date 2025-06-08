@@ -144,14 +144,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const determineInvoiceType = (): InvoiceType => {
     if (urlType) {
       switch(urlType) {
-        case 'wholesale':
-          return InvoiceType.WHOLESALE_SALES;
-        case 'wholesale-purchase':
+        case 'purchase':
           return InvoiceType.WHOLESALE_PURCHASE;
-        case 'expense-purchase':
-          return InvoiceType.EXPENSE_PURCHASE;
+        case 'sales':
+          return InvoiceType.WHOLESALE_SALES;
         case 'expense-sales':
           return InvoiceType.EXPENSE_SALES;
+        case 'expense-purchase':
+          return InvoiceType.EXPENSE_PURCHASE;
         default:
           return type || InvoiceType.WHOLESALE_SALES;
       }
@@ -159,22 +159,22 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     return type || InvoiceType.WHOLESALE_SALES;
   };
   
-  // Form nesnesi oluştur - memoize ederek render döngüsünde yeniden oluşturulmasını önlüyoruz
-  const [form] = useMemo(() => [Form.useForm()[0]], []);
+  // Form nesnesi oluştur
+  const [form] = Form.useForm();
   const [loading, setLoading] = useState<boolean>(false);
   const [exchangeRate, setExchangeRate] = useState<number>(1);
   
-  // Form instance'ının doğru şekilde bağlanmasını sağla
+  // Fatura tipini belirle ve state olarak sakla
+  const [selectedInvoiceType, setSelectedInvoiceType] = useState<InvoiceType>(determineInvoiceType());
+  
+  // Form başlangıç değerlerini ayarla
   useEffect(() => {
-    // Form instance'ını başlangıç değerleriyle ayarla
-    // Form için dayjs nesnesi kullanıyoruz, ancak _prevInvoiceDate için string formatı kullanıyoruz
-    // Böylece form validasyonu çalışırken, döngüsel referans hatasını da önlemiş oluyoruz
+    // Form için dayjs nesnesi kullanıyoruz
     const today = dayjs();
-    const todayStr = today.format('YYYY-MM-DD');
     
-    // Form değerlerini bir sonraki render döngüsünde ayarlayarak döngüsel referans hatasını önlüyoruz
-    const initialValues = {
-      invoiceDate: today, // Form validasyonu için dayjs nesnesi kullanıyoruz
+    // Form değerlerini ayarla - React'in render döngüsünde güvenli bir şekilde
+    form.setFieldsValue({
+      invoiceDate: today,
       docCurrencyCode: 'TRY',
       exchangeRate: 1,
       exchangeRateSource: 'TCMB',
@@ -188,23 +188,22 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       discountRate: 0,
       vatRate: 18,
       isPriceIncludeVat: false
-    };
-    
-    // Form değerlerini güvenli bir şekilde ayarla
-    if (form) {
-      setTimeout(() => {
-        form.setFieldsValue(initialValues);
-      }, 0);
-    }
-  }, [form]);
-  // Fatura tipi için URL parametresini kullan
+    });
+  }, [form, selectedInvoiceType]);
+  
+  // Veri yükleme için useEffect
+  useEffect(() => {
+    // Sayfa yüklenirken verileri yükle
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Sekme kontrolü için state
   const [activeTab, setActiveTab] = useState<string>('1'); // 1: BAŞLIK, 
   const [headerFormValid, setHeaderFormValid] = useState<boolean>(false); // Form validasyonu için state - başlangıçta kesinlikle false olarak ayarla
   
   // Fatura tipini belirle
-  const [selectedInvoiceType, setSelectedInvoiceType] = useState<InvoiceType>(determineInvoiceType());
+  // Sekme kontrolü için state
   
   // Veri state'leri
   const [customers, setCustomers] = useState<any[]>([]);
@@ -1207,7 +1206,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      console.log('Form Bileşeni Yüklendi:', invoiceTypeDescriptions[type as keyof typeof invoiceTypeDescriptions]);
+      console.log('Form Bileşeni Yüklendi:', invoiceTypeDescriptions[selectedInvoiceType as keyof typeof invoiceTypeDescriptions]);
       
       // Form bağlantısı kontrolü burada yapılmaz
       
@@ -1233,318 +1232,21 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     }
   };
 
-
-// Para birimlerini yükle
-const loadCurrencies = async () => {
-  // Eğer zaten para birimleri yüklendiyle tekrar yükleme
-  if (currencies.length > 0) {
-    console.log('Para birimleri zaten yüklenmiş, tekrar yüklenmiyor');
-    return;
-  }
-  
-  try {
-    setLoadingCurrencies(true);
-    console.log('Para birimleri yükleniyor...');
-    
-    // API'den para birimlerini getir
-    const currencyResponse = await currencyApi.getCurrencies();
-    
-    if (currencyResponse && currencyResponse.success) {
-      const currencyData = currencyResponse.data || [];
-      console.log(`${currencyData.length} para birimi yüklendi`);
-      
-      if (currencyData && currencyData.length > 0) {
-        // Para birimi verilerini standartlaştır
-        const formattedCurrencies = currencyData.map((currency: any) => ({
-          ...currency,
-          currencyCode: currency.currencyCode || currency.code,
-          currencyDescription: currency.currencyDescription || currency.description || currency.name,
-          code: currency.currencyCode || currency.code,
-          name: currency.currencyDescription || currency.description || currency.name,
-          description: currency.currencyDescription || currency.description || currency.name,
-          // TRY için varsayılan olarak işaretle
-          isDefault: (currency.currencyCode || currency.code) === 'TRY'
-        }));
-        
-        // TRY yoksa ekleyelim
-        const hasTRY = formattedCurrencies.some((c: any) => c.code === 'TRY');
-        if (!hasTRY) {
-          formattedCurrencies.unshift({
-            currencyCode: 'TRY', 
-            currencyDescription: 'Türk Lirası', 
-            code: 'TRY', 
-            name: 'Türk Lirası', 
-            description: 'Türk Lirası',
-            isDefault: true
-          });
-        }
-        
-        setCurrencies(formattedCurrencies);
-      } else {
-        // Varsayılan para birimleri
-        const defaultCurrencies = [
-          { currencyCode: 'TRY', currencyDescription: 'Türk Lirası', code: 'TRY', name: 'Türk Lirası', description: 'Türk Lirası', isDefault: true },
-          { currencyCode: 'USD', currencyDescription: 'Amerikan Doları', code: 'USD', name: 'Amerikan Doları', description: 'Amerikan Doları' },
-          { currencyCode: 'EUR', currencyDescription: 'Euro', code: 'EUR', name: 'Euro', description: 'Euro' },
-          { currencyCode: 'GBP', currencyDescription: 'İngiliz Sterlini', code: 'GBP', name: 'İngiliz Sterlini', description: 'İngiliz Sterlini' }
-        ];
-        setCurrencies(defaultCurrencies);
-        console.log('Varsayılan para birimleri kullanılıyor');
-      }
-    } else {
-      // Varsayılan para birimleri
-      const defaultCurrencies = [
-        { currencyCode: 'TRY', currencyDescription: 'Türk Lirası', code: 'TRY', name: 'Türk Lirası', description: 'Türk Lirası', isDefault: true },
-        { currencyCode: 'USD', currencyDescription: 'Amerikan Doları', code: 'USD', name: 'Amerikan Doları', description: 'Amerikan Doları' },
-        { currencyCode: 'EUR', currencyDescription: 'Euro', code: 'EUR', name: 'Euro', description: 'Euro' },
-        { currencyCode: 'GBP', currencyDescription: 'İngiliz Sterlini', code: 'GBP', name: 'İngiliz Sterlini', description: 'İngiliz Sterlini' }
-      ];
-      setCurrencies(defaultCurrencies);
-      console.log('API yanıtı başarısız, varsayılan para birimleri kullanılıyor');
-    }
-    
-    // Varsayılan para birimi olarak TRY ayarla
-    if (!form.getFieldValue('docCurrencyCode')) {
-      form.setFieldsValue({ docCurrencyCode: 'TRY' });
-    }
-  } catch (error) {
-    console.error('Para birimi yükleme hatası:', error);
-    // Varsayılan para birimleri
-    const defaultCurrencies = [
-      { currencyCode: 'TRY', currencyDescription: 'Türk Lirası', code: 'TRY', name: 'Türk Lirası', description: 'Türk Lirası', isDefault: true },
-      { currencyCode: 'USD', currencyDescription: 'Amerikan Doları', code: 'USD', name: 'Amerikan Doları', description: 'Amerikan Doları' },
-      { currencyCode: 'EUR', currencyDescription: 'Euro', code: 'EUR', name: 'Euro', description: 'Euro' },
-      { currencyCode: 'GBP', currencyDescription: 'İngiliz Sterlini', code: 'GBP', name: 'İngiliz Sterlini', description: 'İngiliz Sterlini' }
-    ];
-    setCurrencies(defaultCurrencies);
-    console.log('Hata nedeniyle varsayılan para birimleri kullanılıyor');
-    
-    // Varsayılan para birimi olarak TRY ayarla
-    if (!form.getFieldValue('docCurrencyCode')) {
-      form.setFieldsValue({ docCurrencyCode: 'TRY' });
-    }
-  } finally {
-    setLoadingCurrencies(false);
-  }
-};
-
-// Yeni satır ekle
-const addInvoiceDetail = () => {
-  const newDetail: InvoiceDetail = {
-    id: uuidv4(),
-    itemCode: '',
-    quantity: 1,
-    unitOfMeasureCode: 'AD',// Ürün varyant detayından gelmeli
-    unitPrice: 0, //Eğer varsa barkod modaldan fiyat listesinden gelmeli
-    vatRate: taxTypeMode === 'vergisiz' ? 0 : 10, // Vergi tipi vergisiz ise KDV 0, değilse 10
-    discountRate: 0,
-    totalAmount: 0,
-    discountAmount: 0,
-    subtotalAmount: 0,
-    vatAmount: 0,
-    netAmount: 0
+  // Sekme değiştirme işleyicisi
+  const handleTabChange = (activeKey: string) => {
+    setActiveTab(activeKey);
   };
 
-  const updatedDetails = [...invoiceDetails, newDetail];
-  setInvoiceDetails(updatedDetails);
-  
-  // Başlık zorunlu alanları tamamsa ve en az bir satır varsa TOPLAM sekmesini aktif et
-  if (headerFormValid && updatedDetails.length > 0) {
-    // Eğer SATIRLAR sekmesindeyse ve başlık geçerliyse, otomatik olarak TOPLAM sekmesine geç
-    if (activeTab === '2') {
-      handleTabChange('3');
-    }
-  }
-};
-
-// Satır silme fonksiyonu
-const removeInvoiceDetail = (id: string) => {
-  const updatedDetails = invoiceDetails.filter(detail => detail.id !== id);
-  setInvoiceDetails(updatedDetails);
-  updateTotals(updatedDetails);
-  
-  // Eğer satır kalmadıysa ve TOPLAM sekmesindeyse, SATIRLAR sekmesine geri dön
-  if (updatedDetails.length === 0 && activeTab === '3') {
-    handleTabChange('2');
-  }
-};
-
-// Form yüklenince verileri yükle
-useEffect(() => {
-  loadInitialData();
-}, []);
-
-// Form değişikliklerini izle
-useEffect(() => {
-  // Form değişikliklerini kontrol eden fonksiyon
-  const handleFormChange = () => {
-    // Gerekli alanları kontrol et
-    const values = form.getFieldsValue(['invoiceDate', 'currencyCode', 'currAccCode', 'officeCode', 'warehouseCode']);
+  // Vergi tipi değiştiğinde çağrılacak fonksiyon
+  const handleTaxTypeChange = (taxMode: string) => {
+    console.log('Vergi tipi modu değişti:', taxMode);
+    setTaxTypeMode(taxMode);
     
-    // Tüm gerekli alanlar doldurulmuşsa headerFormValid'i true yap
-    const isValid = !!(values.invoiceDate && 
-      values.currencyCode && 
-      values.currAccCode && 
-      values.officeCode && 
-      values.warehouseCode);
-    
-    console.log('Form validation check:', { 
-      invoiceDate: !!values.invoiceDate, 
-      currencyCode: !!values.currencyCode, 
-      currAccCode: !!values.currAccCode, 
-      officeCode: !!values.officeCode, 
-      warehouseCode: !!values.warehouseCode,
-      isValid: isValid
-    });
-    
-    setHeaderFormValid(isValid);
-    
-    // Tarih değiştiğinde güncel kur bilgisini al
-    const prevInvoiceDate = form.getFieldValue('_prevInvoiceDate'); // String formatında
-    const currentInvoiceDate = values.invoiceDate; // dayjs nesnesi
-    
-    // dayjs nesnesi ile string karşılaştırması yapmak için format metodunu kullanıyoruz
-    const currentDateStr = currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : '';
-    
-    if (currentInvoiceDate && (!prevInvoiceDate || currentDateStr !== prevInvoiceDate)) {
-      // Önceki tarihi string olarak sakla
-      form.setFieldsValue({ _prevInvoiceDate: currentDateStr });
-      
-      // Mevcut para birimini al
-      const currentCurrency = form.getFieldValue('docCurrencyCode');
-      
-      if (currentCurrency !== 'TRY') {
-        // Seçili döviz kuru kaynağını al
-        const rateSourceStr = form.getFieldValue('exchangeRateSource') || 'TCMB';
-        const rateSource = rateSourceStr === 'TCMB' ? ExchangeRateSource.CENTRAL_BANK : ExchangeRateSource.FREE_MARKET;
-        
-        // Yeni tarih için döviz kurlarını getir
-        const formattedDate = currentDateStr; // String formatında tarih
-        
-        // API'den döviz kurlarını getir
-        exchangeRateApi.getExchangeRatesByDate(formattedDate, rateSource)
-          .then((rates) => {
-            // Seçili para birimi için kur bilgisini bul
-            const currencyRate = rates.find(r => r.currencyCode === currentCurrency);
-            
-            if (currencyRate) {
-              // Kur değerini belirle (satış kuru)
-              const newRate = rateSource === ExchangeRateSource.CENTRAL_BANK
-                ? currencyRate.banknoteSellingRate 
-                : currencyRate.freeMarketSellingRate;
-              
-              // Yeni kur değerini ayarla
-              setExchangeRate(newRate);
-              form.setFieldsValue({ exchangeRate: newRate });
-              
-              // Tüm satırların TL karşılığını güncelle
-              if (invoiceDetails.length > 0) {
-                const updatedDetails = invoiceDetails.map(detail => {
-                  const netAmount = detail.netAmount || 0;
-                  return {
-                    ...detail,
-                    exchangeRate: newRate,
-                    tryEquivalent: netAmount * newRate
-                  };
-                });
-                
-                setInvoiceDetails(updatedDetails);
-                updateTotals(updatedDetails);
-                console.log('Tarih değişti: Döviz kuru güncellendi ve TL karşılıkları yeniden hesaplandı');
-              }
-            }
-          })
-          .catch((error) => {
-            console.error('Tarih değişikliğinde döviz kuru getirme hatası:', error);
-            message.error('Döviz kuru bilgisi alınamadı!');
-          });
-      } else {
-        console.log('Tarih değişti: Para birimi TRY, kur 1 olarak ayarlandı');
-      }
-    }
-  };
-  
-  // Form değişikliklerini hemen kontrol et
-  handleFormChange();
-  
-  // Form değişikliklerini izlemek için form'un değerlerini izliyoruz
-  // Ant Design Form'da subscribe metodu olmadığı için onValuesChange kullanılacak
-}, [form]);
-
-// Vergi tipi değiştiğinde çağrılacak fonksiyon
-const handleTaxTypeChange = (taxMode: string) => {
-  console.log('Vergi tipi modu değişti:', taxMode);
-  setTaxTypeMode(taxMode);
-  
-  // Eğer "vergisiz" seçildiyse tüm fatura satırlarındaki KDV oranını 0 yap
-  if (taxMode === 'vergisiz') {
-    const updatedDetails = invoiceDetails.map(detail => {
-      // KDV oranını 0 olarak ayarla
-      const updatedDetail = { ...detail, vatRate: 0 };
-      
-      // Döviz kuru bilgisini ekle
-      if (currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode]) {
-        updatedDetail.exchangeRate = exchangeRates[currentCurrencyCode];
-      }
-      
-      // Hesaplamaları yap
-      return calculateLineAmounts(updatedDetail, currentCurrencyCode);
-    });
-    
-    setInvoiceDetails(updatedDetails);
-    updateTotals(updatedDetails);
-    console.log('Tüm KDV oranları 0 olarak ayarlandı');
-    
-    // Taranan ürünlerin KDV oranlarını da güncelle
-    if (scannedItems.length > 0) {
-      const updatedScannedItems = scannedItems.map(item => {
-        item.variant.vatRate = 0;
-        return item;
-      });
-      setScannedItems(updatedScannedItems);
-      console.log('Taranan ürünlerin KDV oranları 0 olarak ayarlandı');
-    }
-  }
-};
-
-// Satır güncelleme fonksiyonu
-const updateInvoiceDetail = (id: string, field: string, value: any) => {
-  if (!id || !field) {
-    console.error('Geçersiz id veya alan adı');
-    return;
-  }
-  
-  // isPriceIncludeVat değiştiğinde tüm satırları güncelle
-  if (field === 'isPriceIncludeVat') {
-    // KDV dahil/hariç değerini günculle
-    setIsPriceIncludeVat(value);
-    form.setFieldsValue({ isPriceIncludeVat: value });
-    
-    const updatedDetails = invoiceDetails.map(detail => {
-      // Döviz kuru bilgisini ekle
-      const detailWithExchangeRate = {
-        ...detail,
-        exchangeRate: currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode] ? 
-          exchangeRates[currentCurrencyCode] : 1
-      };
-      
-      // Hesaplamaları yap
-      return calculateLineAmounts(detailWithExchangeRate, currentCurrencyCode);
-    });
-    
-    setInvoiceDetails(updatedDetails);
-    updateTotals(updatedDetails);
-  } else {
-    // Tek bir satırı günculle
-    const updatedDetails = invoiceDetails.map(detail => {
-      if (detail.id === id) {
-        // Güncellenmiş detay
-        const updatedDetail = { ...detail, [field]: value };
-        
-        // Eğer vergi tipi "vergisiz" ise ve vatRate alanı güncelleniyorsa, 0 olarak zorla
-        if (taxTypeMode === 'vergisiz' && field === 'vatRate') {
-          updatedDetail.vatRate = 0;
-        }
+    // Eğer "vergisiz" seçildiyse tüm fatura satırlarındaki KDV oranını 0 yap
+    if (taxMode === 'vergisiz') {
+      const updatedDetails = invoiceDetails.map(detail => {
+        // KDV oranını 0 olarak ayarla
+        const updatedDetail = { ...detail, vatRate: 0 };
         
         // Döviz kuru bilgisini ekle
         if (currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode]) {
@@ -1553,61 +1255,163 @@ const updateInvoiceDetail = (id: string, field: string, value: any) => {
         
         // Hesaplamaları yap
         return calculateLineAmounts(updatedDetail, currentCurrencyCode);
+      });
+      
+      setInvoiceDetails(updatedDetails);
+      updateTotals(updatedDetails);
+      console.log('Tüm KDV oranları 0 olarak ayarlandı');
+      
+      // Taranan ürünlerin KDV oranlarını da güncelle
+      if (scannedItems.length > 0) {
+        const updatedScannedItems = scannedItems.map(item => {
+          item.variant.vatRate = 0;
+          return item;
+        });
+        setScannedItems(updatedScannedItems);
+        console.log('Taranan ürünlerin KDV oranları 0 olarak ayarlandı');
       }
-      return detail;
-    });
+    }
+  };
+
+  // Yeni satır ekle
+  const addInvoiceDetail = () => {
+    const newDetail: InvoiceDetail = {
+      id: uuidv4(),
+      itemCode: '',
+      quantity: 1,
+      unitOfMeasureCode: 'AD',// Ürün varyant detayından gelmeli
+      unitPrice: 0, //Eğer varsa barkod modaldan fiyat listesinden gelmeli
+      vatRate: taxTypeMode === 'vergisiz' ? 0 : 10, // Vergi tipi vergisiz ise KDV 0, değilse 10
+      discountRate: 0,
+      totalAmount: 0,
+      discountAmount: 0,
+      subtotalAmount: 0,
+      vatAmount: 0,
+      netAmount: 0
+    };
+
+    const updatedDetails = [...invoiceDetails, newDetail];
+    setInvoiceDetails(updatedDetails);
     
+    // Başlık zorunlu alanları tamamsa ve en az bir satır varsa TOPLAM sekmesini aktif et
+    if (headerFormValid && updatedDetails.length > 0) {
+      // Eğer SATIRLAR sekmesindeyse ve başlık geçerliyse, otomatik olarak TOPLAM sekmesine geç
+      if (activeTab === '2') {
+        handleTabChange('3');
+      }
+    }
+  };
+
+  // Satır silme fonksiyonu
+  const removeInvoiceDetail = (id: string) => {
+    const updatedDetails = invoiceDetails.filter(detail => detail.id !== id);
     setInvoiceDetails(updatedDetails);
     updateTotals(updatedDetails);
-  }
-};
-
-// Sekme değiştirme işleyicisi
-const handleTabChange = (activeKey: string) => {
-  setActiveTab(activeKey);
-};
-
-// Kaydetme işleyicisi
-const handleSave = () => {
-  console.log('Kaydet butonu tıklandı');
-  message.info('Form gönderiliyor...');
-  setLoading(true); // Yükleme durumunu başlat
-  
-  // Fatura detaylarını kontrol et
-  if (!invoiceDetails || invoiceDetails.length === 0) {
-    console.error('Fatura detayları boş! En az bir ürün eklemelisiniz.');
-    message.error('Fatura detayları boş! En az bir ürün eklemelisiniz.');
-    setLoading(false);
-    return;
-  }
-  
-  // Form validasyonunu kontrol et
-  form.validateFields()
-    .then(values => {
-      console.log('Form doğrulandı, gönderiliyor...', values);
-      // Form.submit yerine doğrudan onFinish fonksiyonunu çağır
-      onFinish(values);
-    })
-    .catch(errorInfo => {
-      console.error('Form doğrulama hatası:', errorInfo);
-      message.error('Lütfen tüm zorunlu alanları doldurunuz!');
-      setLoading(false); // Yükleme durumunu sıfırla
-    });
-};
-
-// Form gönderme işleyicisi
-const onFinish = async (values: any) => {
-  try {
-    // Yükleme durumu handleSave'de başlatıldığı için burada tekrar ayarlamaya gerek yok
-    console.log('onFinish çağrıldı, form verileri:', values);
-    message.loading({ content: 'Fatura kaydediliyor...', key: 'invoiceSave', duration: 0 });
     
-    // Fatura tipi ve cari hesap tipi kodlarını belirle
-    const invoiceTypeCode = type === InvoiceType.WHOLESALE_SALES ? 'WS' : 
-                           type === InvoiceType.WHOLESALE_PURCHASE ? 'WP' : 
-                           type === InvoiceType.EXPENSE_SALES ? 'EXS' : 'EXP';
+    // Eğer satır kalmadıysa ve TOPLAM sekmesindeyse, SATIRLAR sekmesine geri dön
+    if (updatedDetails.length === 0 && activeTab === '3') {
+      handleTabChange('2');
+    }
+  };
+
+  // Satır güncelleme fonksiyonu
+  const updateInvoiceDetail = (id: string, field: string, value: any) => {
+    if (!id || !field) {
+      console.error('Geçersiz id veya alan adı');
+      return;
+    }
     
-    const currAccTypeCode = type === InvoiceType.WHOLESALE_SALES || type === InvoiceType.EXPENSE_SALES ? 
+    // isPriceIncludeVat değiştiğinde tüm satırları güncelle
+    if (field === 'isPriceIncludeVat') {
+      // KDV dahil/hariç değerini günculle
+      setIsPriceIncludeVat(value);
+      form.setFieldsValue({ isPriceIncludeVat: value });
+      
+      const updatedDetails = invoiceDetails.map(detail => {
+        // Döviz kuru bilgisini ekle
+        const detailWithExchangeRate = {
+          ...detail,
+          exchangeRate: currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode] ? 
+            exchangeRates[currentCurrencyCode] : 1
+        };
+        
+        // Hesaplamaları yap
+        return calculateLineAmounts(detailWithExchangeRate, currentCurrencyCode);
+      });
+      
+      setInvoiceDetails(updatedDetails);
+      updateTotals(updatedDetails);
+    } else {
+      // Tek bir satırı günculle
+      const updatedDetails = invoiceDetails.map(detail => {
+        if (detail.id === id) {
+          // Güncellenmiş detay
+          const updatedDetail = { ...detail, [field]: value };
+          
+          // Eğer vergi tipi "vergisiz" ise ve vatRate alanı güncelleniyorsa, 0 olarak zorla
+          if (taxTypeMode === 'vergisiz' && field === 'vatRate') {
+            updatedDetail.vatRate = 0;
+          }
+          
+          // Döviz kuru bilgisini ekle
+          if (currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode]) {
+            updatedDetail.exchangeRate = exchangeRates[currentCurrencyCode];
+          }
+          
+          // Hesaplamaları yap
+          return calculateLineAmounts(updatedDetail, currentCurrencyCode);
+        }
+        return detail;
+      });
+      
+      setInvoiceDetails(updatedDetails);
+      updateTotals(updatedDetails);
+    }
+  };
+
+  // Not: calculateLineAmounts ve updateTotals fonksiyonları dosyada zaten tanımlı olduğu için burada tekrar tanımlanmadı.
+
+  // Kaydetme işleyicisi
+  const handleSave = () => {
+    console.log('Kaydet butonu tıklandı');
+    message.info('Form gönderiliyor...');
+    setLoading(true); // Yükleme durumunu başlat
+    
+    // Fatura detaylarını kontrol et
+    if (!invoiceDetails || invoiceDetails.length === 0) {
+      console.error('Fatura detayları boş! En az bir ürün eklemelisiniz.');
+      message.error('Fatura detayları boş! En az bir ürün eklemelisiniz.');
+      setLoading(false);
+      return;
+    }
+    
+    // Form validasyonunu kontrol et
+    form.validateFields()
+      .then(values => {
+        console.log('Form doğrulandı, gönderiliyor...', values);
+        // Form.submit yerine doğrudan onFinish fonksiyonunu çağır
+        onFinish(values);
+      })
+      .catch(errorInfo => {
+        console.error('Form doğrulama hatası:', errorInfo);
+        message.error('Lütfen tüm zorunlu alanları doldurunuz!');
+        setLoading(false); // Yükleme durumunu sıfırla
+      });
+  };
+
+  // Form gönderme işleyicisi
+  const onFinish = async (values: any) => {
+    try {
+      // Yükleme durumu handleSave'de başlatıldığı için burada tekrar ayarlamaya gerek yok
+      console.log('onFinish çağrıldı, form verileri:', values);
+      message.loading({ content: 'Fatura kaydediliyor...', key: 'invoiceSave', duration: 0 });
+      
+      // Fatura tipi ve cari hesap tipi kodlarını belirle
+      const invoiceTypeCode = selectedInvoiceType === InvoiceType.WHOLESALE_SALES ? 'WS' : 
+                           selectedInvoiceType === InvoiceType.WHOLESALE_PURCHASE ? 'WP' : 
+                           selectedInvoiceType === InvoiceType.EXPENSE_SALES ? 'EXS' : 'EXP';
+    
+    const currAccTypeCode = selectedInvoiceType === InvoiceType.WHOLESALE_SALES || selectedInvoiceType === InvoiceType.EXPENSE_SALES ? 
                            CurrAccType.CUSTOMER : CurrAccType.VENDOR;
     
     // Fatura detaylarını hazırla
@@ -1646,8 +1450,7 @@ const onFinish = async (values: any) => {
       const subtotalAmount = detail.subtotalAmount || totalAmount - discountAmount || 0;
       const vatAmount = detail.vatAmount || (subtotalAmount * (detail.vatRate / 100)) || 0;
       const netAmount = detail.netAmount || subtotalAmount + vatAmount || 0;
-      
-      // Backend'in beklediği formatta detay oluştur
+            // Backend'in beklediği formatta detay oluştur
        const formattedDetail: InvoiceDetailRequest = {
         itemCode: detail.itemCode,
         // Ürün varyant bilgilerini ekle
@@ -1676,7 +1479,7 @@ const onFinish = async (values: any) => {
     
     console.log('Formatlanan fatura detayları:', formattedDetails);
     
-    // API isteği hazırla
+    // API isteği hazırla - önce küçük harfle başlayan alanlarla oluştur
     const requestData: any = {
       invoiceNumber: values.invoiceNumber || 'Otomatik oluşturulacak',
       invoiceTypeCode: invoiceTypeCode,
@@ -1764,31 +1567,64 @@ const onFinish = async (values: any) => {
       return;
     }
       
+      // API için alan adlarını büyük harfle başlayacak şekilde dönüştür
+      // Ancak 'details' alanını küçük harfle bırak
+      const convertToPascalCase = (obj: any): any => {
+        if (obj === null || typeof obj !== 'object') return obj;
+        
+        if (Array.isArray(obj)) {
+          return obj.map((item: any) => convertToPascalCase(item));
+        }
+        
+        const result: any = {};
+        
+        Object.keys(obj).forEach(key => {
+          // Özel durumlar
+          if (key === 'details') {
+            // details alanını invoiceApi.ts'deki alan adlarına uygun şekilde dönüştür
+            result['details'] = Array.isArray(obj[key]) ? obj[key].map((item: any) => {
+              return {
+                ...convertToPascalCase(item),
+                // invoiceApi.ts'deki alan adlarına uygun şekilde dönüştür
+                quantity: item.quantity,
+                unitOfMeasureCode: item.unitOfMeasureCode,
+                itemCode: item.itemCode
+              };
+            }) : [];
+          } else {
+            // Diğer alanların ilk harfini büyük yap
+            const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
+            result[pascalKey] = convertToPascalCase(obj[key]);
+          }
+        });
+        
+        return result;
+      };
+      
+      // Fatura detaylarının var olduğundan emin ol
+      if (!requestData.details || !Array.isArray(requestData.details)) {
+        requestData.details = [];
+        console.warn('Fatura detayları bulunamadı veya geçerli bir dizi değil. Boş dizi kullanılıyor.');
+      }
+      
+      // Verileri API formatına dönüştür
+      const apiRequestData = convertToPascalCase(requestData);
+      
+      console.log('API formatına dönüştürülmüş veri:', apiRequestData);
+      
       // Fatura tipine göre API çağrısı yap
       switch (selectedInvoiceType) {
         case InvoiceType.WHOLESALE_SALES:
-          response = await invoiceApi.createWholesaleInvoice({
-            ...values,
-            details: invoiceDetails.map(mapInvoiceDetailToRequest)
-          });
+          response = await invoiceApi.createWholesaleInvoice(apiRequestData);
           break;
         case InvoiceType.WHOLESALE_PURCHASE:
-          response = await invoiceApi.createWholesalePurchaseInvoice({
-            ...values,
-            details: invoiceDetails.map(mapInvoiceDetailToRequest)
-          });
+          response = await invoiceApi.createWholesalePurchaseInvoice(apiRequestData);
           break;
         case InvoiceType.EXPENSE_SALES:
-          response = await invoiceApi.createExpenseInvoice({
-            ...values,
-            details: invoiceDetails.map(mapInvoiceDetailToRequest)
-          });
+          response = await invoiceApi.createExpenseInvoice(apiRequestData);
           break;
         case InvoiceType.EXPENSE_PURCHASE:
-          response = await invoiceApi.createExpenseInvoice({
-            ...values,
-            details: invoiceDetails.map(mapInvoiceDetailToRequest)
-          });
+          response = await invoiceApi.createExpenseInvoice(apiRequestData);
           break;
         default:
           message.error('Geçersiz fatura tipi!');
@@ -1914,6 +1750,7 @@ const handleCashPaymentSuccess = (paymentData: any) => {
         <ArrowLeftOutlined /> Listeye Dön
       </Button>
     }
+    variant="outlined"
   >
     <Form
       form={form}

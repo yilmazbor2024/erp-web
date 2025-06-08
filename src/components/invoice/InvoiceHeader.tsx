@@ -679,18 +679,18 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   return (
     <>
       
-      <Row gutter={[24, 12]} style={{ marginBottom: '16px' }}>
+      <Row gutter={[24, 16]} style={{ marginBottom: '24px' }}>
         <Col span={24}>
-          <Title level={5} style={{ marginBottom: '8px' }}>Fatura Bilgileri</Title>
+          <Title level={5} style={{ marginBottom: '12px' }}>Fatura Bilgileri</Title>
         </Col>
 
         {/* Fatura Türü Seçenekleri - Yan yana ve kompakt */}
-        <Col xs={12} sm={4} md={2} lg={2}>
+        <Col xs={24} sm={12} md={6} lg={4}>
           <Form.Item
             name="isReturn"
             valuePropName="checked"
             label="Fatura Türü"
-            style={{ marginBottom: '8px' }}
+            style={{ marginBottom: '12px' }}
           >
             <Switch 
               checkedChildren="İade" 
@@ -702,12 +702,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Form.Item>
         </Col>
         
-        <Col xs={12} sm={4} md={2} lg={2}>
+        <Col xs={24} sm={12} md={6} lg={4}>
           <Form.Item
             name="isEInvoice"
             valuePropName="checked"
             label="Belge Türü"
-            style={{ marginBottom: '8px' }}
+            style={{ marginBottom: '12px' }}
           >
             <Switch 
               checkedChildren="E-Fatura" 
@@ -719,12 +719,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Form.Item>
         </Col>
 
-        <Col xs={12} sm={4} md={3} lg={3}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="taxTypeCode"
             label="Vergi Tipi"
             rules={[{ required: true, message: 'Lütfen vergi tipi seçin!' }]}
-            style={{ marginBottom: '8px' }}
+            style={{ marginBottom: '12px' }}
           >
             <Select
               showSearch
@@ -732,7 +732,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               optionFilterProp="children"
               loading={loadingTaxTypes}
               onChange={(value) => handleTaxTypeChange(value)}
-              size="small"
+              size="middle"
               filterOption={(input, option) => {
                 if (!input || !option) return true;
                 let searchText = '';
@@ -761,35 +761,35 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Form.Item>
         </Col>
         
-        <Col xs={12} sm={6} md={4} lg={4}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="invoiceDate"
             label="Fatura Tarihi"
             rules={[{ required: true, message: 'Lütfen fatura tarihini seçin' }]}
-            style={{ marginBottom: '8px' }}
+            style={{ marginBottom: '12px' }}
           >
             <DatePicker 
               style={{ width: '100%' }} 
               format="DD.MM.YYYY" 
               placeholder="Tarih seçin"
               onChange={handleDateChange}
-              size="small"
+              size="middle"
             />
           </Form.Item>
         </Col>
 
-        <Col xs={12} sm={6} md={4} lg={4}>
+        <Col xs={24} sm={12} md={6} lg={6}>
           <Form.Item
             name="invoiceNumber"
             label="Fatura No:"
             tooltip="Fatura numarası sistem tarafından otomatik oluşturulacak"
-            style={{ marginBottom: '8px' }}
+            style={{ marginBottom: '12px' }}
           >
             <Input 
               placeholder="WS-7-XX" 
               disabled 
               style={{ backgroundColor: '#f5f5f5' }} 
-              size="small"
+              size="middle"
             />
           </Form.Item>
         </Col>
@@ -994,41 +994,43 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
             </Form.Item>
           </Col>
 
-          <Col xs={12} sm={6} md={3} lg={3}>
+          <Col xs={24} sm={12} md={6} lg={6}>
             <Form.Item
               name="exchangeRateSource"
               label="Döviz Kuru Kaynağı"
-              style={{ marginBottom: '8px' }}
+              style={{ marginBottom: '12px' }}
             >
               <Radio.Group 
                 onChange={handleExchangeRateSourceChange}
                 optionType="button"
                 buttonStyle="solid"
-                size="small"
+                size="middle"
                 style={{ 
                   width: '100%', 
                   display: 'flex',
-                  height: '32px'
+                  height: '36px'
                 }}
               >
-                <Radio.Button value="TCMB" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>TCMB</Radio.Button>
-                <Radio.Button value="SERBEST_PIYASA" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>S.PİYASA</Radio.Button>
-                <Radio.Button value="MANUEL" style={{ flex: 1, height: '32px', lineHeight: '30px', textAlign: 'center' }}>Manuel</Radio.Button>
+                <Radio.Button value="TCMB" style={{ flex: 1, height: '36px', lineHeight: '34px', textAlign: 'center', padding: '0 8px', fontSize: '14px' }}>TCMB</Radio.Button>
+                <Radio.Button value="SERBEST_PIYASA" style={{ flex: 1, height: '36px', lineHeight: '34px', textAlign: 'center', padding: '0 8px', fontSize: '14px' }}>S.PİYASA</Radio.Button>
+                <Radio.Button value="MANUEL" style={{ flex: 1, height: '36px', lineHeight: '34px', textAlign: 'center', padding: '0 8px', fontSize: '14px' }}>Manuel</Radio.Button>
               </Radio.Group>
             </Form.Item>
           </Col>
 
-          <Col xs={12} sm={6} md={3} lg={3}>
+          <Col xs={24} sm={12} md={6} lg={6}>
             <Form.Item
               name="currencyCode"
               label="Para Birimi"
               rules={[{ required: true, message: 'Lütfen para birimi seçin' }]}
-              style={{ marginBottom: '8px' }}
+              style={{ marginBottom: '12px' }}
             >
               <Select
                 showSearch
                 placeholder="Para birimi seçin"
                 optionFilterProp="children"
+                size="middle"
+                style={{ width: '100%' }}
                 filterOption={(input, option) => {
                   if (!input || !option) return true;
                   let searchText = '';
@@ -1043,15 +1045,29 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                   }
                   return searchText.toLowerCase().includes(input.toLowerCase());
                 }}
-                notFoundContent={loadingCurrencies ? <Spin size="small" /> : <Empty description="Para birimi bulunamadı" />}
+                notFoundContent={loadingCurrencies ? <Spin size="default" /> : <Empty description="Para birimi bulunamadı" />}
               >
                 {currencies?.length > 0 ? 
-                  currencies.map((currency) => (
-                    <Option key={currency.currencyCode} value={currency.currencyCode}>
-                      {currency.currencyCode} - {currency.currencyName}
-                    </Option>
-                  )) : 
-                  <Option disabled value="">Para birimi bulunamadı</Option>
+                  currencies.filter(currency => {
+                    // Geçersiz para birimlerini filtrele
+                    const code = currency?.code || currency?.currencyCode;
+                    return code !== undefined && code !== null && code !== '';
+                  }).map((currency, index) => {
+                    // Kod ve açıklama için uygun alanları kullan
+                    const code = currency.code || currency.currencyCode || '';
+                    const name = currency.name || currency.currencyName || currency.description || currency.currencyDescription || '';
+                    
+                    return (
+                      <Option 
+                        key={`currency-${code}-${index}`} 
+                        value={code}
+                        title={`${code} - ${name}`}
+                      >
+                        {code} - {name}
+                      </Option>
+                    );
+                  }) : 
+                  <Option disabled value="" key="no-currency">Para birimi bulunamadı</Option>
                 }
             </Select>
           </Form.Item>

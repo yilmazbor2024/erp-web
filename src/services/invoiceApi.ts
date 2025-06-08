@@ -536,21 +536,7 @@ const invoiceApi = {
     }
   },
   
-  // Otomatik fatura numarası oluşturma fonksiyonu (artık backend tarafında yapılıyor)
-  // Bu fonksiyon sadece geçiş süreci için korunuyor, yeni implementasyonda kullanılmıyor
-  generateInvoiceNumber: async (processCode: string): Promise<string> => {
-    try {
-      // Backend'den fatura numarası al
-      const response = await api.get(`/api/v1/Invoice/generate-number?processCode=${processCode}`);
-      if (response.data && response.data.success) {
-        return response.data.data || `${processCode}-TEMP`;
-      }
-      return `${processCode}-TEMP`; // Geçici numara dön
-    } catch (error) {
-      console.error('Fatura numarası alınırken hata oluştu:', error);
-      return `${processCode}-TEMP`; // Hata durumunda geçici numara dön
-    }
-  },
+  
   
   // Toptan Satış Faturası detayını getir
   getWholesaleInvoiceById: async (invoiceHeaderID: string): Promise<any> => {

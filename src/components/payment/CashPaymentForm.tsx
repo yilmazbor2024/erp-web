@@ -94,9 +94,19 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   const [currentCurrencyCode, setCurrentCurrencyCode] = useState<string>('TRY');
 
   useEffect(() => {
+    // Fatura bilgilerini konsola yazdır (debug için)
+    console.log('Nakit tahsilat formu açıldı, fatura bilgileri:', {
+      invoiceId,
+      invoiceNumber,
+      invoiceAmount,
+      currencyCode,
+      currAccCode,
+      currAccTypeCode
+    });
+    
     // Form başlangıç değerlerini ayarla
     form.setFieldsValue({
-      amount: remainingAmount, // Kalan tutar default olarak gelsin
+      amount: invoiceAmount, // Fatura tutarını otomatik doldur
       description: `${invoiceNumber} nolu fatura için nakit tahsilat`,
       currencyCode: currencyCode || 'TRY',
       exchangeRate: 1
@@ -104,12 +114,20 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
     
     // Başlangıç para birimini ayarla
     setCurrentCurrencyCode(currencyCode || 'TRY');
+    setRemainingAmount(invoiceAmount); // Kalan tutarı fatura tutarı olarak ayarla
     
-    // Kasa hesaplarını yükle
+    // Kasa hesaplarını ve para birimlerini yükle
     fetchCashAccounts();
     fetchCurrencies();
-    console.log('Kasa hesapları yükleniyor...');
-  }, []);
+  }, [invoiceId, invoiceNumber, invoiceAmount, currencyCode]);
+  
+  // Müşteri kodu değiştiğinde çalışacak useEffect
+  useEffect(() => {
+    if (currAccCode) {
+      console.log('Müşteri kodu:', currAccCode, 'Müşteri tipi:', currAccTypeCode);
+      // Burada müşteri bilgilerine göre ek işlemler yapılabilir
+    }
+  }, [currAccCode, currAccTypeCode]);
   
   // Kasa hesabı seçildiğinde otomatik olarak para birimini seç
   const handleCashAccountChange = (value: string) => {

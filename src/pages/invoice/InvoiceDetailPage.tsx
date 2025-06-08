@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Row, Col, Typography, Table, Descriptions, Button, Tag, Space, Divider, Spin, message } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined, EditOutlined } from '@ant-design/icons';
+import CashPaymentModal from '../../components/payment/CashPaymentModal';
 import dayjs from 'dayjs';
 import invoiceApi from '../../services/invoiceApi';
 
@@ -191,38 +192,44 @@ const InvoiceDetailPage: React.FC = () => {
 
   return (
     <div>
-      <Card>
-        <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-          <Col>
-            <Button icon={<ArrowLeftOutlined />} onClick={goBackToList}>
-              Listeye Dön
-            </Button>
-          </Col>
-          <Col>
-            <Space>
-              <Button icon={<EditOutlined />} onClick={goToEdit}>
-                Düzenle
-              </Button>
-              <Button icon={<PrinterOutlined />} onClick={() => message.info('Yazdırma özelliği yakında eklenecek.')}>
-                Yazdır
-              </Button>
-            </Space>
-          </Col>
-        </Row>
-
-        <Row gutter={16}>
-          <Col span={24}>
-            <Title level={4}>
-              <Tag color={invoiceTypeColors[invoice.invoiceTypeCode as InvoiceType] || 'default'}>
-                {invoiceTypeDescriptions[invoice.invoiceTypeCode as InvoiceType] || invoice.invoiceTypeCode}
-              </Tag>
+      <Card
+        title={
+          <Space>
+            <Button icon={<ArrowLeftOutlined />} onClick={goBackToList}>Listeye Dön</Button>
+            <Text strong>{invoiceTypeDescriptions[invoice.invoiceTypeCode as InvoiceType] || 'Fatura Detayı'}</Text>
+            <Tag color={invoiceTypeColors[invoice.invoiceTypeCode as InvoiceType] || 'default'}>
               {invoice.invoiceNumber}
-            </Title>
-          </Col>
-        </Row>
-
-        <Divider />
-
+            </Tag>
+          </Space>
+        }
+        extra={
+          <Space>
+            <Button icon={<PrinterOutlined />} type="default">Yazdır</Button>
+            {/* Sadece satış faturalarında nakit tahsilat butonu göster */}
+            {invoice.invoiceTypeCode === InvoiceType.WHOLESALE_SALES && (
+              <CashPaymentModal
+                invoiceId={invoice.invoiceHeaderID}
+                invoiceNumber={invoice.invoiceNumber}
+                invoiceAmount={invoice.grossAmount}
+                currencyCode={invoice.currencyCode}
+                currAccCode={invoice.currAccCode}
+                currAccTypeCode="C"
+                officeCode={invoice.officeCode}
+                storeCode={invoice.storeCode}
+                onSuccess={(response) => {
+                  message.success(`Nakit tahsilat başarıyla kaydedildi. Fiş No: ${response.refNumber}`);
+                  // Fatura detaylarını yeniden yükle
+                  window.location.reload();
+                }}
+                buttonText="Nakit Tahsilat"
+                buttonType="primary"
+                buttonSize="middle"
+              />
+            )}
+            <Button icon={<EditOutlined />} type="primary" onClick={goToEdit}>Düzenle</Button>
+          </Space>
+        }
+      >
         <Row gutter={16}>
           <Col span={12}>
             <Descriptions title="Fatura Bilgileri" bordered column={1} size="small">
