@@ -111,6 +111,27 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
     console.log('Kasa hesapları yükleniyor...');
   }, []);
   
+  // Kasa hesabı seçildiğinde otomatik olarak para birimini seç
+  const handleCashAccountChange = (value: string) => {
+    console.log('Kasa hesabı seçildi:', value);
+    
+    // Seçilen kasa hesabını bul
+    const selectedAccount = cashAccounts.find(account => 
+      (account.cashAccountCode || account.code || account.id) === value
+    );
+    
+    // Eğer kasa hesabı bulunduysa ve para birimi varsa
+    if (selectedAccount && selectedAccount.currencyCode) {
+      console.log(`Kasa hesabı para birimi: ${selectedAccount.currencyCode}`);
+      
+      // Para birimini otomatik olarak ayarla
+      form.setFieldsValue({ currencyCode: selectedAccount.currencyCode });
+      
+      // Para birimi değişikliğini işle (döviz kuru vb. için)
+      handleCurrencyChange(selectedAccount.currencyCode);
+    }
+  };
+
   // Form değişikliklerini dinle
   const handleFormChange = (changedValues: any, allValues: any) => {
     console.log('Form değişti:', changedValues);
@@ -118,6 +139,11 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
     // Para birimi değiştiğinde döviz kurunu güncelle
     if (changedValues.currencyCode) {
       handleCurrencyChange(changedValues.currencyCode);
+    }
+    
+    // Kasa hesabı değiştiğinde para birimini güncelle
+    if (changedValues.cashAccountCode) {
+      handleCashAccountChange(changedValues.cashAccountCode);
     }
   };
   
@@ -620,17 +646,18 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
           }}
           style={{ marginTop: '10px' }}
         >
-          <div style={{ display: 'flex', flexDirection: 'row', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '10px' }}>
             {/* Sol taraf - form alanları */}
-            <div style={{ width: '50%' }}>
+            <div style={{ width: '60%', paddingRight: '10px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               {/* 1. Satır - Kasa Hesabı */}
-              <div style={{ display: 'flex', marginBottom: '10px' }}>
-                <Form.Item name="cashAccountCode" style={{ width: '100%' }}>
+              <div style={{ display: 'flex', marginBottom: '6px' }}>
+                <Form.Item name="cashAccountCode" style={{ width: '100%', marginBottom: '6px' }}>
                   <Select
                     style={{ width: '100%' }}
                     placeholder="Kasa hesabı seçin"
                     showSearch
                     optionFilterProp="children"
+                    onChange={handleCashAccountChange}
                     dropdownStyle={{ padding: '0px' }}
                     dropdownRender={(menu) => (
                       <>
@@ -672,8 +699,8 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
               </div>
               
               {/* 2. Satır - Para Birimi ve Döviz Kuru */}
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                <Form.Item name="currencyCode" initialValue="TRY" style={{ width: '50%' }}>
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+                <Form.Item name="currencyCode" initialValue="TRY" style={{ width: '50%', marginBottom: '6px' }}>
                   <Select 
                     style={{ width: '100%' }}
                     loading={loadingCurrencies}
@@ -700,7 +727,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
                   </Select>
                 </Form.Item>
 
-                <Form.Item name="exchangeRate" initialValue={1} style={{ width: '50%' }}>
+                <Form.Item name="exchangeRate" initialValue={1} style={{ width: '50%', marginBottom: '6px' }}>
                   <InputNumber 
                     style={{ width: '100%' }}
                     min={0}
@@ -722,10 +749,10 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
               </div>
               
               {/* 3. Satır - Açıklama */}
-              <div style={{ display: 'flex', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', marginBottom: '0px' }}>
                 <Form.Item
                   name="description"
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', marginBottom: '0px' }}
                 >
                   <Input.TextArea rows={2} />
                 </Form.Item>
@@ -733,28 +760,28 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
             </div>
             
             {/* Sağ taraf - özet bilgiler */}
-            <div style={{ width: '50%', border: '1px solid #f0f0f0', padding: '15px', backgroundColor: '#fafafa', borderRadius: '5px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid #e8e8e8', paddingBottom: '10px' }}>
-                <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Fatura Toplamı:</span>
-                <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'red' }}>{currencyCode} {invoiceAmount?.toFixed(2)}</span>
+            <div style={{ width: '40%', border: '1px solid #f0f0f0', padding: '12px', backgroundColor: '#fafafa', borderRadius: '5px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Fatura Toplamı:</span>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'red' }}>{currencyCode} {invoiceAmount?.toFixed(2)}</span>
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid #e8e8e8', paddingBottom: '10px' }}>
-                <span style={{ fontSize: '16px', fontWeight: 'bold' }}>Ödenen Tutar:</span>
-                <span style={{ fontSize: '16px', fontWeight: 'bold', color: 'green' }}>{currencyCode} {paidAmount.toFixed(2)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Ödenen Tutar:</span>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'green' }}>{currencyCode} {paidAmount.toFixed(2)}</span>
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: paidAmount > invoiceAmount ? '10px' : '0' }}>
-                <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{paidAmount > invoiceAmount ? 'Para Üstü:' : 'Kalan Tutar:'}</span>
-                <span style={{ fontSize: '16px', fontWeight: 'bold', color: paidAmount > invoiceAmount ? 'blue' : 'orange' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: paidAmount > invoiceAmount ? '8px' : '0' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{paidAmount > invoiceAmount ? 'Para Üstü:' : 'Kalan Tutar:'}</span>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: paidAmount > invoiceAmount ? 'blue' : 'orange' }}>
                   {currencyCode} {Math.abs(paidAmount - invoiceAmount).toFixed(2)}
                 </span>
               </div>
               
               {paidAmount > invoiceAmount && (
-                <div style={{ backgroundColor: '#e6f7ff', padding: '10px', borderRadius: '5px', marginTop: '10px', border: '1px solid #91d5ff' }}>
-                  <InfoCircleOutlined style={{ color: '#1890ff', marginRight: '5px' }} />
-                  <span>Fazla ödeme avans olarak kaydedilecektir.</span>
+                <div style={{ backgroundColor: '#e6f7ff', padding: '8px', borderRadius: '4px', marginTop: '8px', border: '1px solid #91d5ff' }}>
+                  <InfoCircleOutlined style={{ color: '#1890ff', marginRight: '4px', fontSize: '12px' }} />
+                  <span style={{ fontSize: '12px' }}>Fazla ödeme avans olarak kaydedilecektir.</span>
                 </div>
               )}
             </div>
