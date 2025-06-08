@@ -22,9 +22,12 @@ interface CashPaymentFormProps {
 }
 
 interface CashAccount {
-  cashAccountCode: string;
-  cashAccountName: string;
-  currencyCode: string;
+  cashAccountCode?: string;
+  cashAccountName?: string;
+  currencyCode?: string;
+  code?: string;
+  id?: string;
+  name?: string;
 }
 
 interface PaymentRow {
@@ -68,118 +71,49 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
 
   useEffect(() => {
-    fetchCashAccounts();
-    
-    // Form alanlarını varsayılan değerlerle doldur
+    // Form başlangıç değerlerini ayarla
     form.setFieldsValue({
-      currencyCode: currencyCode,
-      amount: 0, // Fatura tutarını otomatik doldurmak yerine sıfır başlatıyoruz
-      description: `${invoiceNumber} nolu fatura için nakit tahsilat`
+      amount: remainingAmount, // Kalan tutar default olarak gelsin
+      description: `${invoiceNumber} nolu fatura için nakit tahsilat`,
+      currencyCode: currencyCode || 'TRY',
+      exchangeRate: 1
     });
-  }, [form, currencyCode, invoiceNumber]); // invoiceAmount'u bağımlılıklardan çıkardık
+    
+    // Kasa hesaplarını yükle
+    fetchCashAccounts();
+    console.log('Kasa hesapları yükleniyor...');
+  }, []);
 
   // Kasa hesaplarını getir
   const fetchCashAccounts = async () => {
-    setLoadingCashAccounts(true);
     try {
-      // Doğru API endpoint'ini kullan
-      console.log('Kasa hesapları getiriliyor...');
-      const apiUrl = `${API_BASE_URL}/api/CashAccount`;
-      console.log('API URL:', apiUrl);
-      console.log('Token:', token);
-      
-      // Token kontrolü
-      if (!token) {
-        console.error('Token bulunamadı');
-        message.error('Oturum bilgisi bulunamadı. Lütfen yeniden giriş yapın.');
-        setLoadingCashAccounts(false);
-        return;
-      }
-      
-      const response = await axios.get(apiUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/api/cashaccount/list`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      
-      console.log('API yanıtı:', response);
-      
-      if (response.data && response.data.data) {
-        console.log('Kasa hesapları:', response.data.data);
-        
-        // Önce tüm hesapları göster, filtreleme yapmadan
-        const allAccounts = response.data.data;
-        console.log('Tüm kasa hesapları:', allAccounts);
-        
-        // Sonra para birimine göre filtrele
-        // Eğer hiç hesap yoksa filtreleme yapma
-        let filteredAccounts = allAccounts;
-        if (allAccounts.length > 0) {
-          // Para birimi filtrelemesi yap
-          filteredAccounts = allAccounts.filter(
-            (account: CashAccount) => account.currencyCode === currencyCode
-          );
-          
-          // Eğer filtrelenmiş hesap yoksa, tüm hesapları kullan
-          if (filteredAccounts.length === 0) {
-            console.log(`${currencyCode} para birimine sahip kasa hesabı bulunamadı. Tüm hesaplar gösteriliyor.`);
-            filteredAccounts = allAccounts;
-          }
-        }
-        
-        console.log('Filtrelenmiş hesaplar:', filteredAccounts);
-        setCashAccounts(filteredAccounts);
-        
-        // Eğer filtrelenmiş hesap varsa, ilkini seç
-        if (filteredAccounts.length > 0) {
-          form.setFieldsValue({ cashAccountCode: filteredAccounts[0].cashAccountCode });
-        }
+      console.log('Kasa hesapları:', response.data);
+      if (Array.isArray(response.data)) {
+        setCashAccounts(response.data);
+      } else if (response.data && Array.isArray(response.data.data)) {
+        setCashAccounts(response.data.data);
+        console.log('Kasa hesapları data içinden alındı:', response.data.data);
       } else {
-        console.log('API yanıtında veri bulunamadı veya yanlış format:', response.data);
+        console.error('Kasa hesapları verisi geçerli bir dizi değil:', response.data);
+        message.error('Kasa hesapları verisi geçerli bir format değil');
       }
-    } catch (error: any) {
-      console.error('Kasa hesapları alınırken hata oluştu:', error);
-      console.error('Hata detayı:', error.response?.data || error.message);
-      if (error.response?.status === 403) {
-        message.error('Kasa hesaplarına erişim yetkiniz yok. Lütfen yeniden giriş yapın.');
-      } else {
-        message.error('Kasa hesapları alınırken hata oluştu: ' + (error.response?.data?.message || error.message));
-      }
-      
-      // Hata durumunda test verileri oluştur
-      const testAccounts = [
-        { cashAccountCode: 'KASA-TRY', cashAccountName: 'TL Kasası', currencyCode: 'TRY' },
-        { cashAccountCode: 'KASA-USD', cashAccountName: 'USD Kasası', currencyCode: 'USD' },
-        { cashAccountCode: 'KASA-EUR', cashAccountName: 'EUR Kasası', currencyCode: 'EUR' }
-      ];
-      
-      const filteredTestAccounts = testAccounts.filter(acc => acc.currencyCode === currencyCode);
-      if (filteredTestAccounts.length > 0) {
-        setCashAccounts(filteredTestAccounts);
-        form.setFieldsValue({ cashAccountCode: filteredTestAccounts[0].cashAccountCode });
-        console.log('Test kasa hesapları yüklendi:', filteredTestAccounts);
-      } else {
-        setCashAccounts(testAccounts);
-        form.setFieldsValue({ cashAccountCode: testAccounts[0].cashAccountCode });
-        console.log('Tüm test kasa hesapları yüklendi:', testAccounts);
-      }
-    } finally {
-      setLoadingCashAccounts(false);
+    } catch (error) {
+      console.error('Kasa hesapları yüklenirken hata:', error);
+      message.error('Kasa hesapları yüklenemedi');
     }
   };
 
-  // Tutar değiştiğinde form değerini güncelle
+  // Tutar değişikliğini işle
   const handleAmountChange = (value: number | null) => {
-    console.log('handleAmountChange çağrıldı. Değer:', value, 'Tipi:', typeof value);
-    
-    // Değer null ise 0 olarak ayarla
     const safeValue = value === null ? 0 : value;
-    
-    // Form değerini güncelle
     form.setFieldsValue({ amount: safeValue });
-    console.log('Form amount değeri güncellendi:', safeValue);
+    console.log('Tutar değişti:', safeValue);
   };
-  
+
   // Yeni ödeme satırı ekle
   const addPaymentRow = () => {
     try {
@@ -204,7 +138,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       
       // String ise sayıya çevir
       if (typeof formAmount === 'string') {
-        formAmount = parseFloat(formAmount.replace(/[^\d.]/g, ''));
+        formAmount = parseFloat(formAmount.replace(/[^\d.,]/g, '').replace(',', '.'));
       }
       
       // Sayı değilse veya geçersizse hata ver
@@ -472,6 +406,8 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
                 step={0.01}
                 precision={2}
                 onChange={handleAmountChange}
+                decimalSeparator=","
+                stringMode
               />
             </Form.Item>
             <div style={{ marginLeft: '10px', marginRight: '10px', fontWeight: 'bold' }}>{form.getFieldValue('currencyCode') || currencyCode}</div>
@@ -501,53 +437,51 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
             <div style={{ flex: 1 }}>
               {/* Sol taraf - form alanları */}
               <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                <Form.Item
-                  name="cashAccountCode"
-                  label="Nakit Kasa Hesap Kodu"
-                  rules={[{ required: true, message: 'Lütfen kasa hesabı seçin' }]}
-                  style={{ flex: 2, margin: 0 }}
-                >
+                <Form.Item name="cashAccountCode" label="Kasa Hesabı">
                   <Select
-                    loading={loadingCashAccounts}
+                    style={{ width: '100%' }}
                     placeholder="Kasa hesabı seçin"
-                    options={cashAccounts.map((account: CashAccount) => ({
-                      value: account.cashAccountCode,
-                      label: `${account.cashAccountName} (${account.currencyCode})`
-                    }))}
+                    showSearch
+                    optionFilterProp="children"
+                  >
+                    {cashAccounts && cashAccounts.length > 0 ? (
+                      cashAccounts.map(account => (
+                        <Option key={account.code || account.id} value={account.code || account.id}>
+                          {account.name} ({account.code || account.id})
+                        </Option>
+                      ))
+                    ) : (
+                      <Option value="" disabled>Kasa hesabı bulunamadı</Option>
+                    )}
+                  </Select>
+                </Form.Item>
+
+                <Form.Item name="currencyCode" label="Para Birimi" initialValue="TRY">
+                  <Select 
+                    style={{ width: '100%' }}
                     onChange={(value) => {
-                      const selectedAccount = cashAccounts.find(
-                        (account: CashAccount) => account.cashAccountCode === value
-                      );
-                      if (selectedAccount) {
-                        form.setFieldsValue({ currencyCode: selectedAccount.currencyCode });
-                        // Döviz kuru güncelleme
-                        if (selectedAccount.currencyCode === 'TRY') {
-                          form.setFieldsValue({ exchangeRate: 1 });
-                        }
+                      // Para birimi değiştiğinde kur alanını güncelle
+                      if (value === 'TRY') {
+                        form.setFieldsValue({ exchangeRate: 1 });
                       }
                     }}
-                  />
+                  >
+                    <Option value="TRY">TRY</Option>
+                    <Option value="USD">USD</Option>
+                    <Option value="EUR">EUR</Option>
+                    <Option value="GBP">GBP</Option>
+                  </Select>
                 </Form.Item>
 
-                <Form.Item
-                  name="currencyCode"
-                  label="Para Birimi"
-                  style={{ flex: 1, margin: 0 }}
-                >
-                  <Input disabled />
-                </Form.Item>
-
-                <Form.Item
-                  name="exchangeRate"
-                  label="Döviz Kuru"
-                  style={{ flex: 1, margin: 0 }}
-                >
+                <Form.Item name="exchangeRate" label="Döviz Kuru" initialValue={1}>
                   <InputNumber
                     style={{ width: '100%' }}
                     min={0.01}
                     step={0.01}
                     precision={4}
                     disabled={form.getFieldValue('currencyCode') === 'TRY'}
+                    decimalSeparator=","
+                    stringMode
                   />
                 </Form.Item>
               </div>
