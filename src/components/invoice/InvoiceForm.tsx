@@ -235,9 +235,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [loadingInventory, setLoadingInventory] = useState<boolean>(false);
   const barcodeInputRef = useRef<InputRef>(null);
   
-  // Test için eklendi - geliştirme tamamlandığında kaldırılacak
-  const [showTestButton, setShowTestButton] = useState<boolean>(true);
-  const [isTestMode, setIsTestMode] = useState<boolean>(true); // Test modu aktif
+  // Nakit ödeme modalı için state
+  const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
+  const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   
   // Fatura seçenekleri
   const [isReturn, setIsReturn] = useState<boolean>(false);
@@ -256,8 +256,6 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [tryEquivalentTotal, setTryEquivalentTotal] = useState<number>(0);
   
   // Nakit tahsilat modal kontrolü için state
-  const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
-  const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   
   // Form bağlantısını kontrol et
   useEffect(() => {
@@ -1833,24 +1831,7 @@ const onFinish = async (values: any) => {
         message.error(errorMessage);
         console.error('API yanıtı (hata):', response);
         
-        // TEST AMAÇLI: Hata durumunda bile nakit tahsilat modalını açmak için
-        // Bu kısmı test sonrası kaldırabilirsiniz
-        if (isTestMode) {
-          const testInvoice = {
-            id: 'test-' + Date.now(),
-            invoiceNumber: 'TEST-' + Date.now(),
-            amount: values.netAmount || 0,
-            currencyCode: values.docCurrencyCode || 'TRY',
-            currAccCode: values.currAccCode,
-            currAccTypeCode: currAccTypeCode,
-            officeCode: values.officeCode,
-            storeCode: values.warehouseCode
-          };
-          
-          setSavedInvoiceData(testInvoice);
-          setShowCashPaymentModal(true);
-          console.log('TEST MODU: Nakit ödeme modalı açılıyor...');
-        }
+
       }
     } catch (error: any) {
       console.error('Fatura kaydedilirken hata oluştu:', error);
@@ -1879,11 +1860,6 @@ const openBarcodeModal = () => {
 const handleCashPaymentModalClose = () => {
   setShowCashPaymentModal(false);
   
-  // Test modunda ise test modunu kapat
-  if (isTestMode) {
-    setIsTestMode(false);
-  }
-  
   // Formu sıfırla
   form.resetFields();
   setInvoiceDetails([]);
@@ -1896,14 +1872,7 @@ const handleCashPaymentModalClose = () => {
 const handleCashPaymentSuccess = (paymentData: any) => {
   console.log('Nakit tahsilat başarılı:', paymentData);
   setShowCashPaymentModal(false);
-  
-  // Test modu kontrolü - test modunda başarı mesajını değiştir
-  if (isTestMode) {
-    message.success('Test - Nakit tahsilat başarıyla kaydedildi');
-    setIsTestMode(false); // Test modunu kapat
-  } else {
-    message.success('Nakit tahsilat başarıyla kaydedildi');
-  }
+  message.success('Nakit tahsilat başarıyla kaydedildi');
   
   // Başarı callback'ini çağır
   if (onSuccess) {
@@ -1911,45 +1880,13 @@ const handleCashPaymentSuccess = (paymentData: any) => {
   }
 };
 
-// Test için nakit tahsilat formunu açma fonksiyonu
-const openCashPaymentForTest = () => {
-  // Test için örnek fatura verisi oluştur
-  const testInvoiceData = {
-    id: 'test-invoice-id',
-    invoiceNumber: 'TEST-' + Math.floor(Math.random() * 10000),
-    amount: 1000, // 1000 TL
-    currencyCode: 'TRY',
-    currAccCode: form.getFieldValue('currAccCode') || 'TEST-CUSTOMER',
-    currAccTypeCode: 3, // Müşteri tipi
-    officeCode: form.getFieldValue('officeCode') || 'TEST-OFFICE',
-    storeCode: form.getFieldValue('warehouseCode') || 'TEST-STORE'
-  };
-  
-  // Test verilerini kaydet ve modalı aç
-  setSavedInvoiceData(testInvoiceData);
-  setShowCashPaymentModal(true);
-  
-  console.log('Test için nakit tahsilat formu açılıyor:', testInvoiceData);
-};
 
-// Test butonu için stil
-const testButtonStyle = {
-  position: 'fixed' as 'fixed',
-  bottom: '20px',
-  right: '20px',
-  zIndex: 1000,
-  backgroundColor: '#ff4d4f',
-  color: 'white',
-  border: 'none',
-  padding: '10px 20px',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
-};
+
+
 
   
-  // Başarı callback'ini çağır - test butonu için tetiklemeyi engellemek için isTestMode kontrolü eklendi
-  if (onSuccess && savedInvoiceData && !isTestMode) {
+  // Başarı callback'ini çağır
+  if (onSuccess && savedInvoiceData) {
     onSuccess(savedInvoiceData);
   }
 
@@ -2312,49 +2249,7 @@ const testButtonStyle = {
       />
     )}
     
-    {/* Test butonu - geliştirme tamamlandığında kaldırılacak */}
-    {showTestButton && (
-      <Button 
-        type="primary" 
-        danger
-        style={{
-          position: 'fixed',
-          bottom: '20px',
-          right: '20px',
-          zIndex: 1000,
-          padding: '10px 20px',
-        }}
-        onClick={(e) => {
-          // Event'i durdur
-          e.preventDefault();
-          e.stopPropagation();
-          
-          // Test için nakit tahsilat formunu aç
-          const testInvoiceData = {
-            id: 'test-invoice-id',
-            invoiceNumber: 'TEST-' + Math.floor(Math.random() * 10000),
-            amount: 1000, // 1000 TL
-            currencyCode: 'TRY',
-            currAccCode: form.getFieldValue('currAccCode') || 'TEST-CUSTOMER',
-            currAccTypeCode: 3, // Müşteri tipi
-            officeCode: form.getFieldValue('officeCode') || 'TEST-OFFICE',
-            storeCode: form.getFieldValue('warehouseCode') || 'TEST-STORE'
-          };
-          
-          // Test modunu aktifleştir
-          setIsTestMode(true);
-          
-          // setTimeout kullanarak state güncellemelerini render dışına taşı
-          setTimeout(() => {
-            setSavedInvoiceData(testInvoiceData);
-            setShowCashPaymentModal(true);
-            console.log('Test için nakit tahsilat formu açılıyor:', testInvoiceData);
-          }, 0);
-        }}
-      >
-        Nakit Tahsilat Formunu Test Et
-      </Button>
-    )}
+
   </Card>
   );
 };
