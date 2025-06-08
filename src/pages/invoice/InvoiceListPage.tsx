@@ -256,35 +256,44 @@ const InvoiceListPage: React.FC = () => {
       title: 'Iade',
       dataIndex: 'isReturn',
       key: 'isReturn',
-      render: (isReturn: boolean) => (
-        isReturn ? <Tag color="orange">Evet</Tag> : <Tag color="default">Hayır</Tag>
+      render: (isReturn: boolean, record: any) => (
+        isReturn ? 
+          <Tag key={`return-yes-${record.invoiceHeaderID || record.invoiceHeaderId}`} color="orange">Evet</Tag> : 
+          <Tag key={`return-no-${record.invoiceHeaderID || record.invoiceHeaderId}`} color="default">Hayır</Tag>
       )
     },
     {
       title: 'e-Fatura',
       dataIndex: 'isEInvoice',
       key: 'isEInvoice',
-      render: (isEInvoice: boolean) => (
-        isEInvoice ? <Tag color="purple">Evet</Tag> : <Tag color="default">Hayır</Tag>
+      render: (isEInvoice: boolean, record: any) => (
+        isEInvoice ? 
+          <Tag key={`einvoice-yes-${record.invoiceHeaderID || record.invoiceHeaderId}`} color="purple">Evet</Tag> : 
+          <Tag key={`einvoice-no-${record.invoiceHeaderID || record.invoiceHeaderId}`} color="default">Hayır</Tag>
       )
     },
     {
       title: 'Durum',
       dataIndex: 'status',
       key: 'status',
-      render: (text: string, record: any) => (
-        <Space>
-          {record.isCompleted && (
-            <Tag key="completed" color="green">Tamamlandı</Tag>
-          )}
-          {record.isSuspended && (
-            <Tag key="suspended" color="red">Askıda</Tag>
-          )}
-          {!record.isCompleted && !record.isSuspended && (
-            <Tag key="waiting" color="blue">Bekliyor</Tag>
-          )}
-        </Space>
-      )
+      render: (text: string, record: any) => {
+        // Her bir Tag için benzersiz key prop'u ekliyoruz
+        const statusTags = [];
+        
+        if (record.isCompleted) {
+          statusTags.push(<Tag key={`completed-${record.invoiceHeaderID || record.invoiceHeaderId}`} color="green">Tamamlandı</Tag>);
+        }
+        
+        if (record.isSuspended) {
+          statusTags.push(<Tag key={`suspended-${record.invoiceHeaderID || record.invoiceHeaderId}`} color="red">Askıda</Tag>);
+        }
+        
+        if (!record.isCompleted && !record.isSuspended) {
+          statusTags.push(<Tag key={`waiting-${record.invoiceHeaderID || record.invoiceHeaderId}`} color="blue">Bekliyor</Tag>);
+        }
+        
+        return <Space>{statusTags}</Space>;
+      }
     },
     {
       title: 'İşlemler',
@@ -418,7 +427,7 @@ const InvoiceListPage: React.FC = () => {
         <Table
           columns={columns}
           dataSource={invoices}
-          rowKey="invoiceHeaderId"
+          rowKey={(record) => record.invoiceHeaderID || record.invoiceHeaderId || Math.random().toString()}
           pagination={pagination}
           loading={loading}
           onChange={handleTableChange}

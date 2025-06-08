@@ -16,6 +16,7 @@ import InvoiceHeader from './InvoiceHeader';
 import InvoiceLines from './InvoiceLines';
 import InvoiceSummary from './InvoiceSummary';
 import BarcodeModal from '../common/BarcodeModal';
+import CashPaymentModal from '../payment/CashPaymentModal';
 
 // Servisler ve tipler
 import invoiceApi from '../../services/invoiceApi';
@@ -129,10 +130,10 @@ interface InvoiceFormProps {
 
 // const { TabPane } = Tabs; // Artık kullanılmıyor
 
-const InvoiceForm = ({ 
+const InvoiceForm: React.FC<InvoiceFormProps> = ({ 
   type, 
   onSuccess 
-}: InvoiceFormProps) => {
+}) => {
   // URL parametrelerini al ve navigasyon için hook
   const navigate = useNavigate();
   const location = useLocation();
@@ -166,12 +167,19 @@ const InvoiceForm = ({
   // Form instance'ının doğru şekilde bağlanmasını sağla
   useEffect(() => {
     // Form instance'ını başlangıç değerleriyle ayarla
+    // Form için dayjs nesnesi kullanıyoruz, ancak _prevInvoiceDate için string formatı kullanıyoruz
+    // Böylece form validasyonu çalışırken, döngüsel referans hatasını da önlemiş oluyoruz
+    const today = dayjs();
+    const todayStr = today.format('YYYY-MM-DD');
+    
     form.setFieldsValue({
-      invoiceDate: dayjs(),
+      invoiceDate: today, // Form validasyonu için dayjs nesnesi kullanıyoruz
       docCurrencyCode: 'TRY',
-      currencyCode: 'TRY',
       exchangeRate: 1,
-      exchangeRateSource: 'TCMB'
+      exchangeRateSource: 'TCMB',
+      officeCode: 'M',
+      warehouseCode: '101',
+      _prevInvoiceDate: todayStr, // Karşılaştırma için string formatı kullanıyoruz
     });
   }, [form]);
   // Fatura tipi için URL parametresini kullan
@@ -227,6 +235,10 @@ const InvoiceForm = ({
   const [loadingInventory, setLoadingInventory] = useState<boolean>(false);
   const barcodeInputRef = useRef<InputRef>(null);
   
+  // Test için eklendi - geliştirme tamamlandığında kaldırılacak
+  const [showTestButton, setShowTestButton] = useState<boolean>(true);
+  const [isTestMode, setIsTestMode] = useState<boolean>(true); // Test modu aktif
+  
   // Fatura seçenekleri
   const [isReturn, setIsReturn] = useState<boolean>(false);
   const [isEInvoice, setIsEInvoice] = useState<boolean>(false);
@@ -242,6 +254,10 @@ const InvoiceForm = ({
   
   // Toplam tutar state'leri için tryEquivalentTotal ekleyelim
   const [tryEquivalentTotal, setTryEquivalentTotal] = useState<number>(0);
+  
+  // Nakit tahsilat modal kontrolü için state
+  const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
+  const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   
   // Form bağlantısını kontrol et
   useEffect(() => {
@@ -432,6 +448,21 @@ const InvoiceForm = ({
         const vatAmount = subtotalAmount * (detail.vatRate / 100);
         const netAmount = subtotalAmount + vatAmount;
         
+        // Kullanılacak para birimi - form'dan al veya parametre olarak gelen değeri kullan
+        const formCurrencyCode = form.getFieldValue('docCurrencyCode');
+        const useCurrencyCode = currencyCode || formCurrencyCode || detail.currencyCode || 'TRY';
+        
+        // Güncel döviz kurunu al
+        const currentExchangeRate = useCurrencyCode === 'TRY' ? 1 : exchangeRate;
+        
+        // TL karşılığını hesapla (eğer farklı bir para birimi seçilmişse ve kur bilgisi varsa)
+        let tryEquivalent = netAmount;
+        if (useCurrencyCode !== 'TRY' && currentExchangeRate > 0) {
+          tryEquivalent = netAmount * currentExchangeRate;
+        } else {
+          tryEquivalent = netAmount;
+        }
+        
         return {
           ...detail,
           unitPrice: newUnitPrice,
@@ -440,8 +471,9 @@ const InvoiceForm = ({
           subtotalAmount,
           vatAmount,
           netAmount,
-          currencyCode: currencyCode, // Para birimi kodunu güncelle
-          exchangeRate: rate // Döviz kurunu güncelle
+          currencyCode: useCurrencyCode,
+          tryEquivalent: parseFloat(tryEquivalent.toFixed(2)),
+          exchangeRate: currentExchangeRate // Güncel döviz kurunu da ekle
         };
       });
       
@@ -547,6 +579,17 @@ const InvoiceForm = ({
 
     // Başarı mesajı göster
     message.success(`${variant.productDescription} listeye eklendi`);
+  };
+  
+  // Fatura detaylarını API için hazırla
+  const mapInvoiceDetailToRequest = (detail: InvoiceDetail) => {
+    return {
+      ...detail,
+      // InvoiceDetail tipinde bulunan alanları kullan
+      vatAmount: detail.vatAmount || 0,
+      discountAmount: detail.discountAmount || 0,
+      netAmount: detail.netAmount || 0
+    };
   };
   
   // Satır tutarlarını hesapla
@@ -691,7 +734,7 @@ const InvoiceForm = ({
         const prevStock = inventoryStock.find(s => 
           (s as any).productCode === productCode || (s as any).itemCode === productCode
         );
-        
+
         if (prevStock) {
           // Mevcut stok bilgisini güncelle
           const updatedStock = inventoryStock.map(s => 
@@ -1344,15 +1387,18 @@ useEffect(() => {
     setHeaderFormValid(isValid);
     
     // Tarih değiştiğinde güncel kur bilgisini al
-    const prevInvoiceDate = form.getFieldValue('_prevInvoiceDate');
-    const currentInvoiceDate = values.invoiceDate;
+    const prevInvoiceDate = form.getFieldValue('_prevInvoiceDate'); // String formatında
+    const currentInvoiceDate = values.invoiceDate; // dayjs nesnesi
     
-    if (currentInvoiceDate && (!prevInvoiceDate || !currentInvoiceDate.isSame(prevInvoiceDate))) {
-      // Önceki tarihi sakla
-      form.setFieldsValue({ _prevInvoiceDate: currentInvoiceDate });
+    // dayjs nesnesi ile string karşılaştırması yapmak için format metodunu kullanıyoruz
+    const currentDateStr = currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : '';
+    
+    if (currentInvoiceDate && (!prevInvoiceDate || currentDateStr !== prevInvoiceDate)) {
+      // Önceki tarihi string olarak sakla
+      form.setFieldsValue({ _prevInvoiceDate: currentDateStr });
       
       // Mevcut para birimini al
-      const currentCurrency = form.getFieldValue('docCurrencyCode') || 'TRY';
+      const currentCurrency = form.getFieldValue('docCurrencyCode');
       
       if (currentCurrency !== 'TRY') {
         // Seçili döviz kuru kaynağını al
@@ -1360,7 +1406,7 @@ useEffect(() => {
         const rateSource = rateSourceStr === 'TCMB' ? ExchangeRateSource.CENTRAL_BANK : ExchangeRateSource.FREE_MARKET;
         
         // Yeni tarih için döviz kurlarını getir
-        const formattedDate = currentInvoiceDate.format('YYYY-MM-DD');
+        const formattedDate = currentDateStr; // String formatında tarih
         
         // API'den döviz kurlarını getir
         exchangeRateApi.getExchangeRatesByDate(formattedDate, rateSource)
@@ -1457,7 +1503,7 @@ const updateInvoiceDetail = (id: string, field: string, value: any) => {
   
   // isPriceIncludeVat değiştiğinde tüm satırları güncelle
   if (field === 'isPriceIncludeVat') {
-    // KDV dahil/hariç değerini güncelle
+    // KDV dahil/hariç değerini günculle
     setIsPriceIncludeVat(value);
     form.setFieldsValue({ isPriceIncludeVat: value });
     
@@ -1476,7 +1522,7 @@ const updateInvoiceDetail = (id: string, field: string, value: any) => {
     setInvoiceDetails(updatedDetails);
     updateTotals(updatedDetails);
   } else {
-    // Tek bir satırı güncelle
+    // Tek bir satırı günculle
     const updatedDetails = invoiceDetails.map(detail => {
       if (detail.id === id) {
         // Güncellenmiş detay
@@ -1621,7 +1667,7 @@ const onFinish = async (values: any) => {
     const requestData: any = {
       invoiceNumber: values.invoiceNumber || 'Otomatik oluşturulacak',
       invoiceTypeCode: invoiceTypeCode,
-      invoiceDate: values.invoiceDate ? dayjs(values.invoiceDate).format('YYYY-MM-DD') : '',
+      invoiceDate: values.invoiceDate ? values.invoiceDate.format('YYYY-MM-DD') : '', // dayjs nesnesini string'e çeviriyoruz
       invoiceTime: '00:00:00', // Sabit saat
       currAccCode: values.currAccCode, // Müşteri/Tedarikçi kodu
       currAccTypeCode: currAccTypeCode, // Müşteri/Tedarikçi tipi kodu
@@ -1664,126 +1710,251 @@ const onFinish = async (values: any) => {
     
     // API'ye gönder
     let response;
-    try {
-      console.log('Fatura API çağrısı yapılıyor, fatura tipi:', type);
-      console.log('API isteği:', requestData);
-      
-      // Axios ile doğrudan API çağrısı yap
-      // API_BASE_URL zaten dosyanın başında tanımlı
-      
-      // Axios instance oluştur ve token ekle
-      const token = localStorage.getItem('token');
-      const axiosInstance = axios.create({
-        baseURL: API_BASE_URL,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      // Fatura tipine göre doğru endpoint'i belirle
-      let endpoint = '/api/v1/Invoice';
-      
-      // API çağrısını yap
-      console.log(`API çağrısı yapılıyor: ${endpoint}`);
-      console.log('Gönderilen veri detayları:', {
-        "invoiceNumber": requestData.invoiceNumber,
-        "invoiceTypeCode": requestData.invoiceTypeCode,
-        "invoiceDate": requestData.invoiceDate,
-        "currAccCode": requestData.currAccCode,
-        "docCurrencyCode": requestData.docCurrencyCode,
-        "shippingPostalAddressID": requestData.shippingPostalAddressID,
-        "billingPostalAddressID": requestData.billingPostalAddressID,
-        "ShipmentMethodCode": requestData.ShipmentMethodCode,
-        "detaylar": requestData.details ? requestData.details.length : 0
-      });
-      
-      // Özellikle detayları kontrol et
-      if (!requestData.details || requestData.details.length === 0) {
-        console.error('Fatura detayları boş! API çağrısı iptal ediliyor.');
-        message.error('Fatura detayları boş! Lütfen en az bir ürün ekleyin.');
-        setLoading(false);
-        return;
+    console.log('Fatura API çağrısı yapılıyor, fatura tipi:', type);
+    console.log('API isteği:', requestData);
+    
+    // Axios ile doğrudan API çağrısı yap
+    // API_BASE_URL zaten dosyanın başında tanımlı
+    
+    // Axios instance oluştur ve token ekle
+    const token = localStorage.getItem('token');
+    const axiosInstance = axios.create({
+      baseURL: API_BASE_URL,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       }
-      
-      try {
-        // Önce request data'yı JSON'a çevirip sonra tekrar parse edelim
-        // Bu, detayların doğru formatta gönderilmesini sağlar
-        const jsonString = JSON.stringify(requestData);
-        console.log('JSON String:', jsonString);
-        const parsedData = JSON.parse(jsonString);
-        console.log('Parsed Data:', parsedData);
-        
-        // Detayların doğru formatta olduğundan emin olalım
-        console.log('API çağrısında gönderilen detaylar:', parsedData.details);
-        
-        // API çağrısını yap
-        const axiosResponse = await axiosInstance.post(endpoint, parsedData);
-        response = axiosResponse.data;
-        console.log('API yanıtı (başarılı):', response);
-      } catch (error: any) {
-        console.error('API yanıtı (hata):', error.response?.data || error.message);
-        if (error.response?.data) {
-          message.error(`Sunucu hatası: ${error.response.data.message || JSON.stringify(error.response.data)}`);
-        } else {
-          message.error(`İstek hatası: ${error.message}`);
-        }
-        setLoading(false);
-        return;
-      }
-    } catch (apiError: any) {
-      console.error('API çağrısı sırasında hata:', apiError);
-      message.error({ content: `API hatası: ${apiError.message || 'Bilinmeyen hata'}`, key: 'invoiceSave' });
+    });
+    
+    // Fatura tipine göre doğru endpoint'i belirle
+    let endpoint = '/api/v1/Invoice';
+    
+    // API çağrısını yap
+    console.log(`API çağrısı yapılıyor: ${endpoint}`);
+    console.log('Gönderilen veri detayları:', {
+      "invoiceNumber": requestData.invoiceNumber,
+      "invoiceTypeCode": requestData.invoiceTypeCode,
+      "invoiceDate": requestData.invoiceDate,
+      "currAccCode": requestData.currAccCode,
+      "docCurrencyCode": requestData.docCurrencyCode,
+      "shippingPostalAddressID": requestData.shippingPostalAddressID,
+      "billingPostalAddressID": requestData.billingPostalAddressID,
+      "ShipmentMethodCode": requestData.ShipmentMethodCode,
+      "detaylar": requestData.details ? requestData.details.length : 0
+    });
+    
+    // Özellikle detayları kontrol et
+    if (!requestData.details || requestData.details.length === 0) {
+      console.error('Fatura detayları boş! API çağrısı iptal ediliyor.');
+      message.error('Fatura detayları boş! Lütfen en az bir ürün ekleyin.');
       setLoading(false);
       return;
     }
-    
-    // Başarılı yanıt kontrolü
-    if (response && response.success) {
-      message.success({ content: 'Fatura başarıyla kaydedildi!', key: 'invoiceSave', duration: 3 });
       
-      // Başarı callback'ini çağır
-      if (onSuccess) {
-        onSuccess(response.data);
+      // Fatura tipine göre API çağrısı yap
+      switch (selectedInvoiceType) {
+        case InvoiceType.WHOLESALE_SALES:
+          response = await invoiceApi.createWholesaleInvoice({
+            ...values,
+            details: invoiceDetails.map(mapInvoiceDetailToRequest)
+          });
+          break;
+        case InvoiceType.WHOLESALE_PURCHASE:
+          response = await invoiceApi.createWholesalePurchaseInvoice({
+            ...values,
+            details: invoiceDetails.map(mapInvoiceDetailToRequest)
+          });
+          break;
+        case InvoiceType.EXPENSE_SALES:
+          response = await invoiceApi.createExpenseInvoice({
+            ...values,
+            details: invoiceDetails.map(mapInvoiceDetailToRequest)
+          });
+          break;
+        case InvoiceType.EXPENSE_PURCHASE:
+          response = await invoiceApi.createExpenseInvoice({
+            ...values,
+            details: invoiceDetails.map(mapInvoiceDetailToRequest)
+          });
+          break;
+        default:
+          message.error('Geçersiz fatura tipi!');
+          setLoading(false);
+          return;
       }
       
-      // Formu sıfırla
-      form.resetFields();
-      setInvoiceDetails([]);
-      updateTotals([]);
-      setActiveTab('1');
+      console.log('API yanıtı:', response);
       
-      // Yeni fatura için başlangıç değerlerini ayarla
-      form.setFieldsValue({
-        invoiceDate: dayjs(),
-        docCurrencyCode: 'TRY',
-        currencyCode: 'TRY',
-        exchangeRate: 1,
-        exchangeRateSource: 'TCMB'
-      });
-    } else {
-      // Hata mesajını göster
-      const errorMessage = response?.message || 'Fatura kaydedilirken bir hata oluştu';
-      message.error({ content: errorMessage, key: 'invoiceSave', duration: 3 });
-      console.error('Fatura kaydetme hatası:', response);
+      // API yanıtını kontrol et
+      if (response && response.success) {
+        message.success('Fatura başarıyla kaydedildi!');
+        
+        // Başarı callback'ini çağır
+        if (onSuccess) {
+          onSuccess(response.data);
+        }
+        
+        // Fatura verilerini kaydet
+        const savedInvoice = {
+          id: response.data.invoiceHeaderID || 'temp-id-' + Date.now(),
+          invoiceNumber: response.data.invoiceNumber || values.invoiceNumber,
+          amount: response.data.netAmount || values.netAmount || 0,
+          currencyCode: values.docCurrencyCode || 'TRY',
+          currAccCode: values.currAccCode,
+          currAccTypeCode: currAccTypeCode,
+          officeCode: values.officeCode,
+          storeCode: values.warehouseCode
+        };
+        
+        console.log('Kaydedilen fatura verileri:', savedInvoice);
+        
+        // Önce state'i güncelleyelim
+        setSavedInvoiceData(savedInvoice);
+        
+        // Nakit ödeme modalını aç
+        console.log('Nakit ödeme modalı açılıyor...');
+        setShowCashPaymentModal(true);
+        
+        // State güncellemelerini kontrol et
+        console.log('showCashPaymentModal:', true);
+        console.log('savedInvoiceData:', savedInvoice);
+        
+        // Not: Nakit ödeme modalı kapatıldığında form sıfırlanacak
+        // Bu işlem handleCashPaymentModalClose ve handleCashPaymentSuccess fonksiyonlarında yapılıyor
+      } else {
+        // Hata mesajını göster
+        let errorMessage = response?.message || 'Fatura kaydedilirken bir hata oluştu!';
+        
+        // Özel hata mesajları için kontrol
+        if (errorMessage.includes('UNIQUE KEY constraint') && errorMessage.includes('UQ_trInvoiceHeader')) {
+          errorMessage = 'Bu fatura numarası zaten kullanımda! Lütfen farklı bir fatura numarası kullanın veya otomatik numara oluşturma seçeneğini seçin.';
+        }
+        
+        message.error(errorMessage);
+        console.error('API yanıtı (hata):', response);
+        
+        // TEST AMAÇLI: Hata durumunda bile nakit tahsilat modalını açmak için
+        // Bu kısmı test sonrası kaldırabilirsiniz
+        if (isTestMode) {
+          const testInvoice = {
+            id: 'test-' + Date.now(),
+            invoiceNumber: 'TEST-' + Date.now(),
+            amount: values.netAmount || 0,
+            currencyCode: values.docCurrencyCode || 'TRY',
+            currAccCode: values.currAccCode,
+            currAccTypeCode: currAccTypeCode,
+            officeCode: values.officeCode,
+            storeCode: values.warehouseCode
+          };
+          
+          setSavedInvoiceData(testInvoice);
+          setShowCashPaymentModal(true);
+          console.log('TEST MODU: Nakit ödeme modalı açılıyor...');
+        }
+      }
+    } catch (error: any) {
+      console.error('Fatura kaydedilirken hata oluştu:', error);
+      let errorMessage = 'Fatura kaydedilirken bir hata oluştu!';
+      
+      // Hata mesajını daha detaylı göster
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      message.error(errorMessage);
+    } finally {
+      setLoading(false);
     }
-  } catch (error: any) {
-    console.error('Fatura kaydetme hatası:', error);
-    message.error({ content: `Fatura kaydedilirken bir hata oluştu: ${error.message || 'Bilinmeyen hata'}`, key: 'invoiceSave', duration: 3 });
-  } finally {
-    setLoading(false); // İşlem tamamlandığında yükleme durumunu sıfırla
-  }
 };
 
+// ...
 // Bu fonksiyon zaten tanımlandığı için kaldırıldı
 
-// Barkod modal açma işlevi
 const openBarcodeModal = () => {
   setBarcodeModalVisible(true);
 };
 
-// Bileşen render
-return (
+const handleCashPaymentModalClose = () => {
+  setShowCashPaymentModal(false);
+  
+  // Test modunda ise test modunu kapat
+  if (isTestMode) {
+    setIsTestMode(false);
+  }
+  
+  // Formu sıfırla
+  form.resetFields();
+  setInvoiceDetails([]);
+  updateTotals([]);
+  setActiveTab('1');
+  
+  // Yeni fatura için başlangıç değerleri useEffect içinde ayarlanıyor
+};
+
+const handleCashPaymentSuccess = (paymentData: any) => {
+  console.log('Nakit tahsilat başarılı:', paymentData);
+  setShowCashPaymentModal(false);
+  
+  // Test modu kontrolü - test modunda başarı mesajını değiştir
+  if (isTestMode) {
+    message.success('Test - Nakit tahsilat başarıyla kaydedildi');
+    setIsTestMode(false); // Test modunu kapat
+  } else {
+    message.success('Nakit tahsilat başarıyla kaydedildi');
+  }
+  
+  // Başarı callback'ini çağır
+  if (onSuccess) {
+    onSuccess(savedInvoiceData);
+  }
+};
+
+// Test için nakit tahsilat formunu açma fonksiyonu
+const openCashPaymentForTest = () => {
+  // Test için örnek fatura verisi oluştur
+  const testInvoiceData = {
+    id: 'test-invoice-id',
+    invoiceNumber: 'TEST-' + Math.floor(Math.random() * 10000),
+    amount: 1000, // 1000 TL
+    currencyCode: 'TRY',
+    currAccCode: form.getFieldValue('currAccCode') || 'TEST-CUSTOMER',
+    currAccTypeCode: 3, // Müşteri tipi
+    officeCode: form.getFieldValue('officeCode') || 'TEST-OFFICE',
+    storeCode: form.getFieldValue('warehouseCode') || 'TEST-STORE'
+  };
+  
+  // Test verilerini kaydet ve modalı aç
+  setSavedInvoiceData(testInvoiceData);
+  setShowCashPaymentModal(true);
+  
+  console.log('Test için nakit tahsilat formu açılıyor:', testInvoiceData);
+};
+
+// Test butonu için stil
+const testButtonStyle = {
+  position: 'fixed' as 'fixed',
+  bottom: '20px',
+  right: '20px',
+  zIndex: 1000,
+  backgroundColor: '#ff4d4f',
+  color: 'white',
+  border: 'none',
+  padding: '10px 20px',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.15)'
+};
+
+  
+  // Başarı callback'ini çağır - test butonu için tetiklemeyi engellemek için isTestMode kontrolü eklendi
+  if (onSuccess && savedInvoiceData && !isTestMode) {
+    onSuccess(savedInvoiceData);
+  }
+
+  // Bileşen render
+  return (
   <Card
     title={invoiceTypeDescriptions[selectedInvoiceType] || 'Fatura Oluştur'}
     extra={
@@ -1808,6 +1979,7 @@ return (
         
         // Zorunlu alanları kontrol et - Para Birimi zorunlu değil
         const isValid = !!(allValues.invoiceDate && 
+          allValues.currencyCode && 
           allValues.currAccCode && 
           allValues.officeCode && 
           allValues.warehouseCode);
@@ -1822,6 +1994,7 @@ return (
         
         console.log('Form validation check (onValuesChange):', { 
           invoiceDate: !!allValues.invoiceDate, 
+          currencyCode: !!allValues.currencyCode, 
           currAccCode: !!allValues.currAccCode, 
           officeCode: !!allValues.officeCode, 
           warehouseCode: !!allValues.warehouseCode,
@@ -1965,7 +2138,6 @@ return (
                 isPriceIncludeVat={isPriceIncludeVat}
                 units={units}
                 products={products}
-                form={form}
               />
             )
           },
@@ -2122,8 +2294,69 @@ return (
         setProductVariants([]);
       }}
     />
+    
+    {/* Nakit tahsilat modal */}
+    {savedInvoiceData && (
+      <CashPaymentModal
+        invoiceId={savedInvoiceData.id}
+        invoiceNumber={savedInvoiceData.invoiceNumber}
+        invoiceAmount={savedInvoiceData.amount}
+        currencyCode={savedInvoiceData.currencyCode}
+        currAccCode={savedInvoiceData.currAccCode}
+        currAccTypeCode={savedInvoiceData.currAccTypeCode}
+        officeCode={savedInvoiceData.officeCode}
+        storeCode={savedInvoiceData.storeCode}
+        isVisible={showCashPaymentModal}
+        onClose={handleCashPaymentModalClose}
+        onSuccess={handleCashPaymentSuccess}
+      />
+    )}
+    
+    {/* Test butonu - geliştirme tamamlandığında kaldırılacak */}
+    {showTestButton && (
+      <Button 
+        type="primary" 
+        danger
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          zIndex: 1000,
+          padding: '10px 20px',
+        }}
+        onClick={(e) => {
+          // Event'i durdur
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Test için nakit tahsilat formunu aç
+          const testInvoiceData = {
+            id: 'test-invoice-id',
+            invoiceNumber: 'TEST-' + Math.floor(Math.random() * 10000),
+            amount: 1000, // 1000 TL
+            currencyCode: 'TRY',
+            currAccCode: form.getFieldValue('currAccCode') || 'TEST-CUSTOMER',
+            currAccTypeCode: 3, // Müşteri tipi
+            officeCode: form.getFieldValue('officeCode') || 'TEST-OFFICE',
+            storeCode: form.getFieldValue('warehouseCode') || 'TEST-STORE'
+          };
+          
+          // Test modunu aktifleştir
+          setIsTestMode(true);
+          
+          // setTimeout kullanarak state güncellemelerini render dışına taşı
+          setTimeout(() => {
+            setSavedInvoiceData(testInvoiceData);
+            setShowCashPaymentModal(true);
+            console.log('Test için nakit tahsilat formu açılıyor:', testInvoiceData);
+          }, 0);
+        }}
+      >
+        Nakit Tahsilat Formunu Test Et
+      </Button>
+    )}
   </Card>
-);
+  );
 };
 
 export default InvoiceForm;
