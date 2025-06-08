@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, Form, Button, Tabs, message, Row, Col, Input, InputRef, Radio, InputNumber, Select } from 'antd';
 import type { RadioChangeEvent } from 'antd';
 import { PlusOutlined, ArrowLeftOutlined, ArrowRightOutlined, SaveOutlined, InfoCircleOutlined, BarcodeOutlined, CheckOutlined } from '@ant-design/icons';
@@ -159,8 +159,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     return type || InvoiceType.WHOLESALE_SALES;
   };
   
-  // Form ve yükleme durumu
-  const [form] = Form.useForm();
+  // Form nesnesi oluştur - memoize ederek render döngüsünde yeniden oluşturulmasını önlüyoruz
+  const [form] = useMemo(() => [Form.useForm()[0]], []);
   const [loading, setLoading] = useState<boolean>(false);
   const [exchangeRate, setExchangeRate] = useState<number>(1);
   
@@ -172,25 +172,30 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     const today = dayjs();
     const todayStr = today.format('YYYY-MM-DD');
     
-    // Form değerlerini setTimeout içinde ayarlayarak döngüsel referans hatasını önlüyoruz
-    setTimeout(() => {
-      form.setFieldsValue({
-        invoiceDate: today, // Form validasyonu için dayjs nesnesi kullanıyoruz
-        docCurrencyCode: 'TRY',
-        exchangeRate: 1,
-        exchangeRateSource: 'TCMB',
-        officeCode: 'M',
-        warehouseCode: '101',
-        currencyCode: 'TRY',
-        currency: 'TRY',
-        invoiceType: selectedInvoiceType,
-        paymentType: '1',
-        discountType: '1',
-        discountRate: 0,
-        vatRate: 18,
-        isPriceIncludeVat: false
-      });
-    }, 0);
+    // Form değerlerini bir sonraki render döngüsünde ayarlayarak döngüsel referans hatasını önlüyoruz
+    const initialValues = {
+      invoiceDate: today, // Form validasyonu için dayjs nesnesi kullanıyoruz
+      docCurrencyCode: 'TRY',
+      exchangeRate: 1,
+      exchangeRateSource: 'TCMB',
+      officeCode: 'M',
+      warehouseCode: '101',
+      currencyCode: 'TRY',
+      currency: 'TRY',
+      invoiceType: selectedInvoiceType,
+      paymentType: '1',
+      discountType: '1',
+      discountRate: 0,
+      vatRate: 18,
+      isPriceIncludeVat: false
+    };
+    
+    // Form değerlerini güvenli bir şekilde ayarla
+    if (form) {
+      setTimeout(() => {
+        form.setFieldsValue(initialValues);
+      }, 0);
+    }
   }, [form]);
   // Fatura tipi için URL parametresini kullan
   
@@ -1954,13 +1959,15 @@ const handleCashPaymentSuccess = (paymentData: any) => {
       }}
       initialValues={{
         invoiceDate: dayjs(), // Fatura tarihi için bugünün tarihi
-        invoiceType: '1',
+        invoiceType: selectedInvoiceType,
         paymentType: '1',
         currency: 'TRY',
-        currencyCode: 'TRY',  // Para birimi için defaultValue yerine initialValues kullanıldı
-        docCurrencyCode: 'TRY',  // Para birimi için defaultValue yerine initialValues kullanıldı
+        currencyCode: 'TRY',
+        docCurrencyCode: 'TRY',
         exchangeRate: 1,
-        exchangeRateSource: 'TCMB',  // Döviz kuru kaynağı için defaultValue yerine initialValues kullanıldı
+        exchangeRateSource: 'TCMB',
+        officeCode: 'M',
+        warehouseCode: '101',
         discountType: '1',
         discountRate: 0,
         vatRate: 18,
