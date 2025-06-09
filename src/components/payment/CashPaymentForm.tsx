@@ -20,7 +20,7 @@ const { Option } = Select;
 const { Text, Title } = Typography;
 
 interface CashPaymentFormProps {
-  invoiceId: string;
+  invoiceHeaderID: string;
   invoiceNumber: string;
   invoiceAmount: number;
   currencyCode: string;
@@ -57,7 +57,7 @@ interface PaymentRow {
 }
 
 const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
-  invoiceId,
+  invoiceHeaderID,
   invoiceNumber,
   invoiceAmount,
   currencyCode,
@@ -96,7 +96,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   useEffect(() => {
     // Fatura bilgilerini konsola yazdır (debug için)
     console.log('Nakit tahsilat formu açıldı, fatura bilgileri:', {
-      invoiceId,
+      invoiceHeaderID,
       invoiceNumber,
       invoiceAmount,
       currencyCode,
@@ -104,9 +104,14 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       currAccTypeCode
     });
     
+    // Eğer fatura tutarı 0 veya geçersizse, konsola uyarı yazdır
+    if (!invoiceAmount || invoiceAmount <= 0) {
+      console.warn('Fatura tutarı geçersiz veya sıfır:', invoiceAmount);
+    }
+    
     // Form başlangıç değerlerini ayarla
     form.setFieldsValue({
-      amount: invoiceAmount, // Fatura tutarını otomatik doldur
+      amount: invoiceAmount && invoiceAmount > 0 ? invoiceAmount : 0, // Fatura tutarını otomatik doldur
       description: `${invoiceNumber} nolu fatura için nakit tahsilat`,
       currencyCode: currencyCode || 'TRY',
       exchangeRate: 1
@@ -114,12 +119,12 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
     
     // Başlangıç para birimini ayarla
     setCurrentCurrencyCode(currencyCode || 'TRY');
-    setRemainingAmount(invoiceAmount); // Kalan tutarı fatura tutarı olarak ayarla
+    setRemainingAmount(invoiceAmount && invoiceAmount > 0 ? invoiceAmount : 0); // Kalan tutarı fatura tutarı olarak ayarla
     
     // Kasa hesaplarını ve para birimlerini yükle
     fetchCashAccounts();
     fetchCurrencies();
-  }, [invoiceId, invoiceNumber, invoiceAmount, currencyCode]);
+  }, [invoiceHeaderID, invoiceNumber, invoiceAmount, currencyCode, form]);
   
   // Müşteri kodu değiştiğinde çalışacak useEffect
   useEffect(() => {
@@ -516,7 +521,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
     try {
       // Tüm ödeme satırlarını içeren payload hazırla
       const payload = {
-        invoiceId,
+        invoiceHeaderID,
         currAccCode,
         currAccTypeCode,
         officeCode,
@@ -542,7 +547,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       });
       
       if (response.data && response.data.success) {
-        message.success('Nakit tahsilat başarıyla kaydedildi');
+        // Nakit tahsilat başarı mesajı InvoiceForm'da gösterilecek
         if (onSuccess) {
           onSuccess(response.data);
         }
@@ -606,6 +611,28 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   return (
     <Card variant="borderless" style={{ padding: 0 }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Fatura Bilgileri Özet Bölümü */}
+        <Card 
+          title="Fatura Bilgileri" 
+          style={{ marginBottom: 16, backgroundColor: '#f9f9f9' }}
+          size="small"
+        >
+          <Row gutter={[16, 8]}>
+            <Col span={12}>
+              <Text strong>Fatura No:</Text> <Text>{invoiceNumber}</Text>
+            </Col>
+            <Col span={12}>
+              <Text strong>Müşteri Kodu:</Text> <Text>{currAccCode}</Text>
+            </Col>
+            <Col span={12}>
+              <Text strong>Toplam Tutar:</Text> <Text>{invoiceAmount && invoiceAmount > 0 ? invoiceAmount.toFixed(2) : '0.00'} {currencyCode}</Text>
+            </Col>
+            <Col span={12}>
+              <Text strong>Ödeme Tipi:</Text> <Text>Peşin</Text>
+            </Col>
+          </Row>
+        </Card>
+        
         {/* Ödeme satırları tablosu */}
         <div style={{ marginBottom: '10px', flex: 1 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>

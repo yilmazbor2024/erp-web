@@ -534,9 +534,20 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     if (onExchangeRateSourceChange) onExchangeRateSourceChange(e);
   };
 
+  // Ödeme tipi değerini dönüştüren yardımcı fonksiyon
+  const normalizePaymentType = (value: string | number) => {
+    // Sayısal değerleri dönüştür
+    if (value === 1 || value === '1') return 'Peşin';
+    if (value === 2 || value === '2') return 'Vadeli';
+    
+    // Zaten string ise doğrudan dön
+    return value as string;
+  };
+  
   // Ödeme tipi değiştiğinde çalışacak fonksiyon
   const handlePaymentTypeChange = (value: string) => {
-    if (value === 'pesin') {
+    console.log('Ödeme tipi değişti:', value);
+    if (value === 'Peşin') {
       // Peşin seçilirse vade gün sıfırla ve vade tarihi fatura tarihine eşitle
       form.setFieldsValue({
         dueDays: 0,
@@ -564,7 +575,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       // Vade gün 0 veya null ise vade tarihi fatura tarihine eşit olsun
       form.setFieldsValue({
         dueDate: invoiceDate,
-        paymentType: 'pesin' // Vade gün 0 ise ödeme tipini peşin yap
+        paymentType: 'Peşin' // Vade gün 0 ise ödeme tipini peşin yap
       });
     }
   };
@@ -581,7 +592,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     
     // Ödeme tipine göre vade tarihini güncelle
     const paymentType = form.getFieldValue('paymentType');
-    if (paymentType === 'pesin') {
+    if (paymentType === 'Peşin') {
       // Peşin ise vade tarihi fatura tarihine eşit olsun
       form.setFieldsValue({
         dueDate: date
@@ -663,18 +674,42 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   // useEffect ile form başlangıç değerlerini ayarla
   // Component mount olduğunda form başlangıç değerlerini ayarla
   useEffect(() => {
-    if (form) {
+    // Form nesnesinin var olduğundan emin ol
+    if (!form) return;
+    
+    try {
+      // Bugünün tarihini al
       const today = dayjs();
-      // Form başlangıç değerlerini ayarla
+      
+      // Mevcut form değerlerini logla
+      console.log('Form başlangıcında tüm değerler:', form.getFieldsValue());
+      
+      // Mevcut ödeme tipi değerini al
+      const currentPaymentType = form.getFieldValue('paymentType');
+      console.log('Ödeme tipi ham değer:', currentPaymentType, 'Türü:', typeof currentPaymentType);
+      
+      // Ödeme tipini normalize et
+      let normalizedPaymentType = 'Peşin'; // Varsayılan değer
+      if (currentPaymentType) {
+        normalizedPaymentType = normalizePaymentType(currentPaymentType);
+      }
+      console.log('Normalize edilmiş ödeme tipi:', normalizedPaymentType);
+      
+      // Form değerlerini ayarla
       form.setFieldsValue({
-        exchangeRateSource: 'TCMB', // TCMB varsayılan olarak seçili
-        invoiceDate: today, // Bugünün tarihi
-        paymentType: 'pesin', // Varsayılan ödeme tipi peşin
-        dueDays: 0, // Varsayılan vade günü 0
-        dueDate: today // Varsayılan vade tarihi bugün
+        exchangeRateSource: 'TCMB',
+        invoiceDate: today,
+        paymentType: normalizedPaymentType,
+        dueDays: 0,
+        dueDate: today
       });
+      
+      // Güncellenen değerleri logla
+      console.log('Form değerleri güncellendi:', form.getFieldsValue());
+    } catch (error) {
+      console.error('Form değerleri ayarlanırken hata oluştu:', error);
     }
-  }, [form]);
+  }, [form, normalizePaymentType]);
   
   return (
     <>
@@ -929,14 +964,27 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               label="Ödeme Tipi"
               rules={[{ required: true, message: 'Lütfen ödeme tipini seçin' }]}
               style={{ marginBottom: '8px' }}
+              normalize={(value) => {
+                // Form değerini normalize et
+                const normalized = normalizePaymentType(value);
+                console.log('Form normalize edildi:', value, '->', normalized);
+                return normalized;
+              }}
+              getValueProps={(value) => {
+                // Değeri görüntülemek için normalize et
+                const normalized = normalizePaymentType(value);
+                console.log('getValueProps:', value, '->', normalized);
+                return { value: normalized };
+              }}
             >
               <Select
                 placeholder="Ödeme tipi seçin"
                 onChange={handlePaymentTypeChange}
                 size="small"
+                getPopupContainer={triggerNode => triggerNode.parentNode}
               >
-                <Option value="pesin">Peşin</Option>
-                <Option value="vadeli">Vadeli</Option>
+                <Option value="Peşin">Peşin</Option>
+                <Option value="Vadeli">Vadeli</Option>
               </Select>
             </Form.Item>
           </Col>
@@ -958,7 +1006,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                     style={{ width: '100%' }}
                     placeholder="Vade gün sayısı"
                     onChange={handleDueDaysChange}
-                    disabled={getFieldValue('paymentType') === 'pesin'}
+                    disabled={getFieldValue('paymentType') === 'Peşin'}
                     size="small"
                   />
                 </Form.Item>
@@ -986,7 +1034,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                     style={{ width: '100%' }} 
                     format="DD.MM.YYYY" 
                     placeholder="Vade tarihi"
-                    disabled={getFieldValue('paymentType') === 'pesin'}
+                    disabled={getFieldValue('paymentType') === 'Peşin'}
                     size="small"
                   />
                 </Form.Item>
