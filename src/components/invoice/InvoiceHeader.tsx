@@ -736,7 +736,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       console.log('Ödeme tipi ham değer:', currentPaymentType, 'Türü:', typeof currentPaymentType);
       
       // Ödeme tipini normalize et
-      let normalizedPaymentType = 'Peşin'; // Varsayılan değer
+      let normalizedPaymentType = 'Vadeli'; // Varsayılan değer 'Vadeli' olarak değiştirildi
       if (currentPaymentType) {
         normalizedPaymentType = normalizePaymentType(currentPaymentType);
       }
@@ -751,9 +751,9 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         // Eğer mevcut bir tarih varsa onu koru, yoksa bugünün tarihini kullan
         invoiceDate: currentInvoiceDate || today,
         paymentType: normalizedPaymentType,
-        dueDays: 0,
-        // Vade tarihi için de aynı mantık
-        dueDate: currentInvoiceDate || today
+        dueDays: 30, // Varsayılan vade günü 30 gün olarak ayarlandı
+        // Vade tarihi, fatura tarihinden 30 gün sonra olacak şekilde ayarlandı
+        dueDate: currentInvoiceDate ? dayjs(currentInvoiceDate).add(30, 'day') : dayjs(today).add(30, 'day')
       });
       
       // Güncellenen değerleri logla - tarih değerlerini okunabilir formatta göster
