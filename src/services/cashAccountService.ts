@@ -9,7 +9,6 @@ export interface CashAccount {
   companyCode: string;
   officeCode: string;
   officeDescription: string;
-  storeCode: string;
   isBlocked: boolean;
 }
 

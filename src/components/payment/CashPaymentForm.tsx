@@ -27,7 +27,6 @@ interface CashPaymentFormProps {
   currAccCode: string;
   currAccTypeCode: string;
   officeCode: string;
-  storeCode?: string;
   onSuccess?: (response: any) => void;
   onCancel?: () => void;
 }
@@ -64,13 +63,13 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   currAccCode,
   currAccTypeCode,
   officeCode,
-  storeCode,
   onSuccess,
   onCancel
 }) => {
   const [form] = Form.useForm();
   const { isAuthenticated } = useAuth();
-  const token = localStorage.getItem('token');
+  // Token'ı birden fazla kaynaktan kontrol et
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('token') || sessionStorage.getItem('token');
   const [loading, setLoading] = useState<boolean>(false);
   const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([]);
   const [loadingCashAccounts, setLoadingCashAccounts] = useState<boolean>(false);
@@ -519,35 +518,42 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
     
     setLoading(true);
     try {
-      // Tüm ödeme satırlarını içeren payload hazırla
+      // Token kontrolü
+      if (!token) {
+        message.error('Oturum bilgileriniz bulunamadı. Lütfen yeniden giriş yapın.');
+        return;
+      }
+      
+      // Tüm ödeme satırlarını içeren payload hazırla - backend CashPaymentRequest modeline uygun
       const payload = {
-        invoiceHeaderID,
-        currAccCode,
-        currAccTypeCode,
-        officeCode,
-        storeCode,
-        totalAmount: paidAmount,
-        payments: paymentRows.map(row => ({
-          cashAccountCode: row.cashAccountCode,
+        invoiceId: invoiceHeaderID, // InvoiceId olarak gönder
+        currAccCode, // Müşteri kodu
+        cashCurrAccCode: paymentRows.length > 0 ? paymentRows[0].cashAccountCode : '', // Kasa kodu
+        documentDate: new Date().toISOString(), // Bugünün tarihi
+        description: 'Nakit tahsilat', // Açıklama
+        invoiceNumber: invoiceNumber, // Fatura numarası
+        docCurrencyCode: currencyCode || 'TRY', // Para birimi
+        paymentRows: paymentRows.map(row => ({
           amount: row.amount,
-          exchangeRate: row.exchangeRate,
-          tryAmount: row.tryAmount,
           currencyCode: row.currencyCode,
-          description: row.description
+          exchangeRate: row.exchangeRate
         })),
-        advanceAmount: advanceAmount > 0 ? advanceAmount : 0
+        attributes: [] // Öznitelikler (şimdilik boş)
       };
       
       console.log('Gönderilen veri:', payload);
       
+      // API çağrısı
       const response = await axios.post(`${API_BASE_URL}/api/v1/payment/cash-payment`, payload, {
         headers: {
-          Authorization: `Bearer ${token}`
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         }
       });
       
       if (response.data && response.data.success) {
         // Nakit tahsilat başarı mesajı InvoiceForm'da gösterilecek
+        message.success('Nakit tahsilat başarıyla kaydedildi.');
         if (onSuccess) {
           onSuccess(response.data);
         }
@@ -556,12 +562,28 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       }
     } catch (error: any) {
       console.error('Nakit tahsilat kaydedilirken hata oluştu:', error);
-      message.error(`Nakit tahsilat kaydedilirken bir hata oluştu: ${error.response?.data?.message || error.message}`);
+      
+      // Hata tipine göre özel mesajlar
+      if (error.response) {
+        // Sunucu yanıtı ile gelen hata
+        if (error.response.status === 401) {
+          message.error('Oturum süreniz dolmuş. Lütfen yeniden giriş yapın.');
+          // Burada otomatik olarak login sayfasına yönlendirme yapılabilir
+        } else {
+          message.error(`Sunucu hatası: ${error.response.data?.message || error.response.statusText || 'Bilinmeyen hata'}`);
+        }
+      } else if (error.request) {
+        // İstek yapıldı ancak yanıt alınamadı
+        message.error('Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.');
+      } else {
+        // İstek oluşturulurken bir hata oluştu
+        message.error(`İstek hatası: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
   };
-
+  
   // Toplam ve ödenen tutarları gösteren tablo sütunları
   const columns = [
     {
@@ -745,7 +767,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
               
               {/* 2. Satır - Para Birimi ve Döviz Kuru */}
               <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
-                <Form.Item name="currencyCode" initialValue="TRY" style={{ width: '50%', marginBottom: '6px' }}>
+                <Form.Item name="currencyCode" style={{ width: '50%', marginBottom: '6px' }}>
                   <Select 
                     style={{ width: '100%' }}
                     loading={loadingCurrencies}

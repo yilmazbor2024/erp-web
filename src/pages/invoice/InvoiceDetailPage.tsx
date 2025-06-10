@@ -208,16 +208,15 @@ const InvoiceDetailPage: React.FC = () => {
             {/* Sadece satış faturalarında nakit tahsilat butonu göster */}
             {invoice.invoiceTypeCode === InvoiceType.WHOLESALE_SALES && (
               <CashPaymentModal
-                invoiceId={invoice.invoiceHeaderID}
+                invoiceHeaderID={invoice.invoiceHeaderID}
                 invoiceNumber={invoice.invoiceNumber}
                 invoiceAmount={invoice.grossAmount}
                 currencyCode={invoice.currencyCode}
                 currAccCode={invoice.currAccCode}
                 currAccTypeCode="C"
                 officeCode={invoice.officeCode}
-                storeCode={invoice.storeCode}
                 onSuccess={(response) => {
-                  message.success(`Nakit tahsilat başarıyla kaydedildi. Fiş No: ${response.refNumber}`);
+                  message.success(`Nakit tahsilat başarıyla kaydedildi. Fiş No: ${response.invoiceNumber}`);
                   // Fatura detaylarını yeniden yükle
                   window.location.reload();
                 }}

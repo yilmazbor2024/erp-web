@@ -4,14 +4,13 @@ import { DollarOutlined } from '@ant-design/icons';
 import CashPaymentForm from './CashPaymentForm';
 
 interface CashPaymentModalProps {
-  invoiceId: string;
+  invoiceHeaderID: string;
   invoiceNumber: string;
   invoiceAmount: number;
   currencyCode: string;
   currAccCode: string;
   currAccTypeCode: string;
   officeCode: string;
-  storeCode?: string;
   onSuccess?: (response: any) => void;
   buttonText?: string;
   buttonType?: "primary" | "default" | "dashed" | "link" | "text";
@@ -21,14 +20,13 @@ interface CashPaymentModalProps {
 }
 
 const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
-  invoiceId,
+  invoiceHeaderID,
   invoiceNumber,
   invoiceAmount,
   currencyCode,
   currAccCode,
   currAccTypeCode,
   officeCode,
-  storeCode,
   onSuccess,
   buttonText = "Nakit Tahsilat",
   buttonType = "primary",
@@ -38,12 +36,19 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
 }) => {
   const [isModalVisible, setIsModalVisible] = useState<boolean>(isVisible || false);
   
-  // isVisible prop değiştiğinde modal durumunu güncelle
+  // Component mount olduğunda ve isVisible prop değiştiğinde çalışacak
   useEffect(() => {
-    if (isVisible !== undefined && isVisible !== isModalVisible) {
-      setIsModalVisible(isVisible);
+    console.log('CashPaymentModal useEffect çalıştı, isVisible:', isVisible, 'invoiceHeaderID:', invoiceHeaderID);
+    
+    // isVisible true ise modalı aç
+    if (isVisible === true) {
+      console.log('Modal açılıyor, isVisible:', isVisible, 'invoiceHeaderID:', invoiceHeaderID);
+      setIsModalVisible(true);
+    } else {
+      console.log('Modal kapalı kalıyor, isVisible:', isVisible);
+      setIsModalVisible(false);
     }
-  }, [isVisible, isModalVisible]);
+  }, [isVisible, invoiceHeaderID]); // isVisible veya invoiceHeaderID değiştiğinde tetikle
 
   const showModal = () => {
     setIsModalVisible(true);
@@ -65,16 +70,22 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
     }
   };
 
+  // İki farklı render modu: isVisible prop'u varsa sadece modal göster, yoksa buton + modal göster
   return (
     <>
-      <Button 
-        type={buttonType} 
-        icon={<DollarOutlined />} 
-        onClick={showModal}
-        size={buttonSize}
-      >
-        {buttonText}
-      </Button>
+      {/* isVisible prop'u yoksa buton göster */}
+      {isVisible === undefined && (
+        <Button 
+          type={buttonType} 
+          icon={<DollarOutlined />} 
+          onClick={showModal}
+          size={buttonSize}
+        >
+          {buttonText}
+        </Button>
+      )}
+      
+      {/* Modal her durumda render edilir, ancak görünürlüğü isModalVisible ile kontrol edilir */}
       <Modal
         title="Nakit Tahsilat"
         open={isModalVisible}
@@ -84,14 +95,13 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
         destroyOnClose={true}
       >
         <CashPaymentForm
-          invoiceId={invoiceId}
+          invoiceHeaderID={invoiceHeaderID}
           invoiceNumber={invoiceNumber}
           invoiceAmount={invoiceAmount}
           currencyCode={currencyCode}
           currAccCode={currAccCode}
           currAccTypeCode={currAccTypeCode}
           officeCode={officeCode}
-          storeCode={storeCode}
           onSuccess={handleSuccess}
           onCancel={handleCancel}
         />
