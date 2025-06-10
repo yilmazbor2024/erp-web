@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Modal, Button } from 'antd';
 import { DollarOutlined } from '@ant-design/icons';
 import CashPaymentForm from './CashPaymentForm';
+import ReactDOM from 'react-dom';
+import { AuthProvider } from '../../contexts/AuthContext';
 
+// CashPaymentModal Props
 interface CashPaymentModalProps {
   invoiceHeaderID: string;
   invoiceNumber: string;
@@ -15,26 +18,129 @@ interface CashPaymentModalProps {
   buttonText?: string;
   buttonType?: "primary" | "default" | "dashed" | "link" | "text";
   buttonSize?: "large" | "middle" | "small";
-  isVisible?: boolean;
-  onClose?: () => void;
 }
 
-// Global modal instance - React dışında modal kontrolü için
-let globalModalInstance: any = null;
-let globalModalProps: any = {};
+// Modal için root element
+let modalRoot: HTMLElement | null = null;
 
-// Global fonksiyon - doğrudan modalı açmak için
-export const openCashPaymentModal = (props: any) => {
-  console.log('openCashPaymentModal çağrıldı:', props);
-  if (globalModalInstance) {
-    globalModalProps = props;
-    globalModalInstance.openModal(props);
-    return true;
+// Document hazır olduğunda modal root oluştur
+if (typeof document !== 'undefined') {
+  modalRoot = document.getElementById('cash-payment-modal-root');
+  if (!modalRoot) {
+    modalRoot = document.createElement('div');
+    modalRoot.id = 'cash-payment-modal-root';
+    // modalRoot'u tüm ekranı kaplamayacak şekilde ayarlıyoruz
+    modalRoot.style.position = 'absolute'; // fixed yerine absolute kullanıyoruz
+    modalRoot.style.zIndex = '1000'; // z-index değerini düşürüyoruz
+    modalRoot.style.pointerEvents = 'none'; // Tıklama olaylarını arkaya geçirir
+    document.body.appendChild(modalRoot);
+    console.log('Modal root oluşturuldu');
   }
-  console.log('Modal instance bulunamadı!');
-  return false;
+}
+
+// Bağımsız modal bileşeni
+const StandaloneModal: React.FC<any> = (props) => {
+  const [visible, setVisible] = useState(true);
+  
+  const handleClose = () => {
+    setVisible(false);
+    if (props.onCancel) {
+      props.onCancel();
+    }
+  };
+  
+  const handleSuccess = (response: any) => {
+    setVisible(false);
+    if (props.onSuccess) {
+      props.onSuccess(response);
+    }
+  };
+  
+  return (
+    <Modal
+      title="Nakit Tahsilat"
+      open={visible}
+      onCancel={handleClose}
+      footer={null}
+      width={800}
+      destroyOnClose={false}
+      maskClosable={false}
+      keyboard={false}
+      zIndex={9999}
+      style={{ top: 20 }}
+    >
+      <CashPaymentForm
+        invoiceHeaderID={props.id || ''}
+        invoiceNumber={props.invoiceNumber || ''}
+        invoiceAmount={props.amount || 0}
+        currencyCode={props.currencyCode || 'TRY'}
+        currAccCode={props.currAccCode || ''}
+        currAccTypeCode={props.currAccTypeCode || ''}
+        officeCode={props.officeCode || ''}
+        onSuccess={handleSuccess}
+        onCancel={handleClose}
+      />
+    </Modal>
+  );
 };
 
+// Doğrudan modal render fonksiyonu
+function renderStandaloneModal(props: any) {
+  if (modalRoot) {
+    ReactDOM.render(
+      <AuthProvider>
+        <StandaloneModal {...props} />
+      </AuthProvider>,
+      modalRoot
+    );
+  }
+}
+
+// Global modal API
+export const CashPaymentModalAPI = {
+  open: (props: any) => {
+    console.log('CashPaymentModalAPI.open çağrıldı:', props);
+    
+    // Modal'i doğrudan render et
+    renderStandaloneModal(props);
+    
+    // Modal'i açmak için event yayınla
+    if (typeof document !== 'undefined') {
+      const event = new CustomEvent('cash-payment-modal-update', { 
+        detail: { visible: true, props } 
+      });
+      document.dispatchEvent(event);
+      console.log('cash-payment-modal-update eventi yayınlandı');
+    }
+    
+    return true;
+  },
+  
+  close: () => {
+    console.log('CashPaymentModalAPI.close çağrıldı');
+    
+    // Modal'i temizle
+    if (modalRoot) {
+      ReactDOM.unmountComponentAtNode(modalRoot);
+    }
+    
+    // Modal'i kapatmak için event yayınla
+    if (typeof document !== 'undefined') {
+      const event = new CustomEvent('cash-payment-modal-update', { 
+        detail: { visible: false } 
+      });
+      document.dispatchEvent(event);
+      console.log('cash-payment-modal-update eventi yayınlandı (kapat)');
+    }
+    
+    return true;
+  },
+  
+  isVisible: () => false,
+  getProps: () => ({})
+};
+
+// Normal CashPaymentModal bileşeni - artık sadece buton göstermek için kullanılıyor
 const CashPaymentModal: React.FC<CashPaymentModalProps> = (props) => {
   const {
     invoiceHeaderID,
@@ -47,133 +153,44 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = (props) => {
     onSuccess,
     buttonText = "Nakit Tahsilat",
     buttonType = "primary",
-    buttonSize = "middle",
-    isVisible,
-    onClose
+    buttonSize = "middle"
   } = props;
-  
-  // Modal görünürlüğü için state
-  const [modalVisible, setModalVisible] = useState(false);
-  const [formProps, setFormProps] = useState(props);
-  
-  // Global instance'a referansı kaydet
-  const modalRef = useRef<any>(null);
-  
-  // Component mount olduğunda global instance'a kaydet
-  useEffect(() => {
-    console.log('CashPaymentModal mount oldu, global instance kaydediliyor');
-    globalModalInstance = {
-      openModal: (newProps: any) => {
-        console.log('openModal çağrıldı:', newProps);
-        setFormProps({ ...props, ...newProps });
-        setModalVisible(true);
-      }
-    };
-    
-    // Component unmount olduğunda temizle
-    return () => {
-      globalModalInstance = null;
-    };
-  }, []);
-  
-  // isVisible prop'u değiştiğinde
-  useEffect(() => {
-    console.log('isVisible değişti:', isVisible);
-    if (isVisible !== undefined) {
-      setModalVisible(isVisible);
-    }
-  }, [isVisible]);
-  
+
   // Buton tıklandığında modalı göster
   const showModal = () => {
     console.log('showModal çağrıldı');
-    setModalVisible(true);
+    
+    // Global API ile modalı aç
+    CashPaymentModalAPI.open({
+      id: invoiceHeaderID,
+      invoiceNumber,
+      amount: invoiceAmount,
+      currencyCode,
+      currAccCode,
+      currAccTypeCode,
+      officeCode,
+      onSuccess,
+      onCancel: () => {}
+    });
   };
 
-  // Modal kapandığında
-  const handleCancel = () => {
-    console.log('Modal kapanıyor...');
-    setModalVisible(false);
-    if (onClose) {
-      onClose();
-    }
-  };
-
-  // Ödeme başarılı olduğunda
-  const handleSuccess = (response: any) => {
-    console.log('Nakit tahsilat başarılı:', response);
-    setModalVisible(false);
-    if (onSuccess) {
-      onSuccess(response);
-    }
-  };
-
-  // Buton modu için render (isVisible prop'u yoksa)
-  if (isVisible === undefined) {
-    return (
-      <>
-        <Button 
-          type={buttonType} 
-          icon={<DollarOutlined />} 
-          onClick={showModal}
-          size={buttonSize}
-        >
-          {buttonText}
-        </Button>
-        
-        <Modal
-          title="Nakit Tahsilat"
-          open={modalVisible}
-          onCancel={handleCancel}
-          width={800}
-          footer={null}
-          destroyOnClose={true}
-          style={{ zIndex: 1050 }}
-        >
-          {modalVisible && (
-            <CashPaymentForm
-              invoiceHeaderID={formProps.invoiceHeaderID || ''}
-              invoiceNumber={formProps.invoiceNumber || ''}
-              invoiceAmount={formProps.invoiceAmount || 0}
-              currencyCode={formProps.currencyCode || 'TRY'}
-              currAccCode={formProps.currAccCode || ''}
-              currAccTypeCode={formProps.currAccTypeCode || ''}
-              officeCode={formProps.officeCode || ''}
-              onSuccess={handleSuccess}
-              onCancel={handleCancel}
-            />
-          )}
-        </Modal>
-      </>
-    );
-  }
-  
-  // isVisible prop'u ile kontrol edilen mod için render
+  // Sadece buton render et
   return (
-    <Modal
-      title="Nakit Tahsilat"
-      open={modalVisible}
-      onCancel={handleCancel}
-      width={800}
-      footer={null}
-      destroyOnClose={true}
-      style={{ zIndex: 1050 }}
+    <Button
+      type={buttonType}
+      icon={<DollarOutlined />}
+      size={buttonSize}
+      onClick={showModal}
     >
-      {modalVisible && (
-        <CashPaymentForm
-          invoiceHeaderID={formProps.invoiceHeaderID || ''}
-          invoiceNumber={formProps.invoiceNumber || ''}
-          invoiceAmount={formProps.invoiceAmount || 0}
-          currencyCode={formProps.currencyCode || 'TRY'}
-          currAccCode={formProps.currAccCode || ''}
-          currAccTypeCode={formProps.currAccTypeCode || ''}
-          officeCode={formProps.officeCode || ''}
-          onSuccess={handleSuccess}
-          onCancel={handleCancel}
-        />
-      )}
-    </Modal>
+      {buttonText}
+    </Button>
   );
 };
+
+// Global fonksiyonları window nesnesine ekle
+if (typeof window !== 'undefined') {
+  (window as any).openCashPaymentModal = CashPaymentModalAPI.open;
+  (window as any).closeCashPaymentModal = CashPaymentModalAPI.close;
+}
 
 export default CashPaymentModal;

@@ -14,7 +14,7 @@ interface Currency {
   isBlocked?: boolean;
 }
 import { exchangeRateApi } from '../../services/exchangeRateApi';
-import { useAuth } from '../../contexts/AuthContext';
+// useAuth hook'unu kaldırdık
 
 const { Option } = Select;
 const { Text, Title } = Typography;
@@ -67,9 +67,9 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   onCancel
 }) => {
   const [form] = Form.useForm();
-  const { isAuthenticated } = useAuth();
-  // Token'ı birden fazla kaynaktan kontrol et
+  // useAuth hook'unu kaldırdık ve doğrudan token kontrolü yapıyoruz
   const token = localStorage.getItem('accessToken') || localStorage.getItem('token') || sessionStorage.getItem('token');
+  const isAuthenticated = !!token; // Token varsa kimlik doğrulanmış kabul ediyoruz
   const [loading, setLoading] = useState<boolean>(false);
   const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([]);
   const [loadingCashAccounts, setLoadingCashAccounts] = useState<boolean>(false);
