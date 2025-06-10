@@ -350,7 +350,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   }, [exchangeRateSource]);
   
   // Para birimi değiştiğinde çalışacak fonksiyon
-  const handleCurrencyChange = (currencyCode: string) => {
+  const handleCurrencyChange = async (currencyCode: string) => {
+    console.log('------ PARA BİRİMİ DEĞİŞİKLİĞİ BAŞLADI ------');
     console.log('Para birimi değişti:', currencyCode);
     setCurrentCurrencyCode(currencyCode);
     form.setFieldsValue({ 
@@ -358,20 +359,47 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       docCurrencyCode: currencyCode // docCurrencyCode'u da güncelle
     });
     
-    // Para birimi değiştiğinde her zaman tüm satırların para birimini güncelle
-    if (Object.keys(exchangeRates).length > 0 || currencyCode === 'TRY') {
-      // Tüm satırların para birimini güncelle
-      updatePricesWithExchangeRate(currencyCode);
+    // Para birimi değiştiğinde döviz kurunu güncelle
+    try {
+      const invoiceDate = form.getFieldValue('invoiceDate');
+      console.log('Para birimi değişti - Fatura tarihi:', invoiceDate ? invoiceDate.format('YYYY-MM-DD') : 'Belirtilmemiş');
       
-      // Toplamları güncelle
-      const updatedDetails = invoiceDetails.map(detail => ({
-        ...detail,
-        currencyCode: currencyCode
-      }));
+      // Önce döviz kurunu güncelle
+      console.log('Para birimi değişti - Döviz kuru güncelleniyor...');
+      await loadExchangeRates();
+      const currentRate = form.getFieldValue('exchangeRate');
+      console.log('Para birimi değişti - Döviz kuru güncellendi:', currentRate);
       
-      // Satırları ve toplamları güncelle
-      setInvoiceDetails(updatedDetails);
-      updateTotals(updatedDetails);
+      // Para birimi değiştiğinde her zaman tüm satırların para birimini güncelle
+      if (Object.keys(exchangeRates).length > 0 || currencyCode === 'TRY') {
+        // Tüm satırların para birimini güncelle
+        console.log('Para birimi değişti - Satırlar güncelleniyor...');
+        updatePricesWithExchangeRate(currencyCode);
+        
+        // Satırları ve toplamları güncelle
+        const updatedDetails = invoiceDetails.map(detail => ({
+          ...detail,
+          currencyCode: currencyCode
+        }));
+        
+        setInvoiceDetails(updatedDetails);
+        console.log('Para birimi değişti - Satırlar güncellendi:', updatedDetails.length, 'satır');
+        
+        // Toplamları güncelle
+        console.log('Para birimi değişti - Toplamlar güncelleniyor...');
+        updateTotals(updatedDetails);
+        console.log('Para birimi değişti - Toplamlar güncellendi:', {
+          toplam: totalAmount,
+          indirim: discountAmount,
+          araToplam: subtotalAmount,
+          kdv: vatAmount,
+          net: netAmount
+        });
+      }
+      console.log('------ PARA BİRİMİ DEĞİŞİKLİĞİ TAMAMLANDI ------');
+    } catch (error) {
+      console.error('Para birimi değiştiğinde döviz kuru güncellenirken hata oluştu:', error);
+      message.error('Döviz kuru güncellenirken bir hata oluştu');
     }
   };
   
@@ -882,6 +910,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       
       // Müşterileri yükle
       const loadCustomers = async () => {
+        // Eğer zaten müşteriler yüklendiyse tekrar yükleme
+        if (customers.length > 0) {
+          console.log('Müşteriler zaten yüklenmiş, tekrar yüklenmiyor');
+          return;
+        }
+        
         try {
           setLoadingCustomers(true);
           console.log('Müşteri listesi yükleniyor...');
@@ -942,6 +976,12 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       
       // Tedarikçileri yükle
       const loadVendors = async () => {
+        // Eğer zaten tedarikçiler yüklendiyse tekrar yükleme
+        if (vendors.length > 0) {
+          console.log('Tedarikçiler zaten yüklenmiş, tekrar yüklenmiyor');
+          return;
+        }
+        
         try {
           setLoadingVendors(true);
           console.log('Tedarikçi listesi yükleniyor...');
@@ -1818,13 +1858,91 @@ const handleCashPaymentSuccess = (paymentData: any) => {
       form={form}
       layout="vertical"
       onFinish={onFinish}
-      onValuesChange={(changedValues, allValues) => {
+      onValuesChange={async (changedValues, allValues) => {
         // Eğer değişen değerler arasında exchangeRate varsa ve 0 ise, uyarı göster
         if ('exchangeRate' in changedValues) {
           const rate = parseFloat(changedValues.exchangeRate);
           if (rate === 0) {
             message.error('TL karşılığı 0 olamaz!');
             form.setFieldsValue({ exchangeRate: 1 }); // Varsayılan olarak 1 yap
+          }
+        }
+        
+        // Fatura tarihi değiştiğinde döviz kurunu güncelle
+        if ('invoiceDate' in changedValues && changedValues.invoiceDate) {
+          // Geçerli bir tarih değişikliği olduğundan emin ol
+          const newDate = changedValues.invoiceDate;
+          
+          // Tarih değişikliğini bir kez işle ve sonraki gereksiz güncellemeleri önle
+          console.log('------ FATURA TARİHİ DEĞİŞİKLİĞİ BAŞLADI ------');
+          console.log('Fatura tarihi değişti:', newDate.format('YYYY-MM-DD'));
+          console.log('Para birimi:', allValues.currencyCode || 'TRY');
+          
+          // TRY olsa bile döviz kurunu güncelle (TRY için 1 olacak)
+          console.log('Fatura tarihi değişti - Döviz kuru güncelleniyor...');
+          try {
+            // Döviz kurunu güncelle
+            await loadExchangeRates();
+            
+            // Form'dan güncel döviz kurunu al
+            const currentRate = form.getFieldValue('exchangeRate');
+            console.log('Fatura tarihi değişti - Döviz kuru güncellendi:', currentRate);
+            
+            // Satırları ve toplamları güncelle
+            if (invoiceDetails.length > 0) {
+              console.log('Fatura tarihi değişti - Satırlar güncelleniyor...');
+              updatePricesWithExchangeRate(allValues.currencyCode || 'TRY');
+              console.log('Fatura tarihi değişti - Satırlar güncellendi:', invoiceDetails.length, 'satır');
+              
+              console.log('Fatura tarihi değişti - Toplamlar güncelleniyor...');
+              updateTotals(invoiceDetails);
+              console.log('Fatura tarihi değişti - Toplamlar güncellendi:', {
+                toplam: totalAmount,
+                indirim: discountAmount,
+                araToplam: subtotalAmount,
+                kdv: vatAmount,
+                net: netAmount
+              });
+            }
+            console.log('------ FATURA TARİHİ DEĞİŞİKLİĞİ TAMAMLANDI ------');
+          } catch (error) {
+            console.error('Döviz kuru güncellenirken hata oluştu:', error);
+            message.error('Döviz kuru güncellenirken bir hata oluştu');
+          }
+        }
+        
+        // Müşteri/Tedarikçi değiştiğinde kontrol et
+        if ('currAccCode' in changedValues && changedValues.currAccCode) {
+          console.log('Müşteri/Tedarikçi değişti:', changedValues.currAccCode);
+          
+          // Müşteri/Tedarikçi değiştiğinde döviz kurunu güncelle
+          console.log('Müşteri/Tedarikçi değişti - Döviz kuru güncelleniyor...');
+          try {
+            // Döviz kurunu güncelle
+            loadExchangeRates().then(() => {
+              // Form'dan güncel döviz kurunu al
+              const currentRate = form.getFieldValue('exchangeRate');
+              console.log('Müşteri/Tedarikçi değişti - Döviz kuru güncellendi:', currentRate);
+              
+              // Satırları ve toplamları güncelle
+              if (invoiceDetails.length > 0) {
+                console.log('Müşteri/Tedarikçi değişti - Satırlar güncelleniyor...');
+                updatePricesWithExchangeRate(allValues.currencyCode || 'TRY');
+                console.log('Müşteri/Tedarikçi değişti - Satırlar güncellendi:', invoiceDetails.length, 'satır');
+                
+                console.log('Müşteri/Tedarikçi değişti - Toplamlar güncelleniyor...');
+                updateTotals(invoiceDetails);
+                console.log('Müşteri/Tedarikçi değişti - Toplamlar güncellendi:', {
+                  toplam: totalAmount,
+                  indirim: discountAmount,
+                  araToplam: subtotalAmount,
+                  kdv: vatAmount,
+                  net: netAmount
+                });
+              }
+            });
+          } catch (error) {
+            console.error('Müşteri/Tedarikçi değiştiğinde döviz kuru güncellenirken hata oluştu:', error);
           }
         }
         
@@ -1985,7 +2103,7 @@ const handleCashPaymentSuccess = (paymentData: any) => {
                 updateInvoiceDetail={updateInvoiceDetail}
                 removeInvoiceDetail={removeInvoiceDetail}
                 showBarcodeModal={openBarcodeModal}
-                currencyCode={form.getFieldValue('currencyCode') || 'TRY'}
+                currencyCode={currentCurrencyCode || 'TRY'}
                 loadingProducts={loadingProducts}
                 calculateLineAmounts={calculateLineAmounts}
                 isPriceIncludeVat={isPriceIncludeVat}

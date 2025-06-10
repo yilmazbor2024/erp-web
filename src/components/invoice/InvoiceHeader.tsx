@@ -580,17 +580,14 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     }
   };
 
-  // Tarih değiştiğinde döviz kurunu güncelle ve vade tarihini güncelle
+  // Tarih değiştiğinde sadece vade tarihini güncelle
   const handleDateChange = (date: any) => {
     if (!date) return;
     
-    // Döviz kurunu güncelle
-    const currencyCode = form.getFieldValue('currencyCode');
-    if (currencyCode) {
-      fetchExchangeRate();
-    }
+    // Döviz kuru güncellemesi için fetchExchangeRate fonksiyonunu çağırmayı kaldırdık
+    // Bu işlem artık InvoiceForm'daki onValuesChange fonksiyonunda yapılıyor
     
-    // Ödeme tipine göre vade tarihini güncelle
+    // Sadece vade tarihini güncelle
     const paymentType = form.getFieldValue('paymentType');
     if (paymentType === 'Peşin') {
       // Peşin ise vade tarihi fatura tarihine eşit olsun
@@ -638,8 +635,8 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           form.setFieldsValue({ currencyCode: customer.currencyCode });
           setIsCustomerCurrency(true);
           
-          // Döviz kurunu getir
-          fetchExchangeRate(customer.currencyCode);
+          // Müşteri para birimi değiştiğinde callback fonksiyonu çağır
+          if (onCurrencyChange) onCurrencyChange(customer.currencyCode);
         } else {
           setIsCustomerCurrency(false);
         }
@@ -655,20 +652,16 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           form.setFieldsValue({ currencyCode: vendor.currencyCode });
           setIsCustomerCurrency(true);
           
-          // Döviz kurunu getir
-          fetchExchangeRate(vendor.currencyCode);
+          // Tedarikçi para birimi değiştiğinde callback fonksiyonu çağır
+          if (onCurrencyChange) onCurrencyChange(vendor.currencyCode);
         } else {
           setIsCustomerCurrency(false);
         }
       }
     }
     
-    // Tarih ve para birimi varsa döviz kurunu getir
-    const currencyCode = form.getFieldValue('currencyCode');
-    const date = form.getFieldValue('invoiceDate');
-    if (currencyCode && date) {
-      fetchExchangeRate(currencyCode);
-    }
+    // Tarih ve para birimi için döviz kuru güncellemesi artık InvoiceForm'da merkezi olarak yapılıyor
+    // Bu nedenle buradaki fetchExchangeRate çağrısını kaldırdık
   }, []);
 
   // useEffect ile form başlangıç değerlerini ayarla
@@ -1079,6 +1072,10 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 optionFilterProp="children"
                 size="middle"
                 style={{ width: '100%' }}
+                onChange={(value) => {
+                  console.log('Para birimi seçildi:', value);
+                  handleCurrencyChange(value);
+                }}
                 filterOption={(input, option) => {
                   if (!input || !option) return true;
                   let searchText = '';
