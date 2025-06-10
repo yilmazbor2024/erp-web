@@ -401,6 +401,38 @@ const CreateWholesaleInvoice: React.FC = () => {
                 </Form.Item>
               </Col>
             </Row>
+            
+            <Row gutter={16}>
+              <Col span={6}>
+                <Form.Item
+                  name="paymentType"
+                  label="Ödeme Tipi"
+                  initialValue="Peşin"
+                  rules={[{ required: true, message: 'Ödeme tipi gerekli' }]}
+                >
+                  <Select>
+                    <Option value="Peşin">Peşin</Option>
+                    <Option value="Vadeli">Vadeli</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item
+                  name="exchangeRate"
+                  label="Döviz Kuru"
+                  initialValue={1}
+                >
+                  <InputNumber
+                    style={{ width: '100%' }}
+                    min={0.01}
+                    step={0.01}
+                    precision={4}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+              </Col>
+            </Row>
 
             <Row gutter={16}>
               <Col span={6}>
