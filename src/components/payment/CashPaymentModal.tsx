@@ -122,19 +122,17 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
           footer={null}
           destroyOnClose={true}
         >
-          {invoiceHeaderID && (
-            <CashPaymentForm
-              invoiceHeaderID={invoiceHeaderID}
-              invoiceNumber={invoiceNumber}
-              invoiceAmount={invoiceAmount}
-              currencyCode={currencyCode}
-              currAccCode={currAccCode}
-              currAccTypeCode={currAccTypeCode}
-              officeCode={officeCode}
-              onSuccess={handleSuccess}
-              onCancel={handleCancel}
-            />
-          )}
+          <CashPaymentForm
+            invoiceHeaderID={invoiceHeaderID}
+            invoiceNumber={invoiceNumber}
+            invoiceAmount={invoiceAmount}
+            currencyCode={currencyCode}
+            currAccCode={currAccCode}
+            currAccTypeCode={currAccTypeCode}
+            officeCode={officeCode}
+            onSuccess={handleSuccess}
+            onCancel={handleCancel}
+          />
         </Modal>
       )}
     </>
