@@ -46,7 +46,7 @@ const InvoiceCreatePage: React.FC = () => {
   // Fatura oluşturma başarılı
   const handleCreateSuccess = () => {
     // Başarılı oluşturma sonrası fatura listesine yönlendir
-    message.success('Fatura başarıyla oluşturuldu');
+    // Not: Başarı mesajı InvoiceForm bileşeninde gösteriliyor
     navigate('/invoices');
   };
   

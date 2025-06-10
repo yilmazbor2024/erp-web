@@ -304,7 +304,6 @@ const CreateWholesaleInvoice: React.FC = () => {
               docCurrencyCode: 'TRY',
               companyCode: '001',
               warehouseCode: '001',
-              storeCode: '001',
               officeCode: '001',
               series: 'TS'
             }}

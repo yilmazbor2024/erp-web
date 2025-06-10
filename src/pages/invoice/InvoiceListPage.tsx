@@ -88,7 +88,7 @@ const InvoiceListPage: React.FC = () => {
         endDate: filters.dateRange ? filters.dateRange[1].format('YYYY-MM-DD') : undefined,
         currAccCode: filters.currAccCode
         // Tüm fatura listelerinde sadece sayfalama ve ProcessCode gönderilmeli
-        // CompanyCode, StoreCode ve WarehouseCode backend tarafında varsayılan değerlerle doldurulacak
+        // CompanyCode,  WarehouseCode backend tarafında varsayılan değerlerle doldurulacak
       };
       
       // Fatura tipi için ProcessCode ayarla
@@ -191,7 +191,7 @@ const InvoiceListPage: React.FC = () => {
   const handleCreateSuccess = (data: any) => {
     setCreateModalVisible(false);
     loadInvoices();
-    message.success('Fatura başarıyla oluşturuldu.');
+    // Not: Başarı mesajı InvoiceForm bileşeninde gösteriliyor
   };
 
   // Tablo sütunları

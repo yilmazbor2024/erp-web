@@ -524,61 +524,70 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
         return;
       }
       
-      // Tüm ödeme satırlarını içeren payload hazırla - backend CashPaymentRequest modeline uygun
-      const payload = {
-        invoiceId: invoiceHeaderID, // InvoiceId olarak gönder
-        currAccCode, // Müşteri kodu
-        cashCurrAccCode: paymentRows.length > 0 ? paymentRows[0].cashAccountCode : '', // Kasa kodu
-        documentDate: new Date().toISOString(), // Bugünün tarihi
-        description: 'Nakit tahsilat', // Açıklama
-        invoiceNumber: invoiceNumber, // Fatura numarası
-        docCurrencyCode: currencyCode || 'TRY', // Para birimi
-        paymentRows: paymentRows.map(row => ({
-          amount: row.amount,
-          currencyCode: row.currencyCode,
-          exchangeRate: row.exchangeRate
-        })),
-        attributes: [] // Öznitelikler (şimdilik boş)
+      // API isteği için veri hazırla
+      const requestData = {
+        InvoiceHeaderID: invoiceHeaderID,
+        InvoiceNumber: invoiceNumber,
+        DocCurrencyCode: currencyCode,
+        CurrAccCode: currAccCode,
+        CurrAccTypeCode: currAccTypeCode,
+        OfficeCode: officeCode,
+        Description: values.description,
+        // Geçerli tarih ekle (SQL Server tarihi için)
+        DocumentDate: new Date().toISOString(),
+        PaymentRows: paymentRows.map(row => ({
+          CurrencyCode: row.currencyCode,
+          ExchangeRate: row.exchangeRate,
+          Payment: row.amount,
+          CashAccountCode: row.cashAccountCode,
+          Description: row.description || `${invoiceNumber} nolu fatura için nakit tahsilat`
+        }))
       };
-      
-      console.log('Gönderilen veri:', payload);
-      
-      // API çağrısı
-      const response = await axios.post(`${API_BASE_URL}/api/v1/payment/cash-payment`, payload, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+
+      console.log('Nakit tahsilat isteği gönderiliyor:', requestData);
+
+      // API isteği
+      const response = await axios.post(
+        `${API_BASE_URL}/api/v1/payment/cash-payment`,
+        requestData,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
         }
-      });
+      );
+
+      console.log('Nakit tahsilat yanıtı:', response.data);
+
+      // Başarılı işlem
+      // Önce formu sıfırla
+      form.resetFields();
+      setPaymentRows([]);
+      setPaidAmount(0);
+      setRemainingAmount(invoiceAmount);
       
-      if (response.data && response.data.success) {
-        // Nakit tahsilat başarı mesajı InvoiceForm'da gösterilecek
-        message.success('Nakit tahsilat başarıyla kaydedildi.');
+      // Başarı mesajını göster
+      message.success('Nakit tahsilat başarıyla kaydedildi');
+      
+      // Bir sonraki tick'te onSuccess'i çağır (React state güncellemelerinin tamamlanmasını bekle)
+      setTimeout(() => {
+        console.log('CashPaymentForm: onSuccess callback çağrılıyor');
         if (onSuccess) {
           onSuccess(response.data);
         }
-      } else {
-        message.error(response.data?.message || 'Nakit tahsilat kaydedilirken bir hata oluştu');
-      }
+      }, 0);
+
     } catch (error: any) {
-      console.error('Nakit tahsilat kaydedilirken hata oluştu:', error);
+      console.error('Nakit tahsilat hatası:', error);
       
-      // Hata tipine göre özel mesajlar
-      if (error.response) {
-        // Sunucu yanıtı ile gelen hata
-        if (error.response.status === 401) {
-          message.error('Oturum süreniz dolmuş. Lütfen yeniden giriş yapın.');
-          // Burada otomatik olarak login sayfasına yönlendirme yapılabilir
-        } else {
-          message.error(`Sunucu hatası: ${error.response.data?.message || error.response.statusText || 'Bilinmeyen hata'}`);
-        }
-      } else if (error.request) {
-        // İstek yapıldı ancak yanıt alınamadı
-        message.error('Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.');
-      } else {
-        // İstek oluşturulurken bir hata oluştu
-        message.error(`İstek hatası: ${error.message}`);
-      }
+      // Hata mesajı göster
+      message.error(
+        error.response?.data?.message || 
+        error.response?.data?.title || 
+        error.message || 
+        'Nakit tahsilat işlemi sırasında bir hata oluştu'
+      );
     } finally {
       setLoading(false);
     }

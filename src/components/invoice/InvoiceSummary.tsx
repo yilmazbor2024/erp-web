@@ -55,7 +55,7 @@ const InvoiceSummary: React.FC<InvoiceSummaryProps> = ({
     <div className="invoice-summary">
       <Row gutter={[16, 16]}>
         <Col xs={24} md={12}>
-          <Card title="Fatura Notları" bordered={false}>
+          <Card title="Fatura Notları" variant="borderless">
             <Form.Item
               name="notes"
               noStyle
@@ -70,7 +70,7 @@ const InvoiceSummary: React.FC<InvoiceSummaryProps> = ({
         </Col>
         
         <Col xs={24} md={12}>
-          <Card title="Fatura Toplamları" bordered={false}>
+          <Card title="Fatura Toplamları" variant="borderless">
             <Row gutter={[16, 16]}>
               <Col span={12}>
                 <Statistic 

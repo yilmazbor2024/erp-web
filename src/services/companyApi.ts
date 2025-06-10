@@ -14,7 +14,6 @@ export interface Office {
 }
 
 export interface Store {
-  storeCode: string;
   storeDescription: string;
   companyCode: string;
   isBlocked: boolean;
@@ -142,11 +141,7 @@ const companyApi = {
         } catch (altError) {
           console.error('Error fetching stores from alternative endpoint:', altError);
           
-          // Sabit değerler döndür (API çalışmıyorsa)
-          return [
-            { storeCode: '001', storeDescription: 'Ana Mağaza', companyCode: '001', isBlocked: false },
-            { storeCode: '002', storeDescription: 'Şube Mağaza', companyCode: '001', isBlocked: false }
-          ];
+          return [];
         }
       }
     } catch (error) {

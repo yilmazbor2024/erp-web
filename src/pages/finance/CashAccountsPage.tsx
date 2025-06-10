@@ -55,11 +55,6 @@ const CashAccountsPage: React.FC = () => {
       ),
     },
     {
-      title: 'Mağaza Kodu',
-      dataIndex: 'storeCode',
-      key: 'storeCode',
-    },
-    {
       title: 'Durum',
       dataIndex: 'isBlocked',
       key: 'isBlocked',

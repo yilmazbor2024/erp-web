@@ -63,10 +63,17 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
   };
 
   const handleSuccess = (response: any) => {
+    console.log('CashPaymentModal: handleSuccess çağrıldı');
+    
+    // Modalı kapat (timeout ile garantiye al)
+    setIsModalVisible(false);
+    
+    // Eğer onSuccess callback'i varsa çağır
     if (onSuccess) {
-      onSuccess(response);
-    } else {
-      setIsModalVisible(false);
+      // Kısa bir gecikme ile callback'i çağır
+      setTimeout(() => {
+        onSuccess(response);
+      }, 100);
     }
   };
 

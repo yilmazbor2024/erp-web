@@ -1376,7 +1376,9 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   // Kaydetme işleyicisi
   const handleSave = () => {
     console.log('Kaydet butonu tıklandı');
-    message.info('Form gönderiliyor...');
+    // Önceki mesajları temizle ve tek bir yükleme mesajı göster
+    message.destroy('invoiceSave');
+    message.loading({ content: 'Form gönderiliyor...', key: 'invoiceSave', duration: 0 });
     setLoading(true); // Yükleme durumunu başlat
     
     // Fatura detaylarını kontrol et
@@ -1404,8 +1406,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   // Form gönderme işleyicisi
   const onFinish = async (values: any) => {
     try {
-      // Yükleme durumu handleSave'de başlatıldığı için burada tekrar ayarlamaya gerek yok
+      // Önceki yükleme mesajlarını temizle
+      message.destroy('invoiceSave');
+      
       console.log('onFinish çağrıldı, form verileri:', values);
+      // Tek bir yükleme mesajı göster
       message.loading({ content: 'Fatura kaydediliyor...', key: 'invoiceSave', duration: 0 });
       
       // Fatura tipi ve cari hesap tipi kodlarını belirle
@@ -1636,14 +1641,19 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       
       console.log('API yanıtı:', response);
       
+      // Yükleme mesajını kapat
+      message.destroy('invoiceSave');
+      
       // API yanıtını kontrol et
       if (response && response.success) {
-        // Peşin ödeme değilse başarı mesajı göster
+        // Ödeme tipini kontrol et
         const currentPaymentType = form.getFieldValue('paymentType');
         const currentNormalizedPaymentType = typeof currentPaymentType === 'number' ? String(currentPaymentType) : currentPaymentType;
         
-        // Sadece peşin ödeme değilse başarı mesajı göster
-        if (!(currentNormalizedPaymentType === 'Peşin' || currentNormalizedPaymentType === '1' || currentNormalizedPaymentType === 1)) {
+        // Peşin ödeme durumuna göre mesaj göster
+        if (currentNormalizedPaymentType === 'Peşin' || currentNormalizedPaymentType === '1' || currentNormalizedPaymentType === 1) {
+          message.success('Fatura oluşturma başarılı. Nakit Ödeme Formuna yönlendiriliyorsunuz...');
+        } else {
           message.success('Fatura başarıyla kaydedildi!');
         }
         
@@ -1660,8 +1670,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           currencyCode: values.docCurrencyCode || 'TRY',
           currAccCode: values.currAccCode,
           currAccTypeCode: currAccTypeCode,
-          officeCode: values.officeCode,
-          storeCode: values.warehouseCode
+          officeCode: values.officeCode
         };
         
         console.log('Kaydedilen fatura verileri:', savedInvoice);
@@ -1678,8 +1687,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           currencyCode: values.docCurrencyCode || 'TRY',
           currAccCode: values.currAccCode || '',
           currAccTypeCode: currAccTypeCode || 0,
-          officeCode: values.officeCode || '',
-          storeCode: values.warehouseCode || ''
+          officeCode: values.officeCode || ''
         };
         
         // Tutarın doğru aktarılıp aktarılmadığını kontrol et
@@ -1702,51 +1710,22 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         const normalizedPaymentType = typeof paymentType === 'number' ? String(paymentType) : paymentType;
         
         // State'i güncelleyelim ve sonra modalı açalım
-        // setSavedInvoiceData ve setShowCashPaymentModal'ı birlikte kullanmak yerine
-        // önce veriyi ayarlayıp, callback içinde modalı açalım
         setSavedInvoiceData(invoiceData);
         
         // Sadece ödeme tipi "Peşin" veya 1 ise nakit tahsilat modalını aç
         if (normalizedPaymentType === 'Peşin' || normalizedPaymentType === '1' || normalizedPaymentType === 1) {
+          // Kısa bir gecikme ile modalı aç (React state güncellemelerinin tamamlanmasını bekle)
           setTimeout(() => {
             console.log('savedInvoiceData ayarlandı, şimdi modalı açıyoruz');
             console.log('savedInvoiceData kontrol:', invoiceData);
             
-            // Modal.confirm API'si ile doğrudan modal aç
-            Modal.confirm({
-            title: 'Nakit Tahsilat',
-            content: (
-              <AuthProvider>
-                <CashPaymentForm
-                  invoiceHeaderID={invoiceData.id}
-                  invoiceNumber={invoiceData.invoiceNumber}
-                  invoiceAmount={invoiceData.amount}
-                  currencyCode={invoiceData.currencyCode}
-                  currAccCode={invoiceData.currAccCode}
-                  currAccTypeCode={String(invoiceData.currAccTypeCode)}
-                  officeCode={invoiceData.officeCode}
-                  storeCode={invoiceData.storeCode}
-                  onSuccess={handleCashPaymentSuccess}
-                  onCancel={handleCashPaymentModalClose}
-                />
-              </AuthProvider>
-            ),
-            width: 800,
-            icon: null,
-            okButtonProps: { style: { display: 'none' } },
-            cancelButtonProps: { style: { display: 'none' } },
-            maskClosable: false,
-            keyboard: false,
-            centered: true,
-            className: 'cash-payment-modal'
-          });
+            // Modalı aç
+            setShowCashPaymentModal(true);
+          }, 100);
           
-          setShowCashPaymentModal(true);
-        }, 500);
-        
-        // State güncellemelerini kontrol et
-        console.log('showCashPaymentModal:', true);
-        console.log('savedInvoiceData:', invoiceData);
+          // State güncellemelerini kontrol et
+          console.log('showCashPaymentModal ayarlanıyor:', true);
+          console.log('savedInvoiceData:', invoiceData);
         }
         
         // Not: Nakit ödeme modalı kapatıldığında form sıfırlanacak
@@ -2169,32 +2148,21 @@ const handleCashPaymentSuccess = (paymentData: any) => {
       }}
     />
     
-    {/* Nakit tahsilat modal - Doğrudan Modal bileşeni kullanarak */}
-    <Modal
-      title="Nakit Tahsilat"
-      open={showCashPaymentModal}
-      onCancel={handleCashPaymentModalClose}
-      width={800}
-      footer={null}
-      destroyOnClose={true}
-      zIndex={1050}
-      maskClosable={false}
-    >
-      {savedInvoiceData && (
-        <CashPaymentForm
-          invoiceHeaderID={savedInvoiceData.id}
-          invoiceNumber={savedInvoiceData.invoiceNumber}
-          invoiceAmount={savedInvoiceData.amount}
-          currencyCode={savedInvoiceData.currencyCode}
-          currAccCode={savedInvoiceData.currAccCode}
-          currAccTypeCode={savedInvoiceData.currAccTypeCode}
-          officeCode={savedInvoiceData.officeCode}
-          storeCode={savedInvoiceData.storeCode}
-          onSuccess={handleCashPaymentSuccess}
-          onCancel={handleCashPaymentModalClose}
-        />
-      )}
-    </Modal>
+    {/* Nakit tahsilat modal - CashPaymentModal bileşeni kullanarak */}
+    {savedInvoiceData && (
+      <CashPaymentModal
+        isVisible={showCashPaymentModal}
+        onClose={handleCashPaymentModalClose}
+        onSuccess={handleCashPaymentSuccess}
+        invoiceHeaderID={savedInvoiceData.id}
+        invoiceNumber={savedInvoiceData.invoiceNumber}
+        invoiceAmount={savedInvoiceData.amount}
+        currencyCode={savedInvoiceData.currencyCode}
+        currAccCode={savedInvoiceData.currAccCode}
+        currAccTypeCode={savedInvoiceData.currAccTypeCode}
+        officeCode={savedInvoiceData.officeCode}
+      />
+    )}
     
 
   </Card>

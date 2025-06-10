@@ -215,10 +215,17 @@ const InvoiceDetailPage: React.FC = () => {
                 currAccCode={invoice.currAccCode}
                 currAccTypeCode="C"
                 officeCode={invoice.officeCode}
-                onSuccess={(response) => {
-                  message.success(`Nakit tahsilat başarıyla kaydedildi. Fiş No: ${response.invoiceNumber}`);
-                  // Fatura detaylarını yeniden yükle
-                  window.location.reload();
+                onSuccess={async (response) => {
+                  // Başarılı ödeme sonrası sadece ödeme detaylarını güncelle
+                  try {
+                    const paymentResponse = await invoiceApi.getInvoicePaymentDetails(invoice.invoiceHeaderID);
+                    if (paymentResponse.success) {
+                      setPaymentDetails(paymentResponse.data || []);
+                      message.success(`Nakit tahsilat başarıyla kaydedildi`);
+                    }
+                  } catch (error: any) {
+                    console.error('Ödeme detayları güncelleme hatası:', error);
+                  }
                 }}
                 buttonText="Nakit Tahsilat"
                 buttonType="primary"
