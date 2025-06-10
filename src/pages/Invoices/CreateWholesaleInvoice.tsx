@@ -18,6 +18,7 @@ import {
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import CashPaymentModal from '../../components/payment/CashPaymentModal';
 import dayjs from 'dayjs';
 import invoiceApi, { CreateWholesaleInvoiceRequest, CreateInvoiceDetailRequest } from '../../services/invoiceApi';
 import { useAuth } from '../../contexts/AuthContext';
@@ -49,6 +50,10 @@ const CreateWholesaleInvoice: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [details, setDetails] = useState<InvoiceDetailItem[]>([]);
   const [nextLineNumber, setNextLineNumber] = useState(1);
+
+  // Nakit tahsilat modalı için state'ler
+  const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
+  const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -151,7 +156,7 @@ const CreateWholesaleInvoice: React.FC = () => {
         docCurrencyCode: values.docCurrencyCode || "TRY",
         localCurrencyCode: "TRY", // Yerel para birimi her zaman TRY
         exchangeRate: values.exchangeRate || 1, // Form'dan döviz kuru değeri veya varsayılan 1
-        companyCode: values.companyCode || "001",
+        companyCode: values.companyCode || 1,
         warehouseCode: values.warehouseCode || "001",
         officeCode: values.officeCode || "001",
         processCode: "WS", // Toptan Satış işlem kodu
@@ -167,8 +172,38 @@ const CreateWholesaleInvoice: React.FC = () => {
       const response = await invoiceApi.createWholesaleInvoice(invoiceData);
       
       if (response && response.success) {
-        message.success('Fatura başarıyla oluşturuldu');
-        navigate('/invoices/wholesale');
+        // Ödeme tipini kontrol et
+        const paymentType = form.getFieldValue('paymentType');
+        const normalizedPaymentType = typeof paymentType === 'number' ? String(paymentType) : paymentType;
+        
+        // Peşin ödeme durumuna göre mesaj göster
+        if (normalizedPaymentType === 'Peşin' || normalizedPaymentType === '1' || normalizedPaymentType === 1) {
+          message.success('Fatura oluşturma başarılı. Nakit Ödeme Formuna yönlendiriliyorsunuz...');
+          
+          // Nakit ödeme modalını açmak için gerekli verileri hazırla
+          const paymentModalData = {
+            id: response.data?.invoiceHeaderID || '',
+            invoiceNumber: response.data?.invoiceNumber || '',
+            amount: response.data?.netAmount || 0,
+            currencyCode: form.getFieldValue('docCurrencyCode') || 'TRY',
+            currAccCode: form.getFieldValue('customerCode') || '',
+            currAccTypeCode: 3, // Müşteri cari hesap tipi kodu
+            officeCode: form.getFieldValue('officeCode') || ''
+          };
+          
+          console.log('Nakit ödeme modalı açılıyor...', paymentModalData);
+          
+          // State'i güncelleyelim ve sonra modalı açalım
+          setSavedInvoiceData(paymentModalData);
+          
+          // Modalı aç
+          setTimeout(() => {
+            setShowCashPaymentModal(true);
+          }, 500);
+        } else {
+          message.success('Fatura başarıyla oluşturuldu');
+          navigate('/invoices/wholesale');
+        }
       } else {
         message.error(`Fatura oluşturulurken bir hata oluştu: ${response?.message || 'Bilinmeyen hata'}`);
       }
@@ -271,6 +306,21 @@ const CreateWholesaleInvoice: React.FC = () => {
   ];
 
   const { netTotal, vatTotal, grandTotal } = calculateTotals();
+
+  // Nakit tahsilat modalı kapatıldığında
+  const handleCashPaymentModalClose = () => {
+    setShowCashPaymentModal(false);
+    // Modal kapatıldıktan sonra listeye yönlendir
+    navigate('/invoices/wholesale');
+  };
+
+  // Nakit tahsilat başarılı olduğunda
+  const handleCashPaymentSuccess = (response: any) => {
+    console.log('Nakit tahsilat başarılı:', response);
+    setShowCashPaymentModal(false);
+    message.success('Nakit tahsilat başarıyla kaydedildi!');
+    navigate('/invoices/wholesale');
+  };
 
   return (
     <div style={{ padding: '20px' }}>
@@ -516,6 +566,22 @@ const CreateWholesaleInvoice: React.FC = () => {
           />
         </Card>
       </Spin>
+
+      {/* Nakit tahsilat modal */}
+      {savedInvoiceData && (
+        <CashPaymentModal
+          isVisible={showCashPaymentModal}
+          onClose={handleCashPaymentModalClose}
+          onSuccess={handleCashPaymentSuccess}
+          invoiceHeaderID={savedInvoiceData.id}
+          invoiceNumber={savedInvoiceData.invoiceNumber}
+          invoiceAmount={savedInvoiceData.amount}
+          currencyCode={savedInvoiceData.currencyCode}
+          currAccCode={savedInvoiceData.currAccCode}
+          currAccTypeCode={savedInvoiceData.currAccTypeCode}
+          officeCode={savedInvoiceData.officeCode}
+        />
+      )}
     </div>
   );
 };
