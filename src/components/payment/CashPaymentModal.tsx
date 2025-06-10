@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Button } from 'antd';
 import { DollarOutlined } from '@ant-design/icons';
 import CashPaymentForm from './CashPaymentForm';
@@ -19,75 +19,96 @@ interface CashPaymentModalProps {
   onClose?: () => void;
 }
 
-const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
-  invoiceHeaderID,
-  invoiceNumber,
-  invoiceAmount,
-  currencyCode,
-  currAccCode,
-  currAccTypeCode,
-  officeCode,
-  onSuccess,
-  buttonText = "Nakit Tahsilat",
-  buttonType = "primary",
-  buttonSize = "middle",
-  isVisible,
-  onClose
-}) => {
-  // Buton modu için local state
-  const [buttonModalVisible, setButtonModalVisible] = useState(false);
+// Global modal instance - React dışında modal kontrolü için
+let globalModalInstance: any = null;
+let globalModalProps: any = {};
+
+// Global fonksiyon - doğrudan modalı açmak için
+export const openCashPaymentModal = (props: any) => {
+  console.log('openCashPaymentModal çağrıldı:', props);
+  if (globalModalInstance) {
+    globalModalProps = props;
+    globalModalInstance.openModal(props);
+    return true;
+  }
+  console.log('Modal instance bulunamadı!');
+  return false;
+};
+
+const CashPaymentModal: React.FC<CashPaymentModalProps> = (props) => {
+  const {
+    invoiceHeaderID,
+    invoiceNumber,
+    invoiceAmount,
+    currencyCode,
+    currAccCode,
+    currAccTypeCode,
+    officeCode,
+    onSuccess,
+    buttonText = "Nakit Tahsilat",
+    buttonType = "primary",
+    buttonSize = "middle",
+    isVisible,
+    onClose
+  } = props;
+  
+  // Modal görünürlüğü için state
   const [modalVisible, setModalVisible] = useState(false);
+  const [formProps, setFormProps] = useState(props);
   
-  // Debug için her render'da log ekleyelim
-  console.log('CashPaymentModal RENDER - isVisible:', isVisible, 'invoiceHeaderID:', invoiceHeaderID, 'modalVisible:', modalVisible);
+  // Global instance'a referansı kaydet
+  const modalRef = useRef<any>(null);
   
-  // isVisible prop'u değiştiğinde modalVisible state'ini güncelle
+  // Component mount olduğunda global instance'a kaydet
   useEffect(() => {
-    console.log('CashPaymentModal useEffect - isVisible değişti:', isVisible);
+    console.log('CashPaymentModal mount oldu, global instance kaydediliyor');
+    globalModalInstance = {
+      openModal: (newProps: any) => {
+        console.log('openModal çağrıldı:', newProps);
+        setFormProps({ ...props, ...newProps });
+        setModalVisible(true);
+      }
+    };
+    
+    // Component unmount olduğunda temizle
+    return () => {
+      globalModalInstance = null;
+    };
+  }, []);
+  
+  // isVisible prop'u değiştiğinde
+  useEffect(() => {
+    console.log('isVisible değişti:', isVisible);
     if (isVisible !== undefined) {
       setModalVisible(isVisible);
     }
   }, [isVisible]);
   
-  // Buton tıklandığında modalı göster (sadece buton modu için)
+  // Buton tıklandığında modalı göster
   const showModal = () => {
-    setButtonModalVisible(true);
+    console.log('showModal çağrıldı');
+    setModalVisible(true);
   };
 
   // Modal kapandığında
   const handleCancel = () => {
     console.log('Modal kapanıyor...');
-    // Buton modu için
-    if (isVisible === undefined) {
-      setButtonModalVisible(false);
-    } 
-    // isVisible prop'u ile kontrol edilen mod için
-    else {
-      setModalVisible(false);
-      if (onClose) {
-        onClose();
-      }
+    setModalVisible(false);
+    if (onClose) {
+      onClose();
     }
   };
 
   // Ödeme başarılı olduğunda
   const handleSuccess = (response: any) => {
     console.log('Nakit tahsilat başarılı:', response);
-    
-    // Buton modu için
-    if (isVisible === undefined) {
-      setButtonModalVisible(false);
-    } else {
-      setModalVisible(false);
-    }
-    
-    // Eğer onSuccess callback'i varsa çağır
+    setModalVisible(false);
     if (onSuccess) {
       onSuccess(response);
     }
   };
 
-  // Buton modu için render
+  // Buton modu için render (isVisible prop'u yoksa)
   if (isVisible === undefined) {
     return (
       <>
@@ -102,21 +123,22 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
         
         <Modal
           title="Nakit Tahsilat"
-          open={buttonModalVisible}
+          open={modalVisible}
           onCancel={handleCancel}
           width={800}
           footer={null}
           destroyOnClose={true}
+          style={{ zIndex: 1050 }}
         >
-          {buttonModalVisible && (
+          {modalVisible && (
             <CashPaymentForm
-              invoiceHeaderID={invoiceHeaderID}
-              invoiceNumber={invoiceNumber}
-              invoiceAmount={invoiceAmount}
-              currencyCode={currencyCode}
-              currAccCode={currAccCode}
-              currAccTypeCode={currAccTypeCode}
-              officeCode={officeCode}
+              invoiceHeaderID={formProps.invoiceHeaderID || ''}
+              invoiceNumber={formProps.invoiceNumber || ''}
+              invoiceAmount={formProps.invoiceAmount || 0}
+              currencyCode={formProps.currencyCode || 'TRY'}
+              currAccCode={formProps.currAccCode || ''}
+              currAccTypeCode={formProps.currAccTypeCode || ''}
+              officeCode={formProps.officeCode || ''}
               onSuccess={handleSuccess}
               onCancel={handleCancel}
             />
@@ -135,16 +157,17 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
       width={800}
       footer={null}
       destroyOnClose={true}
+      style={{ zIndex: 1050 }}
     >
       {modalVisible && (
         <CashPaymentForm
-          invoiceHeaderID={invoiceHeaderID}
-          invoiceNumber={invoiceNumber}
-          invoiceAmount={invoiceAmount}
-          currencyCode={currencyCode}
-          currAccCode={currAccCode}
-          currAccTypeCode={currAccTypeCode}
-          officeCode={officeCode}
+          invoiceHeaderID={formProps.invoiceHeaderID || ''}
+          invoiceNumber={formProps.invoiceNumber || ''}
+          invoiceAmount={formProps.invoiceAmount || 0}
+          currencyCode={formProps.currencyCode || 'TRY'}
+          currAccCode={formProps.currAccCode || ''}
+          currAccTypeCode={formProps.currAccTypeCode || ''}
+          officeCode={formProps.officeCode || ''}
           onSuccess={handleSuccess}
           onCancel={handleCancel}
         />

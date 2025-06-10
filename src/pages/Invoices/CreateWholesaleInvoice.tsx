@@ -18,7 +18,7 @@ import {
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import CashPaymentModal from '../../components/payment/CashPaymentModal';
+import CashPaymentModal, { openCashPaymentModal } from '../../components/payment/CashPaymentModal';
 import dayjs from 'dayjs';
 import invoiceApi, { CreateWholesaleInvoiceRequest, CreateInvoiceDetailRequest } from '../../services/invoiceApi';
 import { useAuth } from '../../contexts/AuthContext';
@@ -194,13 +194,23 @@ const CreateWholesaleInvoice: React.FC = () => {
           
           console.log('Nakit ödeme modalı açılıyor...', paymentModalData);
           
-          // State'i güncelleyelim ve sonra modalı açalım
+          // State'i güncelleyelim (eski yöntem için)
           setSavedInvoiceData(paymentModalData);
           
-          // Modalı aç
+          // Hem eski yöntem hem de yeni yöntem ile modalı aç
           setTimeout(() => {
+            // Eski yöntem
             setShowCashPaymentModal(true);
-          }, 500);
+            
+            // Yeni yöntem - global fonksiyon ile doğrudan açma
+            openCashPaymentModal({
+              ...paymentModalData,
+              onSuccess: handleCashPaymentSuccess,
+              onClose: handleCashPaymentModalClose
+            });
+            
+            console.log('Modal açma isteği gönderildi:', paymentModalData);
+          }, 300);
         } else {
           message.success('Fatura başarıyla oluşturuldu');
           navigate('/invoices/wholesale');

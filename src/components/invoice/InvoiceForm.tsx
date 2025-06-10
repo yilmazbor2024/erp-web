@@ -17,7 +17,7 @@ import InvoiceHeader from './InvoiceHeader';
 import InvoiceLines from './InvoiceLines';
 import InvoiceSummary from './InvoiceSummary';
 import BarcodeModal from '../common/BarcodeModal';
-import CashPaymentModal from '../payment/CashPaymentModal';
+import CashPaymentModal, { openCashPaymentModal } from '../payment/CashPaymentModal';
 import CashPaymentForm from '../payment/CashPaymentForm';
 
 // Servisler ve tipler
@@ -1733,30 +1733,32 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         if (normalizedPaymentType === 'Peşin' || normalizedPaymentType === '1' || normalizedPaymentType === 1) {
           message.success('Fatura oluşturuldu. Nakit tahsilat işlemi başlatılıyor...');
           
-          // Önce invoiceData'yı ayarla, sonra modalı aç
+          // Fatura verilerini hazırla
           console.log('Nakit tahsilat modalı açılıyor, invoiceData:', invoiceData);
           
-          // Önce modalı kapat
-          setShowCashPaymentModal(false);
+          // Global modal açma fonksiyonunu kullan
+          const modalProps = {
+            invoiceHeaderID: invoiceData.id || '',
+            invoiceNumber: invoiceData.invoiceNumber || '',
+            invoiceAmount: invoiceData.amount || 0,
+            currencyCode: invoiceData.currencyCode || 'TRY',
+            currAccCode: invoiceData.currAccCode || '',
+            currAccTypeCode: invoiceData.currAccTypeCode || 3,
+            officeCode: invoiceData.officeCode || '',
+            onSuccess: handleCashPaymentSuccess,
+            onClose: handleCashPaymentModalClose
+          };
           
-          // Önce savedInvoiceData'yı temizle
-          setSavedInvoiceData(null);
+          // Fatura verilerini state'e kaydet (eski yöntem için gerekli)
+          setSavedInvoiceData(invoiceData);
           
-          // Yeni fatura verilerini ayarla ve modalı aç
+          // Modalı aç
           setTimeout(() => {
-            // Önce fatura verilerini ayarla
-            setSavedInvoiceData({
-              ...invoiceData,
-              // Fatura tutarını doğru şekilde ayarla
-              amount: invoiceData.amount || 0
-            });
-            
-            // Sonra modalı aç
-            setTimeout(() => {
-              setShowCashPaymentModal(true);
-              console.log('showCashPaymentModal ayarlandı:', true);
-            }, 500);
-          }, 500);
+            // Hem eski yöntem hem de yeni yöntem ile modalı aç
+            setShowCashPaymentModal(true);
+            openCashPaymentModal(modalProps);
+            console.log('Modal açma isteği gönderildi:', modalProps);
+          }, 300);
           
           console.log('Modal açma işlemi başlatıldı');
         }
