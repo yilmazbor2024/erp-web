@@ -190,7 +190,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       currencyCode: 'TRY',
       currency: 'TRY',
       invoiceType: selectedInvoiceType,
-      paymentType: '1',
+      paymentType: '2', // Varsayılan ödeme tipi Vadeli olarak değiştirildi
       discountType: '1',
       discountRate: 0,
       vatRate: 18,
@@ -2079,7 +2079,7 @@ const openBarcodeModal = () => {
       initialValues={{
         invoiceDate: dayjs(), // Fatura tarihi için bugünün tarihi
         invoiceType: selectedInvoiceType,
-        paymentType: '1',
+        paymentType: '2', // Varsayılan ödeme tipi Vadeli olarak değiştirildi
         currency: 'TRY',
         currencyCode: 'TRY',
         docCurrencyCode: 'TRY',
