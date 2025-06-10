@@ -1671,12 +1671,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         const currentPaymentType = form.getFieldValue('paymentType');
         const currentNormalizedPaymentType = typeof currentPaymentType === 'number' ? String(currentPaymentType) : currentPaymentType;
         
-        // Peşin ödeme durumuna göre mesaj göster
-        if (currentNormalizedPaymentType === 'Peşin' || currentNormalizedPaymentType === '1' || currentNormalizedPaymentType === 1) {
-          message.success('Fatura oluşturma başarılı. Nakit Ödeme Formuna yönlendiriliyorsunuz...');
-        } else {
-          message.success('Fatura başarıyla kaydedildi!');
-        }
+        // Her durumda aynı başarı mesajını göster
+        message.success('Fatura başarıyla kaydedildi');
         
         // Başarı callback'ini çağır
         if (onSuccess) {
@@ -1790,7 +1786,9 @@ const openBarcodeModal = () => {
 };
 
 const handleCashPaymentModalClose = () => {
+  // Modalı kapat ve state'i temizle
   setShowCashPaymentModal(false);
+  setSavedInvoiceData(null);
   
   // Formu sıfırla
   form.resetFields();
@@ -1803,10 +1801,13 @@ const handleCashPaymentModalClose = () => {
 
 const handleCashPaymentSuccess = (paymentData: any) => {
   console.log('Nakit tahsilat başarılı:', paymentData);
+  
+  // Modalı kapat ve state'i temizle
   setShowCashPaymentModal(false);
+  setSavedInvoiceData(null);
   
   // Tek bir başarı mesajı göster
-  message.success('Fatura ve ödeme başarıyla kaydedildi');
+  message.success('Nakit tahsilat başarıyla kaydedildi');
   
   // Formu sıfırla
   form.resetFields();
@@ -2263,21 +2264,19 @@ const handleCashPaymentSuccess = (paymentData: any) => {
       }}
     />
     
-    {/* Nakit tahsilat modal - CashPaymentModal bileşeni kullanarak */}
-    {savedInvoiceData && (
-      <CashPaymentModal
-        isVisible={showCashPaymentModal}
-        onClose={handleCashPaymentModalClose}
-        onSuccess={handleCashPaymentSuccess}
-        invoiceHeaderID={savedInvoiceData.id}
-        invoiceNumber={savedInvoiceData.invoiceNumber}
-        invoiceAmount={savedInvoiceData.amount}
-        currencyCode={savedInvoiceData.currencyCode}
-        currAccCode={savedInvoiceData.currAccCode}
-        currAccTypeCode={savedInvoiceData.currAccTypeCode}
-        officeCode={savedInvoiceData.officeCode}
-      />
-    )}
+    {/* Nakit tahsilat modal - Her zaman render et, görünürlüğü isVisible ile kontrol et */}
+    <CashPaymentModal
+      isVisible={showCashPaymentModal}
+      onClose={handleCashPaymentModalClose}
+      onSuccess={handleCashPaymentSuccess}
+      invoiceHeaderID={savedInvoiceData?.id || ''}
+      invoiceNumber={savedInvoiceData?.invoiceNumber || ''}
+      invoiceAmount={savedInvoiceData?.amount || 0}
+      currencyCode={savedInvoiceData?.currencyCode || 'TRY'}
+      currAccCode={savedInvoiceData?.currAccCode || ''}
+      currAccTypeCode={savedInvoiceData?.currAccTypeCode || 3}
+      officeCode={savedInvoiceData?.officeCode || ''}
+    />
     
 
   </Card>

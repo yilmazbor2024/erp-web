@@ -176,9 +176,10 @@ const CreateWholesaleInvoice: React.FC = () => {
         const paymentType = form.getFieldValue('paymentType');
         const normalizedPaymentType = typeof paymentType === 'number' ? String(paymentType) : paymentType;
         
-        // Peşin ödeme durumuna göre mesaj göster
+        // Peşin ödeme durumuna göre işlem yap
         if (normalizedPaymentType === 'Peşin' || normalizedPaymentType === '1' || normalizedPaymentType === 1) {
-          message.success('Fatura oluşturma başarılı. Nakit Ödeme Formuna yönlendiriliyorsunuz...');
+          // Sadece tek bir mesaj göster
+          message.success('Fatura başarıyla oluşturuldu');
           
           // Nakit ödeme modalını açmak için gerekli verileri hazırla
           const paymentModalData = {
@@ -309,7 +310,10 @@ const CreateWholesaleInvoice: React.FC = () => {
 
   // Nakit tahsilat modalı kapatıldığında
   const handleCashPaymentModalClose = () => {
+    // Modalı kapat ve state'i temizle
     setShowCashPaymentModal(false);
+    setSavedInvoiceData(null);
+    
     // Modal kapatıldıktan sonra listeye yönlendir
     navigate('/invoices/wholesale');
   };
@@ -317,8 +321,15 @@ const CreateWholesaleInvoice: React.FC = () => {
   // Nakit tahsilat başarılı olduğunda
   const handleCashPaymentSuccess = (response: any) => {
     console.log('Nakit tahsilat başarılı:', response);
+    
+    // Modalı kapat ve state'i temizle
     setShowCashPaymentModal(false);
-    message.success('Nakit tahsilat başarıyla kaydedildi!');
+    setSavedInvoiceData(null);
+    
+    // Sadece tek bir başarı mesajı göster
+    message.success('Nakit tahsilat başarıyla kaydedildi');
+    
+    // Listeye yönlendir
     navigate('/invoices/wholesale');
   };
 
