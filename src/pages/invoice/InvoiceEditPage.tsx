@@ -121,6 +121,9 @@ const InvoiceEditPage: React.FC = () => {
         companyCode: values.companyCode,
         warehouseCode: values.warehouseCode,
         docCurrencyCode: values.docCurrencyCode,
+        // Zorunlu para birimi alanları
+        localCurrencyCode: 'TRY', // Yerel para birimi her zaman TRY
+        exchangeRate: values.exchangeRate || 1, // Form'dan döviz kuru değeri veya varsayılan 1
         notes: values.notes,
         isEInvoice: values.isEInvoice,
         isReturn: values.isReturn,

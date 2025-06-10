@@ -1516,7 +1516,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         subtotalAmount: subtotalAmount,
         vatAmount: vatAmount,
         netAmount: netAmount,
-        currencyCode: detail.currencyCode || values.docCurrencyCode || 'TRY',
+        currencyCode: detail.currencyCode || currentCurrencyCode,
         exchangeRate: detail.exchangeRate || values.exchangeRate || 1
       };
       
@@ -1526,38 +1526,40 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     
     console.log('Formatlanan fatura detayları:', formattedDetails);
     
-    // API isteği hazırla - önce küçük harfle başlayan alanlarla oluştur
+    // API isteği hazırla - doğrudan PascalCase alanlarla oluştur
     const requestData: any = {
-      invoiceNumber: values.invoiceNumber || 'Otomatik oluşturulacak',
-      invoiceTypeCode: invoiceTypeCode,
-      invoiceDate: values.invoiceDate ? values.invoiceDate.format('YYYY-MM-DD') : '', // dayjs nesnesini string'e çeviriyoruz
-      invoiceTime: '00:00:00', // Sabit saat
-      currAccCode: values.currAccCode, // Müşteri/Tedarikçi kodu
-      currAccTypeCode: currAccTypeCode, // Müşteri/Tedarikçi tipi kodu
-      docCurrencyCode: values.currencyCode || 'TRY',
-      companyCode: '1', // Sabit şirket kodu
-      officeCode: values.officeCode || 'M',
-      warehouseCode: values.warehouseCode || '101',
-      isReturn: values.isReturn || false,
-      isEInvoice: values.isEInvoice || false,
-      notes: values.notes || '',
-      processCode: invoiceTypeCode, // İşlem kodu fatura tipi ile aynı
-      totalAmount: totalAmount,
-      discountAmount: discountAmount,
-      subtotalAmount: subtotalAmount,
-      vatAmount: vatAmount,
-      netAmount: netAmount,
-      exchangeRate: values.exchangeRate || 1,
-      tryEquivalentTotal: values.tryEquivalentTotal,
-      shippingPostalAddressID: values.shippingPostalAddressID, // Teslimat adresi ID'si
-      billingPostalAddressID: values.billingPostalAddressID,   // Fatura adresi ID'si
-      details: formattedDetails // Formatlanan detayları kullan
+      InvoiceNumber: values.invoiceNumber || 'Otomatik oluşturulacak',
+      InvoiceTypeCode: invoiceTypeCode,
+      InvoiceDate: values.invoiceDate ? values.invoiceDate.format('YYYY-MM-DD') : '', // dayjs nesnesini string'e çeviriyoruz
+      InvoiceTime: '00:00:00', // Sabit saat
+      CurrAccCode: values.currAccCode, // Müşteri/Tedarikçi kodu
+      CurrAccTypeCode: values.currAccTypeCode || currAccTypeCode, // Müşteri/Tedarikçi tipi kodu
+      DocCurrencyCode: currentCurrencyCode, // Güncel para birimini kullan
+      CurrencyCode: currentCurrencyCode, // CurrencyCode alanını da aynı değerle ayarla
+      LocalCurrencyCode: 'TRY', // Yerel para birimi her zaman TRY
+      ExchangeRate: values.exchangeRate !== undefined && values.exchangeRate !== null ? values.exchangeRate : 1, // Döviz kuru
+      CompanyCode: '1', // Sabit şirket kodu
+      OfficeCode: values.officeCode || 'M',
+      WarehouseCode: values.warehouseCode || '101',
+      IsReturn: values.isReturn || false,
+      IsEInvoice: values.isEInvoice || false,
+      Notes: values.notes || '',
+      ProcessCode: invoiceTypeCode, // İşlem kodu fatura tipi ile aynı
+      TotalAmount: totalAmount,
+      DiscountAmount: discountAmount,
+      SubtotalAmount: subtotalAmount,
+      VatAmount: vatAmount,
+      NetAmount: netAmount,
+      TryEquivalentTotal: values.tryEquivalentTotal,
+      ShippingPostalAddressID: values.shippingPostalAddressID, // Teslimat adresi ID'si
+      BillingPostalAddressID: values.billingPostalAddressID,   // Fatura adresi ID'si
+      Details: formattedDetails // Formatlanan detayları kullan
     };
     
     // Sevkiyat yöntemi seçildiyse ekle, boşsa gönderme
-    if (values.shipmentMethodCode && values.shipmentMethodCode !== '') {
-      console.log('Sevkiyat yöntemi seçildi:', values.shipmentMethodCode);
-      requestData.ShipmentMethodCode = values.shipmentMethodCode;
+    if (values.ShipmentMethodCode && values.ShipmentMethodCode !== '') {
+      console.log('Sevkiyat yöntemi seçildi:', values.ShipmentMethodCode);
+      requestData.ShipmentMethodCode = values.ShipmentMethodCode;
     } else {
       console.log('Sevkiyat yöntemi seçilmedi, API isteğinde gönderilmeyecek');
     }
@@ -1594,70 +1596,49 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     
     // API çağrısını yap
     console.log(`API çağrısı yapılıyor: ${endpoint}`);
-    console.log('Gönderilen veri detayları:', {
-      "invoiceNumber": requestData.invoiceNumber,
-      "invoiceTypeCode": requestData.invoiceTypeCode,
-      "invoiceDate": requestData.invoiceDate,
-      "currAccCode": requestData.currAccCode,
-      "docCurrencyCode": requestData.docCurrencyCode,
-      "shippingPostalAddressID": requestData.shippingPostalAddressID,
-      "billingPostalAddressID": requestData.billingPostalAddressID,
+    console.log('Fatura gönderme öncesi kontrol:', {
+      "InvoiceNumber": requestData.InvoiceNumber,
+      "InvoiceTypeCode": requestData.InvoiceTypeCode,
+      "CurrAccCode": requestData.CurrAccCode,
+      "DocCurrencyCode": requestData.DocCurrencyCode,
+      "CurrencyCode": requestData.CurrencyCode,
+      "LocalCurrencyCode": requestData.LocalCurrencyCode,
+      "ExchangeRate": requestData.ExchangeRate,
+      "ShippingPostalAddressID": requestData.ShippingPostalAddressID,
+      "BillingPostalAddressID": requestData.BillingPostalAddressID,
       "ShipmentMethodCode": requestData.ShipmentMethodCode,
-      "detaylar": requestData.details ? requestData.details.length : 0
+      "Detaylar": requestData.Details ? requestData.Details.length : 0
     });
     
     // Özellikle detayları kontrol et
-    if (!requestData.details || requestData.details.length === 0) {
+    if (!requestData.Details || requestData.Details.length === 0) {
       console.error('Fatura detayları boş! API çağrısı iptal ediliyor.');
       message.error('Fatura detayları boş! Lütfen en az bir ürün ekleyin.');
       setLoading(false);
       return;
     }
       
-      // API için alan adlarını büyük harfle başlayacak şekilde dönüştür
-      // Ancak 'details' alanını küçük harfle bırak
-      const convertToPascalCase = (obj: any): any => {
-        if (obj === null || typeof obj !== 'object') return obj;
-        
-        if (Array.isArray(obj)) {
-          return obj.map((item: any) => convertToPascalCase(item));
-        }
-        
-        const result: any = {};
-        
-        Object.keys(obj).forEach(key => {
-          // Özel durumlar
-          if (key === 'details') {
-            // details alanını invoiceApi.ts'deki alan adlarına uygun şekilde dönüştür
-            result['details'] = Array.isArray(obj[key]) ? obj[key].map((item: any) => {
-              return {
-                ...convertToPascalCase(item),
-                // invoiceApi.ts'deki alan adlarına uygun şekilde dönüştür
-                quantity: item.quantity,
-                unitOfMeasureCode: item.unitOfMeasureCode,
-                itemCode: item.itemCode
-              };
-            }) : [];
-          } else {
-            // Diğer alanların ilk harfini büyük yap
-            const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
-            result[pascalKey] = convertToPascalCase(obj[key]);
-          }
-        });
-        
-        return result;
-      };
+      // convertToPascalCase fonksiyonu kaldırıldı, çünkü artık doğrudan PascalCase kullanıyoruz
       
       // Fatura detaylarının var olduğundan emin ol
-      if (!requestData.details || !Array.isArray(requestData.details)) {
-        requestData.details = [];
+      if (!requestData.Details || !Array.isArray(requestData.Details)) {
+        requestData.Details = [];
         console.warn('Fatura detayları bulunamadı veya geçerli bir dizi değil. Boş dizi kullanılıyor.');
       }
       
-      // Verileri API formatına dönüştür
-      const apiRequestData = convertToPascalCase(requestData);
+      // Geriye dönük uyumluluk için details alanını da ekleyelim
+      requestData.details = requestData.Details;
       
-      console.log('API formatına dönüştürülmüş veri:', apiRequestData);
+      // API isteği için doğrudan requestData kullan
+      const apiRequestData = requestData;
+      
+      console.log('API\'ye gönderilecek veri:', apiRequestData);
+      console.log('PARA BİRİMİ KONTROLÜ:');
+      console.log('Frontend\'de seçilen para birimi:', currentCurrencyCode);
+      console.log('API\'ye gönderilen DocCurrencyCode:', apiRequestData.DocCurrencyCode);
+      console.log('API\'ye gönderilen CurrencyCode:', apiRequestData.CurrencyCode);
+      console.log('API\'ye gönderilen LocalCurrencyCode:', apiRequestData.LocalCurrencyCode);
+      console.log('API\'ye gönderilen ExchangeRate:', apiRequestData.ExchangeRate);
       
       // Fatura tipine göre API çağrısı yap
       switch (selectedInvoiceType) {
@@ -1754,14 +1735,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         
         // Sadece ödeme tipi "Peşin" veya 1 ise nakit tahsilat modalını aç
         if (normalizedPaymentType === 'Peşin' || normalizedPaymentType === '1' || normalizedPaymentType === 1) {
-          // Kısa bir gecikme ile modalı aç (React state güncellemelerinin tamamlanmasını bekle)
+          // Daha uzun bir gecikme ile modalı aç (React state güncellemelerinin tamamlanmasını bekle)
           setTimeout(() => {
             console.log('savedInvoiceData ayarlandı, şimdi modalı açıyoruz');
             console.log('savedInvoiceData kontrol:', invoiceData);
             
             // Modalı aç
             setShowCashPaymentModal(true);
-          }, 100);
+          }, 500);
           
           // State güncellemelerini kontrol et
           console.log('showCashPaymentModal ayarlanıyor:', true);
@@ -1826,6 +1807,15 @@ const handleCashPaymentSuccess = (paymentData: any) => {
   
   // Tek bir başarı mesajı göster
   message.success('Fatura ve ödeme başarıyla kaydedildi');
+  
+  // Formu sıfırla
+  form.resetFields();
+  setInvoiceDetails([]);
+  updateTotals([]);
+  setActiveTab('1');
+  
+  // Fatura listesine yönlendir
+  navigate('/invoices');
   
   // Başarı callback'ini çağır
   if (onSuccess) {
@@ -1920,14 +1910,19 @@ const handleCashPaymentSuccess = (paymentData: any) => {
           try {
             // Döviz kurunu güncelle
             loadExchangeRates().then(() => {
-              // Form'dan güncel döviz kurunu al
+              // Form'dan güncel döviz kurunu ve para birimini al
               const currentRate = form.getFieldValue('exchangeRate');
+              const currencyCode = form.getFieldValue('currencyCode');
               console.log('Müşteri/Tedarikçi değişti - Döviz kuru güncellendi:', currentRate);
+              console.log('Müşteri/Tedarikçi değişti - Para birimi:', currencyCode);
+              
+              // Güncel para birimini state'e kaydet
+              setCurrentCurrencyCode(currencyCode);
               
               // Satırları ve toplamları güncelle
               if (invoiceDetails.length > 0) {
                 console.log('Müşteri/Tedarikçi değişti - Satırlar güncelleniyor...');
-                updatePricesWithExchangeRate(allValues.currencyCode || 'TRY');
+                updatePricesWithExchangeRate(currencyCode);
                 console.log('Müşteri/Tedarikçi değişti - Satırlar güncellendi:', invoiceDetails.length, 'satır');
                 
                 console.log('Müşteri/Tedarikçi değişti - Toplamlar güncelleniyor...');
@@ -2202,6 +2197,8 @@ const handleCashPaymentSuccess = (paymentData: any) => {
       getProductPrice={getProductPriceAndAddVariant}
       inventoryStock={inventoryStock}
       loadingInventory={loadingInventory}
+      currencyCode={currentCurrencyCode}
+      taxTypeMode={taxTypeMode}
       removeScannedItem={(index) => {
         const updatedItems = [...scannedItems];
         updatedItems.splice(index, 1);

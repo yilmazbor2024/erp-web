@@ -86,7 +86,7 @@ const CreateWholesaleInvoice: React.FC = () => {
       itemCode: values.itemCode || '',
       itemDescription: values.itemDescription || '',
       quantity,
-      unitOfMeasureCode: values.unitOfMeasureCode || 'ADET',
+      unitOfMeasureCode: values.unitOfMeasureCode || 'AD',
       unitPrice,
       discountRate,
       vatRate,
@@ -142,14 +142,15 @@ const CreateWholesaleInvoice: React.FC = () => {
       
       // API'nin beklediği formatta fatura verilerini oluştur
       const invoiceData: CreateWholesaleInvoiceRequest = {
-        invoiceNumber: values.invoiceNumber,
-        invoiceTypeCode: "WS", // Toptan Satış fatura tipi
-        invoiceDate: dayjs(values.invoiceDate).format('YYYY-MM-DD'),
-        invoiceTime: dayjs(values.invoiceTime || dayjs()).format('HH:mm:ss'),
-        currAccTypeCode: 3, // Müşteri tipi
-        customerCode: values.customerCode,
+        invoiceNumber: values.invoiceNumber || "Otomatik oluşturulacak",
+        invoiceDate: values.invoiceDate.format('YYYY-MM-DD'),
+        invoiceTypeCode: "WS", // Toptan Satış fatura tipi kodu
+        currAccTypeCode: 3, // Müşteri cari hesap tipi kodu
+        customerCode: values.customerCode, // Müşteri kodu
         currAccCode: values.customerCode, // Cari hesap kodu müşteri koduyla aynı
         docCurrencyCode: values.docCurrencyCode || "TRY",
+        localCurrencyCode: "TRY", // Yerel para birimi her zaman TRY
+        exchangeRate: values.exchangeRate || 1, // Form'dan döviz kuru değeri veya varsayılan 1
         companyCode: values.companyCode || "001",
         warehouseCode: values.warehouseCode || "001",
         officeCode: values.officeCode || "001",

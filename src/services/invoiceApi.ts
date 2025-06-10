@@ -201,6 +201,8 @@ export interface CreateWholesaleInvoiceRequest {
   invoiceDate: string; // Fatura tarihi (YYYY-MM-DD)
   currAccTypeCode: number; // Cari hesap tipi kodu (3: Müşteri)
   docCurrencyCode: string; // Belge para birimi kodu (TRY)
+  localCurrencyCode: string; // Yerel para birimi kodu (TRY)
+  exchangeRate: number; // Döviz kuru
   companyCode: string; // Şirket kodu (1)
   warehouseCode: string; // Depo kodu
   customerCode: string; // Müşteri kodu
@@ -228,6 +230,8 @@ export interface CreateInvoiceRequest {
   invoiceDate: string; // Fatura tarihi (YYYY-MM-DD)
   currAccTypeCode: number; // Cari hesap tipi kodu (1: Tedarikçi, 3: Müşteri)
   docCurrencyCode: string; // Belge para birimi kodu (TRY)
+  currencyCode?: string; // Para birimi kodu (TRY, USD, EUR, GBP)
+  localCurrencyCode: string; // Yerel para birimi kodu (TRY)
   companyCode: string; // Şirket kodu (1)
   warehouseCode: string; // Depo kodu
   currAccCode: string; // Cari hesap kodu
@@ -258,7 +262,7 @@ export interface CreateInvoiceRequest {
   formType?: string; // Form tipi
   documentTypeCode?: string; // Belge tipi kodu
   notes?: string; // Notlar
-  exchangeRate?: number; // Döviz kuru
+  exchangeRate: number; // Döviz kuru
   details: any[]; // Fatura detayları
 }
 
@@ -368,7 +372,10 @@ const invoiceApi = {
         currAccTypeCode: CURR_ACC_TYPES.CUSTOMER, // 3 (Müşteri) cari hesap tipi kodu
         processCode: invoice.processCode || PROCESS_CODES.WHOLESALE_SALES, // WS (Toptan Satış) işlem kodu
         transTypeCode: invoice.transTypeCode || TRANS_TYPE_CODES.OUTBOUND, // 2 (Çıkış) - Toptan Satış için
-        docCurrencyCode: invoice.docCurrencyCode || 'TRY', // Varsayılan para birimi TRY
+        docCurrencyCode: invoice.docCurrencyCode, // Belge para birimi
+        currencyCode: invoice.currencyCode || invoice.docCurrencyCode, // Para birimi
+        localCurrencyCode: invoice.localCurrencyCode || 'TRY', // Yerel para birimi
+        exchangeRate: invoice.exchangeRate, // Döviz kuru
         companyCode: invoice.companyCode || '1', // Varsayılan şirket kodu 1
         isReturn: invoice.isReturn || false, // Varsayılan iade değil
         invoiceReturnTypeCode: invoice.invoiceReturnTypeCode || INVOICE_RETURN_TYPES.NO_RETURN, // 0 (İade değil)
@@ -701,6 +708,8 @@ const invoiceApi = {
         currAccTypeCode: CURR_ACC_TYPES.CUSTOMER,
         processCode: invoice.processCode || PROCESS_CODES.WHOLESALE_SALES,
         docCurrencyCode: invoice.docCurrencyCode || 'TRY',
+        localCurrencyCode: invoice.localCurrencyCode || 'TRY', // Yerel para birimi her zaman TRY
+        exchangeRate: invoice.exchangeRate || 1, // Döviz kuru
         companyCode: invoice.companyCode || '1',
         isReturn: invoice.isReturn || false,
         isEInvoice: invoice.isEInvoice || false,
