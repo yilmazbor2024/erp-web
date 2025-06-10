@@ -618,23 +618,32 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   ];
 
   // Tablo verileri
+  // Fatura toplamının döviz kuru ile çarpımını hesapla
+  const invoiceAmountWithExchangeRate = currencyCode !== 'TRY' ? invoiceAmount * currentExchangeRate : invoiceAmount;
+  
   const tableData = [
     {
       key: '1',
-      label: 'Toplam',
-      tryAmount: currencyCode === 'TRY' ? invoiceAmount : 0,
+      label: `Toplam (${currencyCode})`,
+      tryAmount: currencyCode === 'TRY' ? invoiceAmount : invoiceAmountWithExchangeRate,
       foreignAmount: currencyCode !== 'TRY' ? invoiceAmount : 0
+    },
+    {
+      key: '1b',
+      label: `Toplam x Döviz Kuru (${currencyCode} x ${currentExchangeRate.toFixed(4)})`,
+      tryAmount: invoiceAmountWithExchangeRate,
+      foreignAmount: 0
     },
     {
       key: '2',
       label: 'Ödenen Tutar',
-      tryAmount: currencyCode === 'TRY' ? paidAmount : 0,
+      tryAmount: currencyCode === 'TRY' ? paidAmount : paidAmount * currentExchangeRate,
       foreignAmount: currencyCode !== 'TRY' ? paidAmount : 0
     },
     {
       key: '3',
       label: 'Para Üstü',
-      tryAmount: currencyCode === 'TRY' ? (paidAmount > invoiceAmount ? paidAmount - invoiceAmount : 0) : 0,
+      tryAmount: currencyCode === 'TRY' ? (paidAmount > invoiceAmount ? paidAmount - invoiceAmount : 0) : (paidAmount > invoiceAmount ? (paidAmount - invoiceAmount) * currentExchangeRate : 0),
       foreignAmount: currencyCode !== 'TRY' ? (paidAmount > invoiceAmount ? paidAmount - invoiceAmount : 0) : 0
     }
   ];
