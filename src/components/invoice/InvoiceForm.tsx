@@ -1731,23 +1731,29 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         
         // Sadece ödeme tipi "Peşin" veya 1 ise nakit tahsilat modalını aç
         if (normalizedPaymentType === 'Peşin' || normalizedPaymentType === '1' || normalizedPaymentType === 1) {
-          // Önce savedInvoiceData'yı ayarla
-          setSavedInvoiceData(invoiceData);
-          console.log('savedInvoiceData ayarlandı:', invoiceData);
+          message.success('Fatura oluşturuldu. Nakit tahsilat işlemi başlatılıyor...');
           
-          // Daha uzun bir gecikme ile modalı aç (React state güncellemelerinin tamamlanmasını bekle)
+          // Önce savedInvoiceData'yı ayarla ve sonra modalı aç
+          console.log('Nakit tahsilat modalı açılıyor, invoiceData:', invoiceData);
+          
+          // Önce state'i güncelleyelim
+          setSavedInvoiceData(null); // Önce null'a ayarlayıp sonra yeniden set edelim (state güncellemesini zorlamak için)
+          
+          // Kısa bir gecikme sonra yeni değeri ayarlayalım
           setTimeout(() => {
-            console.log('State güncellemeleri tamamlandı, şimdi modalı açıyoruz');
-            console.log('savedInvoiceData kontrol:', invoiceData);
+            setSavedInvoiceData(invoiceData);
+            console.log('savedInvoiceData ayarlandı:', invoiceData);
             
-            // Modalı aç
-            setShowCashPaymentModal(true);
-            console.log('showCashPaymentModal ayarlandı:', true);
-          }, 1000);
+            // Daha uzun bir gecikme ile modalı aç (React state güncellemelerinin tamamlanmasını bekle)
+            setTimeout(() => {
+              console.log('State güncellemeleri tamamlandı, şimdi modalı açıyoruz');
+              setShowCashPaymentModal(true);
+              console.log('showCashPaymentModal ayarlandı:', true);
+            }, 500);
+          }, 300);
           
           // State güncellemelerini kontrol et
           console.log('Modal açma işlemi başlatıldı');
-          console.log('savedInvoiceData:', invoiceData);
         }
         
         // Not: Nakit ödeme modalı kapatıldığında form sıfırlanacak
