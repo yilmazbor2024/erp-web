@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, Form, Button, Tabs, message, Row, Col, Input, InputRef, Radio, InputNumber, Select, Modal } from 'antd';
 import type { RadioChangeEvent } from 'antd';
-import { PlusOutlined, ArrowLeftOutlined, ArrowRightOutlined, SaveOutlined, InfoCircleOutlined, BarcodeOutlined, CheckOutlined } from '@ant-design/icons';
+import { PlusOutlined, ArrowLeftOutlined, ArrowRightOutlined, SaveOutlined, InfoCircleOutlined, BarcodeOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
 import axios from 'axios';
@@ -17,7 +17,7 @@ import InvoiceHeader from './InvoiceHeader';
 import InvoiceLines from './InvoiceLines';
 import InvoiceSummary from './InvoiceSummary';
 import BarcodeModal from '../common/BarcodeModal';
-import CashPaymentModal, { openCashPaymentModal } from '../payment/CashPaymentModal';
+import CashPaymentModal, { CashPaymentModalAPI } from '../payment/CashPaymentModal';
 import CashPaymentForm from '../payment/CashPaymentForm';
 
 // Servisler ve tipler
@@ -135,7 +135,7 @@ interface InvoiceFormProps {
 const InvoiceForm: React.FC<InvoiceFormProps> = ({ 
   type, 
   onSuccess 
-}) => {
+}): React.ReactElement => {
   // URL parametrelerini al ve navigasyon için hook
   const navigate = useNavigate();
   const location = useLocation();
@@ -164,10 +164,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   // Form nesnesi oluştur
   const [form] = Form.useForm();
   const [loading, setLoading] = useState<boolean>(false);
-  const [exchangeRate, setExchangeRate] = useState<number>(1);
+  const [activeTab, setActiveTab] = useState<string>('1'); // 1: BAŞLIK
+  const [lastInvoiceDate, setLastInvoiceDate] = useState<any>(null); // Fatura tarihini saklamak için state
+  const [exchangeRate, setExchangeRate] = useState<number>(1); // Döviz kuru state'i
   
   // Fatura tipini belirle ve state olarak sakla
   const [selectedInvoiceType, setSelectedInvoiceType] = useState<InvoiceType>(determineInvoiceType());
+  const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null); // Added for cash modal data
+  const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
+  const [headerFormValid, setHeaderFormValid] = useState<boolean>(false); // Form validasyonu için state
   
   // Form başlangıç değerlerini ayarla
   useEffect(() => {
@@ -193,6 +198,39 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     });
   }, [form, selectedInvoiceType]);
   
+  const handleCashPaymentSuccess = (paymentData: any) => {
+    // Modalı kapat
+    setShowCashPaymentModal(false);
+    message.success('Nakit tahsilat başarıyla kaydedildi!');
+    
+    // Başarılı ödeme sonrası kullanıcıya bir buton göstererek yönlendirme yapmasını sağlayalım
+    message.success({
+      content: 'Nakit tahsilat başarıyla kaydedildi!',
+      duration: 5,
+      icon: <CheckCircleOutlined />,
+      onClick: () => {
+        // Kullanıcı mesaja tıkladığında yönlendirme yap
+        if (location.pathname.includes('wholesale')) {
+          navigate('/invoices/wholesale');
+        } else {
+          navigate('/invoices/sales');
+        }
+      }
+    });
+    
+    console.log('Nakit tahsilat başarılı, otomatik yönlendirme yapılmıyor.');
+  };
+
+  const handleCashPaymentModalClose = () => {
+    // Modalı kapat
+    setShowCashPaymentModal(false);
+    message.info('Nakit tahsilat modalı kapatıldı.');
+    
+    // Yönlendirme yapmıyoruz - kullanıcı isterse manuel olarak gidebilir
+    // Böylece modal kapandıktan sonra kullanıcı aynı sayfada kalır ve modal görünür olur
+    console.log('Modal kapatıldı, yönlendirme yapılmıyor.');
+  };
+
   // Veri yükleme için useEffect
   useEffect(() => {
     // Sayfa yüklenirken verileri yükle
@@ -200,12 +238,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
-  // Sekme kontrolü için state
-  const [activeTab, setActiveTab] = useState<string>('1'); // 1: BAŞLIK, 
-  const [headerFormValid, setHeaderFormValid] = useState<boolean>(false); // Form validasyonu için state - başlangıçta kesinlikle false olarak ayarla
-  
   // Fatura tipini belirle
-  // Sekme kontrolü için state
   
   // Veri state'leri
   const [customers, setCustomers] = useState<any[]>([]);
@@ -251,9 +284,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const [loadingInventory, setLoadingInventory] = useState<boolean>(false);
   const barcodeInputRef = useRef<InputRef>(null);
   
-  // Nakit ödeme modalı için state
-  const [showCashPaymentModal, setShowCashPaymentModal] = useState<boolean>(false);
-  const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
+  // Nakit ödeme modalı global olarak yönetildiği için local state'lere gerek kalmadı.
   
   // Fatura seçenekleri
   const [isReturn, setIsReturn] = useState<boolean>(false);
@@ -286,25 +317,49 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     try {
       setLoadingRates(true);
       
+      // Önemli: Mevcut fatura tarihini sakla
+      const currentInvoiceDate = form.getFieldValue('invoiceDate');
+      // Tarih değerini global state'e de kaydedelim
+      setLastInvoiceDate(currentInvoiceDate);
+      console.log('loadExchangeRates: Mevcut tarih saklandı:', currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+      
       // Seçili para birimi al
       const currencyCode = form.getFieldValue('docCurrencyCode');
       
       // Eğer para birimi boş veya null ise, kur değerini 0 olarak ayarla
       if (!currencyCode) {
         setExchangeRate(0);
-        form.setFieldsValue({ exchangeRate: 0 });
+        form.setFieldsValue({ 
+          exchangeRate: 0,
+          // Tarihi geri yükle
+          invoiceDate: currentInvoiceDate
+        });
         return;
       }
       
       // Eğer para birimi TRY ise, kur değerini 1 olarak ayarla
       if (currencyCode === 'TRY') {
         setExchangeRate(1);
-        form.setFieldsValue({ exchangeRate: 1 });
+        form.setFieldsValue({ 
+          exchangeRate: 1,
+          // Tarihi geri yükle
+          invoiceDate: currentInvoiceDate
+        });
         return;
       }
       
-      // Tüm döviz kurlarını al
-      const rates = await exchangeRateApi.getLatestExchangeRates(exchangeRateSource);
+      // Seçilen tarihe göre döviz kurlarını al
+      let rates;
+      if (currentInvoiceDate) {
+        // Tarih varsa, o tarihe göre kurları al
+        const formattedDate = currentInvoiceDate.format('YYYY-MM-DD');
+        console.log(`${formattedDate} tarihine göre döviz kurları alınıyor...`);
+        rates = await exchangeRateApi.getExchangeRatesByDate(formattedDate, exchangeRateSource);
+      } else {
+        // Tarih yoksa, en güncel kurları al
+        console.log('Tarih belirtilmediği için en güncel döviz kurları alınıyor...');
+        rates = await exchangeRateApi.getLatestExchangeRates(exchangeRateSource);
+      }
       
       // Döviz kurlarını bir map'e dönüştür
       const ratesMap: Record<string, number> = {};
@@ -325,34 +380,82 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       // Seçili para birimi varsa, kur değerini güncelle
       if (currencyCode && ratesMap[currencyCode] !== undefined) {
         const rate = ratesMap[currencyCode];
+        console.log(`${currencyCode} için kur değeri: ${rate}`);
         setExchangeRate(rate);
-        form.setFieldsValue({ exchangeRate: rate });
+        form.setFieldsValue({ 
+          exchangeRate: rate,
+          // Tarihi geri yükle
+          invoiceDate: currentInvoiceDate
+        });
         handleExchangeRateChange(rate);
       } else {
         // Eğer para birimi için kur bulunamazsa, 0 olarak ayarla
+        console.log(`${currencyCode} için kur bulunamadı, 0 olarak ayarlanıyor.`);
         setExchangeRate(0);
-        form.setFieldsValue({ exchangeRate: 0 });
+        form.setFieldsValue({ 
+          exchangeRate: 0,
+          // Tarihi geri yükle
+          invoiceDate: currentInvoiceDate
+        });
+      }
+      
+      // Son kontrol: Tarih hala doğru mu?
+      const finalDate = form.getFieldValue('invoiceDate');
+      if (!finalDate || (currentInvoiceDate && !dayjs(finalDate).isSame(currentInvoiceDate))) {
+        console.log('loadExchangeRates: Tarih kaybolmuş, tekrar yükleniyor:', 
+                    currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+        form.setFieldsValue({ invoiceDate: currentInvoiceDate });
       }
     } catch (error) {
       console.error('Döviz kurları yüklenirken hata oluştu:', error);
       message.error('Döviz kurları yüklenirken bir hata oluştu');
-      // Hata durumunda da 0 olarak ayarla
+      
+      // Hata durumunda da 0 olarak ayarla ve tarihi koru
+      const currentInvoiceDate = lastInvoiceDate || form.getFieldValue('invoiceDate');
       setExchangeRate(0);
-      form.setFieldsValue({ exchangeRate: 0 });
+      form.setFieldsValue({ 
+        exchangeRate: 0,
+        // Tarihi geri yükle
+        invoiceDate: currentInvoiceDate
+      });
     } finally {
       setLoadingRates(false);
     }
   };
   
-  // Bileşen yüklendiğinde ve döviz kuru kaynağı değiştiğinde döviz kurlarını yükle
+  // Bileşen ilk yüklenirken döviz kurlarını yükle
+  // Önemli: exchangeRateSource değiştiğinde döviz kurlarını yükleme işlemini kaldırdık
+  // çünkü bu InvoiceHeader ile döngü oluşmasına neden oluyor
   useEffect(() => {
-    loadExchangeRates();
-  }, [exchangeRateSource]);
+    // Sadece bileşen ilk yüklenirken çalışsın
+    // Mevcut fatura tarihini sakla
+    const currentInvoiceDate = form.getFieldValue('invoiceDate') || lastInvoiceDate;
+    
+    // Döviz kurlarını yükle ve sonrasında tarihi koru
+    loadExchangeRates().then(() => {
+      // Döviz kurları yüklendikten sonra tarihi kontrol et ve gerekirse geri yükle
+      if (currentInvoiceDate) {
+        const updatedDate = form.getFieldValue('invoiceDate');
+        if (!updatedDate || !dayjs(updatedDate).isSame(currentInvoiceDate)) {
+          console.log('useEffect: Tarih değişmiş, geri yükleniyor:', currentInvoiceDate.format('YYYY-MM-DD'));
+          form.setFieldsValue({ invoiceDate: currentInvoiceDate });
+        }
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);  // Boş dependency array ile sadece bir kez çalışacak
   
   // Para birimi değiştiğinde çalışacak fonksiyon
   const handleCurrencyChange = async (currencyCode: string) => {
     console.log('------ PARA BİRİMİ DEĞİŞİKLİĞİ BAŞLADI ------');
     console.log('Para birimi değişti:', currencyCode);
+    
+    // Önemli: Mevcut fatura tarihini sakla
+    const currentInvoiceDate = form.getFieldValue('invoiceDate');
+    // Tarih değerini global state'e de kaydedelim
+    setLastInvoiceDate(currentInvoiceDate);
+    console.log('handleCurrencyChange: Mevcut tarih saklandı:', currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+    
     setCurrentCurrencyCode(currencyCode);
     form.setFieldsValue({ 
       currencyCode,
@@ -361,14 +464,23 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     
     // Para birimi değiştiğinde döviz kurunu güncelle
     try {
-      const invoiceDate = form.getFieldValue('invoiceDate');
-      console.log('Para birimi değişti - Fatura tarihi:', invoiceDate ? invoiceDate.format('YYYY-MM-DD') : 'Belirtilmemiş');
+      console.log('Para birimi değişti - Fatura tarihi:', currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Belirtilmemiş');
       
-      // Önce döviz kurunu güncelle
-      console.log('Para birimi değişti - Döviz kuru güncelleniyor...');
-      await loadExchangeRates();
+      // Önemli: InvoiceHeader.tsx ile döngü oluşmasını önlemek için loadExchangeRates çağrısını kaldırıyoruz
+      // Döviz kuru InvoiceHeader.tsx içindeki fetchExchangeRate tarafından zaten güncellenecek
+      // console.log('Para birimi değişti - Döviz kuru güncelleniyor...');
+      // await loadExchangeRates();
+      
       const currentRate = form.getFieldValue('exchangeRate');
-      console.log('Para birimi değişti - Döviz kuru güncellendi:', currentRate);
+      console.log('Para birimi değişti - Mevcut döviz kuru:', currentRate);
+      
+      // Tarihin doğru olup olmadığını kontrol et
+      const updatedDate = form.getFieldValue('invoiceDate');
+      if (!updatedDate || (currentInvoiceDate && !dayjs(updatedDate).isSame(currentInvoiceDate))) {
+        console.log('Para birimi değişti - Tarih değişmiş, geri yükleniyor:', 
+                  currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+        form.setFieldsValue({ invoiceDate: currentInvoiceDate });
+      }
       
       // Para birimi değiştiğinde her zaman tüm satırların para birimini güncelle
       if (Object.keys(exchangeRates).length > 0 || currencyCode === 'TRY') {
@@ -396,13 +508,25 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           net: netAmount
         });
       }
+      
+      // Son bir kez daha tarihin doğru olup olmadığını kontrol et
+      const finalDate = form.getFieldValue('invoiceDate');
+      if (!finalDate || (currentInvoiceDate && !dayjs(finalDate).isSame(currentInvoiceDate))) {
+        console.log('Para birimi değişti - Tarih hala yanlış, son kez düzeltiliyor:', 
+                  currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+        form.setFieldsValue({ invoiceDate: currentInvoiceDate });
+      }
+      
       console.log('------ PARA BİRİMİ DEĞİŞİKLİĞİ TAMAMLANDI ------');
     } catch (error) {
-      console.error('Para birimi değiştiğinde döviz kuru güncellenirken hata oluştu:', error);
-      message.error('Döviz kuru güncellenirken bir hata oluştu');
+      console.error('Para birimi değiştiğinde güncelleme yapılırken hata oluştu:', error);
+      message.error('Para birimi güncellenirken bir hata oluştu');
+      
+      // Hata durumunda da tarihi koru
+      form.setFieldsValue({ invoiceDate: currentInvoiceDate });
     }
   };
-  
+
   // Döviz kuru değiştiğinde çalışacak fonksiyon
   const handleExchangeRateChange = (rate: number) => {
     setExchangeRate(rate);
@@ -537,18 +661,20 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   };
   
   // Para birimi değiştiğinde fiyatları güncelle
-  useEffect(() => {
-    if (currentCurrencyCode !== 'TRY' && Object.keys(exchangeRates).length > 0) {
-      updatePricesWithExchangeRate(currentCurrencyCode);
-    } else if (currentCurrencyCode === 'TRY' && invoiceDetails.length > 0) {
-      // TRY seçildiğinde, tüm fiyatları TRY olarak güncelle
-      const updatedDetails = invoiceDetails.map(detail => ({
-        ...detail,
-        currencyCode: 'TRY'
-      }));
-      setInvoiceDetails(updatedDetails);
-    }
-  }, [currentCurrencyCode, exchangeRates]);
+  // Önemli: Bu useEffect'i kaldırıyoruz çünkü handleCurrencyChange zaten gerekli güncellemeleri yapıyor
+  // ve döngü oluşmasına neden oluyor
+  // useEffect(() => {
+  //   if (currentCurrencyCode !== 'TRY' && Object.keys(exchangeRates).length > 0) {
+  //     updatePricesWithExchangeRate(currentCurrencyCode);
+  //   } else if (currentCurrencyCode === 'TRY' && invoiceDetails.length > 0) {
+  //     // TRY seçildiğinde, tüm fiyatları TRY olarak güncelle
+  //     const updatedDetails = invoiceDetails.map(detail => ({
+  //       ...detail,
+  //       currencyCode: 'TRY'
+  //     }));
+  //     setInvoiceDetails(updatedDetails);
+  //   }
+  // }, [currentCurrencyCode, exchangeRates]);
 
   // Bir metnin barkod olup olmadığını kontrol et
   const isBarcodeFormat = (text: string): boolean => {
@@ -564,22 +690,15 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       return;
     }
     
-    setLoadingVariants(true);
     try {
-      console.log('Barkod araması başlatılıyor:', searchText);
+      setLoadingVariants(true);
+      // getVariantsByBarcode yerine searchProducts metodunu kullanıyoruz
+      const result = await productApi.searchProducts(searchText);
       
-      // Barkod ile ara
-      const response = await productApi.getProductVariantsByBarcode(searchText);
-      console.log('Barkod araması sonucu:', response);
-      
-      if (response && response.length > 0) {
-        console.log('Barkod ile varyantlar bulundu:', response);
-        setProductVariants(response);
-        // İlk varyantı otomatik olarak listeye ekle
-        if (response[0]) {
-          console.log('İlk varyant listeye ekleniyor:', response[0]);
-          addVariantToScannedList(response[0]);
-        }
+      if (result && result.length > 0) {
+        setProductVariants(result);
+        // İlk bulunan varyantı otomatik olarak ekle
+        addVariantToScannedList(result[0]);
       } else {
         // Barkod ile bulunamadıysa uyarı göster
         console.log('Barkod ile varyant bulunamadı');
@@ -778,7 +897,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         );
 
         if (prevStock) {
-          // Mevcut stok bilgisini güncelle
+          // Mevcut stok bilgisini günculle
           const updatedStock = inventoryStock.map(s => 
             ((s as any).productCode === productCode || (s as any).itemCode === productCode) ? stockResponse[0] : s
           );
@@ -829,7 +948,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             // Eşleşen ilk öğeyi al
             const priceItem = matchingItems[0];
             
-            // Varyantın fiyat ve KDV bilgilerini güncelle
+            // Varyantın fiyat ve KDV bilgilerini günculle
             variant.salesPrice1 = priceItem.birimFiyat || 0;
             // Vergi tipi vergisiz ise KDV 0, değilse 10
             variant.vatRate = taxTypeMode === 'vergisiz' ? 0 : 10;
@@ -856,7 +975,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             // Fiyat listesinden ilk fiyatı al (en güncel fiyat)
             const firstPrice = priceList[0];
             
-            // Varyantın fiyat ve KDV bilgilerini güncelle
+            // Varyantın fiyat ve KDV bilgilerini günculle
             variant.salesPrice1 = firstPrice.birimFiyat || 0;
             // Vergi tipi vergisiz ise KDV 0, değilse API'den gelen değer veya 10
             variant.vatRate = taxTypeMode === 'vergisiz' ? 0 : (firstPrice.vatRate || 10);
@@ -1257,9 +1376,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       
       // Not: Fatura numarası artık backend tarafında fatura oluşturma sırasında otomatik oluşturulacak
       // Form alanını geçici bir değerle doldur
+      // Eğer form alanında zaten bir tarih değeri varsa, onu koruyalım
+      const currentDate = form.getFieldValue('invoiceDate');
+      const initialDate = currentDate || dayjs();
+      
+      // Tarihi global state'e kaydedelim
+      setLastInvoiceDate(initialDate);
+      console.log('loadInitialData: Başlangıç tarihi ayarlandı:', initialDate.format('YYYY-MM-DD'));
+      
       form.setFieldsValue({ 
         invoiceNumber: 'Otomatik oluşturulacak',
-        invoiceDate: dayjs(), // Bugünün tarihini ayarla
+        invoiceDate: initialDate, // Mevcut tarihi koru veya bugünün tarihini ayarla
         docCurrencyCode: 'TRY' // Varsayılan para birimi
       });
       
@@ -1363,7 +1490,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       return;
     }
     
-    // isPriceIncludeVat değiştiğinde tüm satırları güncelle
+    // isPriceIncludeVat değiştiğinde tüm satırları günculle
     if (field === 'isPriceIncludeVat') {
       // KDV dahil/hariç değerini günculle
       setIsPriceIncludeVat(value);
@@ -1718,59 +1845,40 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         console.log('Nakit ödeme modalını açılıyor...', invoiceData);
         
         // Ödeme tipini kontrol et
-        const paymentType = form.getFieldValue('paymentType');
+        const paymentType = values.paymentType;
         console.log('Ödeme tipi:', paymentType);
         console.log('Ödeme tipi türü:', typeof paymentType);
-        console.log('Form değerleri:', form.getFieldsValue());
+        console.log('Form değerleri:', values);
         
-        // Eğer paymentType sayısal bir değerse string'e çevirelim
-        const normalizedPaymentType = typeof paymentType === 'number' ? String(paymentType) : paymentType;
-        
-        // State'i güncelleyelim ve sonra modalı açalım
-        setSavedInvoiceData(invoiceData);
-        
-        // Sadece ödeme tipi "Peşin" veya 1 ise nakit tahsilat modalını aç
-        if (normalizedPaymentType === 'Peşin' || normalizedPaymentType === '1' || normalizedPaymentType === 1) {
-          message.success('Fatura oluşturuldu. Nakit tahsilat işlemi başlatılıyor...');
+        // Ödeme tipi peşin ise nakit tahsilat modalını aç
+        if (paymentType === 'Peşin') {
+          // Nakit ödeme modalını aç
+          setShowCashPaymentModal(true);
           
-          // Fatura verilerini hazırla
-          console.log('Nakit tahsilat modalı açılıyor, invoiceData:', invoiceData);
-          
-          // Global modal açma fonksiyonunu kullan
-          const modalProps = {
-            invoiceHeaderID: invoiceData.id || '',
-            invoiceNumber: invoiceData.invoiceNumber || '',
-            invoiceAmount: invoiceData.amount || 0,
-            currencyCode: invoiceData.currencyCode || 'TRY',
-            currAccCode: invoiceData.currAccCode || '',
-            currAccTypeCode: invoiceData.currAccTypeCode || 3,
-            officeCode: invoiceData.officeCode || '',
-            onSuccess: handleCashPaymentSuccess,
-            onClose: handleCashPaymentModalClose
-          };
-          
-          // Fatura verilerini state'e kaydet (eski yöntem için gerekli)
-          setSavedInvoiceData(invoiceData);
-          
-          // Modalı aç
+          // Modal açma işlemini setTimeout ile biraz geciktirelim
           setTimeout(() => {
-            // Hem eski yöntem hem de yeni yöntem ile modalı aç
-            setShowCashPaymentModal(true);
-            openCashPaymentModal(modalProps);
-            console.log('Modal açma isteği gönderildi:', modalProps);
-          }, 300);
+            console.log('Nakit ödeme modalı açılıyor (gecikmeli)...');
+            CashPaymentModalAPI.open({
+              ...invoiceData,
+              onSuccess: handleCashPaymentSuccess,
+              onCancel: handleCashPaymentModalClose,
+              zIndex: 1500 // z-index değerini artır
+            });
+          }, 100);
           
-          console.log('Modal açma işlemi başlatıldı');
+          console.log('Nakit ödeme modalı açma isteği gönderildi');
+          // Peşin ödeme durumunda yönlendirme YOK
+        } else {
+          // Peşin değilse normal yönlendirme yap
+          navigate('/invoices/wholesale');
         }
-        
-        // Not: Nakit ödeme modalı kapatıldığında form sıfırlanacak
-        // Bu işlem handleCashPaymentModalClose ve handleCashPaymentSuccess fonksiyonlarında yapılıyor
       } else {
-        // Hata mesajını göster
-        let errorMessage = response?.message || 'Fatura kaydedilirken bir hata oluştu!';
+        // API yanıtı başarısız ise hata mesajı göster
+        let errorMessage = 'Fatura kaydedilirken bir hata oluştu!';
         
         // Özel hata mesajları için kontrol
-        if (errorMessage.includes('UNIQUE KEY constraint') && errorMessage.includes('UQ_trInvoiceHeader')) {
+        if (response?.data?.message?.includes('UNIQUE KEY constraint') && 
+            response?.data?.message?.includes('UQ_trInvoiceHeader')) {
           errorMessage = 'Bu fatura numarası zaten kullanımda! Lütfen farklı bir fatura numarası kullanın veya otomatik numara oluşturma seçeneğini seçin.';
         }
         
@@ -1803,55 +1911,13 @@ const openBarcodeModal = () => {
   setBarcodeModalVisible(true);
 };
 
-const handleCashPaymentModalClose = () => {
-  // Modalı kapat ve state'i temizle
-  setShowCashPaymentModal(false);
-  setSavedInvoiceData(null);
-  
-  // Formu sıfırla
-  form.resetFields();
-  setInvoiceDetails([]);
-  updateTotals([]);
-  setActiveTab('1');
-  
-  // Yeni fatura için başlangıç değerleri useEffect içinde ayarlanıyor
-};
-
-const handleCashPaymentSuccess = (paymentData: any) => {
-  console.log('Nakit tahsilat başarılı:', paymentData);
-  
-  // Modalı kapat ve state'i temizle
-  setShowCashPaymentModal(false);
-  setSavedInvoiceData(null);
-  
-  // Tek bir başarı mesajı göster
-  message.success('Nakit tahsilat başarıyla kaydedildi');
-  
-  // Formu sıfırla
-  form.resetFields();
-  setInvoiceDetails([]);
-  updateTotals([]);
-  setActiveTab('1');
-  
-  // Fatura listesine yönlendir
-  navigate('/invoices');
-  
-  // Başarı callback'ini çağır
-  if (onSuccess) {
-    onSuccess(savedInvoiceData);
-  }
-};
+  // Bu fonksiyon yukarıda zaten tanımlandı, bu yüzden kaldırılıyor.
 
 
 
 
 
   
-  // Başarı callback'ini çağır
-  if (onSuccess && savedInvoiceData) {
-    onSuccess(savedInvoiceData);
-  }
-
   // Bileşen render
   return (
   <Card
@@ -1887,11 +1953,20 @@ const handleCashPaymentSuccess = (paymentData: any) => {
           console.log('Fatura tarihi değişti:', newDate.format('YYYY-MM-DD'));
           console.log('Para birimi:', allValues.currencyCode || 'TRY');
           
+          // Yeni tarihi sakla
+          const updatedDate = newDate;
+          
           // TRY olsa bile döviz kurunu güncelle (TRY için 1 olacak)
           console.log('Fatura tarihi değişti - Döviz kuru güncelleniyor...');
           try {
-            // Döviz kurunu güncelle
-            await loadExchangeRates();
+            // Döviz kurunu güncelle, ama önce tarihi kaydet
+            const loadRatesAndKeepDate = async () => {
+              await loadExchangeRates();
+              // Tarihi tekrar ayarla (loadExchangeRates içinde değişmiş olabilir)
+              form.setFieldsValue({ invoiceDate: updatedDate });
+            };
+            
+            await loadRatesAndKeepDate();
             
             // Form'dan güncel döviz kurunu al
             const currentRate = form.getFieldValue('exchangeRate');
@@ -1913,10 +1988,20 @@ const handleCashPaymentSuccess = (paymentData: any) => {
                 net: netAmount
               });
             }
+            
+            // Tarihi son kez kontrol et ve gerekirse tekrar ayarla
+            const currentDateInForm = form.getFieldValue('invoiceDate');
+            if (!dayjs(currentDateInForm).isSame(updatedDate)) {
+              console.log('Tarih değeri kaybolmuş, tekrar ayarlanıyor:', updatedDate.format('YYYY-MM-DD'));
+              form.setFieldsValue({ invoiceDate: updatedDate });
+            }
+            
             console.log('------ FATURA TARİHİ DEĞİŞİKLİĞİ TAMAMLANDI ------');
           } catch (error) {
             console.error('Döviz kuru güncellenirken hata oluştu:', error);
             message.error('Döviz kuru güncellenirken bir hata oluştu');
+            // Hata durumunda da tarihi koru
+            form.setFieldsValue({ invoiceDate: updatedDate });
           }
         }
         
@@ -1924,39 +2009,42 @@ const handleCashPaymentSuccess = (paymentData: any) => {
         if ('currAccCode' in changedValues && changedValues.currAccCode) {
           console.log('Müşteri/Tedarikçi değişti:', changedValues.currAccCode);
           
-          // Müşteri/Tedarikçi değiştiğinde döviz kurunu güncelle
-          console.log('Müşteri/Tedarikçi değişti - Döviz kuru güncelleniyor...');
-          try {
-            // Döviz kurunu güncelle
-            loadExchangeRates().then(() => {
-              // Form'dan güncel döviz kurunu ve para birimini al
-              const currentRate = form.getFieldValue('exchangeRate');
-              const currencyCode = form.getFieldValue('currencyCode');
-              console.log('Müşteri/Tedarikçi değişti - Döviz kuru güncellendi:', currentRate);
-              console.log('Müşteri/Tedarikçi değişti - Para birimi:', currencyCode);
-              
-              // Güncel para birimini state'e kaydet
-              setCurrentCurrencyCode(currencyCode);
-              
-              // Satırları ve toplamları güncelle
-              if (invoiceDetails.length > 0) {
-                console.log('Müşteri/Tedarikçi değişti - Satırlar güncelleniyor...');
-                updatePricesWithExchangeRate(currencyCode);
-                console.log('Müşteri/Tedarikçi değişti - Satırlar güncellendi:', invoiceDetails.length, 'satır');
-                
-                console.log('Müşteri/Tedarikçi değişti - Toplamlar güncelleniyor...');
-                updateTotals(invoiceDetails);
-                console.log('Müşteri/Tedarikçi değişti - Toplamlar güncellendi:', {
-                  toplam: totalAmount,
-                  indirim: discountAmount,
-                  araToplam: subtotalAmount,
-                  kdv: vatAmount,
-                  net: netAmount
-                });
-              }
+          // ÖNEMLİ: Burada loadExchangeRates() çağrısını kaldırdık çünkü
+          // InvoiceHeader.tsx içinde müşteri seçildiğinde zaten para birimi değişiyor
+          // ve handleCurrencyChange fonksiyonu çağrılıyor. Bu da sonsuz döngüye neden oluyordu.
+          
+          // Mevcut form değerlerini kontrol et
+          const currentInvoiceDate = form.getFieldValue('invoiceDate');
+          const currencyCode = form.getFieldValue('currencyCode');
+          const currentRate = form.getFieldValue('exchangeRate');
+          
+          console.log('Müşteri/Tedarikçi değişti - Mevcut para birimi:', currencyCode);
+          console.log('Müşteri/Tedarikçi değişti - Mevcut döviz kuru:', currentRate);
+          
+          // Güncel para birimini state'e kaydet
+          setCurrentCurrencyCode(currencyCode);
+          
+          // Eğer tarih değişmişse, önceki değeri geri yükle
+          if (currentInvoiceDate && !dayjs(form.getFieldValue('invoiceDate')).isSame(currentInvoiceDate)) {
+            console.log('Tarih değişmiş, önceki değer geri yükleniyor:', currentInvoiceDate.format('YYYY-MM-DD'));
+            form.setFieldsValue({ invoiceDate: currentInvoiceDate });
+          }
+          
+          // Satırları ve toplamları güncelle
+          if (invoiceDetails.length > 0) {
+            console.log('Müşteri/Tedarikçi değişti - Satırlar güncelleniyor...');
+            updatePricesWithExchangeRate(currencyCode);
+            console.log('Müşteri/Tedarikçi değişti - Satırlar güncellendi:', invoiceDetails.length, 'satır');
+            
+            console.log('Müşteri/Tedarikçi değişti - Toplamlar güncelleniyor...');
+            updateTotals(invoiceDetails);
+            console.log('Müşteri/Tedarikçi değişti - Toplamlar güncellendi:', {
+              toplam: totalAmount,
+              indirim: discountAmount,
+              araToplam: subtotalAmount,
+              kdv: vatAmount,
+              net: netAmount
             });
-          } catch (error) {
-            console.error('Müşteri/Tedarikçi değiştiğinde döviz kuru güncellenirken hata oluştu:', error);
           }
         }
         
@@ -2282,20 +2370,7 @@ const handleCashPaymentSuccess = (paymentData: any) => {
       }}
     />
     
-    {/* Nakit tahsilat modal - Her zaman render et, görünürlüğü isVisible ile kontrol et */}
-    <CashPaymentModal
-      isVisible={showCashPaymentModal}
-      onClose={handleCashPaymentModalClose}
-      onSuccess={handleCashPaymentSuccess}
-      invoiceHeaderID={savedInvoiceData?.id || ''}
-      invoiceNumber={savedInvoiceData?.invoiceNumber || ''}
-      invoiceAmount={savedInvoiceData?.amount || 0}
-      currencyCode={savedInvoiceData?.currencyCode || 'TRY'}
-      currAccCode={savedInvoiceData?.currAccCode || ''}
-      currAccTypeCode={savedInvoiceData?.currAccTypeCode || 3}
-      officeCode={savedInvoiceData?.officeCode || ''}
-    />
-    
+    {/* Nakit tahsilat modal artık CashPaymentModalAPI ile açılıyor, burada render etmeye gerek yok */}
 
   </Card>
   );

@@ -429,8 +429,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
 
   // Döviz kurunu getir
   const fetchExchangeRate = async (currencyCodeParam?: string) => {
+    // Önemli: Mevcut fatura tarihini sakla
+    const currentInvoiceDate = form.getFieldValue('invoiceDate');
+    console.log('fetchExchangeRate: Mevcut tarih saklandı:', currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+    
     const currencyCode = currencyCodeParam || form.getFieldValue('currencyCode');
-    const invoiceDate = form.getFieldValue('invoiceDate');
+    const invoiceDate = currentInvoiceDate; // Sakladığımız tarihi kullan
     const source = form.getFieldValue('exchangeRateSource') || exchangeRateSource;
     
     if (!currencyCode || !invoiceDate) {
@@ -441,7 +445,11 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     // TRY için kur her zaman 1'dir
     if (currencyCode === 'TRY') {
       setExchangeRate(1);
-      form.setFieldsValue({ exchangeRate: 1 });
+      form.setFieldsValue({ 
+        exchangeRate: 1,
+        // Tarihi koru
+        invoiceDate: currentInvoiceDate
+      });
       if (onExchangeRateChange) onExchangeRateChange(1);
       return;
     }
@@ -449,6 +457,8 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     // Manuel kaynak seçilmişse, kullanıcının kuru girmesine izin ver
     if (source === 'MANUEL') {
       setExchangeRateDisabled(false);
+      // Tarihi koru
+      form.setFieldsValue({ invoiceDate: currentInvoiceDate });
       return;
     }
     
@@ -475,19 +485,39 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       if (response && response.exchangeRate) {
         const rate = parseFloat(response.exchangeRate);
         setExchangeRate(rate);
-        form.setFieldsValue({ exchangeRate: rate });
+        form.setFieldsValue({ 
+          exchangeRate: rate,
+          // Tarihi koru
+          invoiceDate: currentInvoiceDate
+        });
         if (onExchangeRateChange) onExchangeRateChange(rate);
       } else {
         message.warning(`${currencyCode} için döviz kuru bulunamadı.`);
         setExchangeRate(0);
-        form.setFieldsValue({ exchangeRate: 0 });
+        form.setFieldsValue({ 
+          exchangeRate: 0,
+          // Tarihi koru
+          invoiceDate: currentInvoiceDate
+        });
         if (onExchangeRateChange) onExchangeRateChange(0);
+      }
+      
+      // Son kontrol: Tarih hala doğru mu?
+      const finalDate = form.getFieldValue('invoiceDate');
+      if (!finalDate || (currentInvoiceDate && !dayjs(finalDate).isSame(currentInvoiceDate))) {
+        console.log('fetchExchangeRate: Tarih değişmiş, tekrar yükleniyor:', 
+                    currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+        form.setFieldsValue({ invoiceDate: currentInvoiceDate });
       }
     } catch (error) {
       console.error('Döviz kuru alınırken hata oluştu:', error);
       message.error('Döviz kuru alınırken hata oluştu');
       setExchangeRate(0);
-      form.setFieldsValue({ exchangeRate: 0 });
+      form.setFieldsValue({ 
+        exchangeRate: 0,
+        // Tarihi koru
+        invoiceDate: currentInvoiceDate
+      });
       if (onExchangeRateChange) onExchangeRateChange(0);
     }
   };
@@ -685,8 +715,21 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       // Bugünün tarihini al
       const today = dayjs();
       
-      // Mevcut form değerlerini logla
-      console.log('Form başlangıcında tüm değerler:', form.getFieldsValue());
+      // Mevcut form değerlerini logla - tarih değerlerini okunabilir formatta göster
+      const allValues = form.getFieldsValue();
+      const formattedValues: Record<string, any> = {};
+      
+      // Tarih değerlerini okunabilir formata dönüştür
+      Object.keys(allValues).forEach(key => {
+        if (allValues[key] && typeof allValues[key] === 'object' && allValues[key].format) {
+          // Bu bir dayjs/moment nesnesi
+          formattedValues[key] = allValues[key].format('YYYY-MM-DD');
+        } else {
+          formattedValues[key] = allValues[key];
+        }
+      });
+      
+      console.log('Form başlangıcında tüm değerler (formatlı):', formattedValues);
       
       // Mevcut ödeme tipi değerini al
       const currentPaymentType = form.getFieldValue('paymentType');
@@ -699,17 +742,34 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       }
       console.log('Normalize edilmiş ödeme tipi:', normalizedPaymentType);
       
-      // Form değerlerini ayarla
+      // Önemli: Mevcut fatura tarihini kontrol et
+      const currentInvoiceDate = form.getFieldValue('invoiceDate');
+      
+      // Form değerlerini ayarla - eğer zaten bir tarih varsa, onu koru
       form.setFieldsValue({
         exchangeRateSource: 'TCMB',
-        invoiceDate: today,
+        // Eğer mevcut bir tarih varsa onu koru, yoksa bugünün tarihini kullan
+        invoiceDate: currentInvoiceDate || today,
         paymentType: normalizedPaymentType,
         dueDays: 0,
-        dueDate: today
+        // Vade tarihi için de aynı mantık
+        dueDate: currentInvoiceDate || today
       });
       
-      // Güncellenen değerleri logla
-      console.log('Form değerleri güncellendi:', form.getFieldsValue());
+      // Güncellenen değerleri logla - tarih değerlerini okunabilir formatta göster
+      const updatedValues = form.getFieldsValue();
+      const formattedUpdatedValues: Record<string, any> = {};
+      
+      Object.keys(updatedValues).forEach(key => {
+        if (updatedValues[key] && typeof updatedValues[key] === 'object' && updatedValues[key].format) {
+          // Bu bir dayjs/moment nesnesi
+          formattedUpdatedValues[key] = updatedValues[key].format('YYYY-MM-DD');
+        } else {
+          formattedUpdatedValues[key] = updatedValues[key];
+        }
+      });
+      
+      console.log('Form değerleri güncellendi (formatlı):', formattedUpdatedValues);
     } catch (error) {
       console.error('Form değerleri ayarlanırken hata oluştu:', error);
     }
