@@ -1733,26 +1733,18 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         if (normalizedPaymentType === 'Peşin' || normalizedPaymentType === '1' || normalizedPaymentType === 1) {
           message.success('Fatura oluşturuldu. Nakit tahsilat işlemi başlatılıyor...');
           
-          // Önce savedInvoiceData'yı ayarla ve sonra modalı aç
+          // Önce invoiceData'yı ayarla, sonra modalı aç
           console.log('Nakit tahsilat modalı açılıyor, invoiceData:', invoiceData);
           
-          // Önce state'i güncelleyelim
-          setSavedInvoiceData(null); // Önce null'a ayarlayıp sonra yeniden set edelim (state güncellemesini zorlamak için)
+          // Doğrudan state'leri ayarla - sıralama önemli
+          setSavedInvoiceData(invoiceData);
           
-          // Kısa bir gecikme sonra yeni değeri ayarlayalım
+          // Modalı aç
           setTimeout(() => {
-            setSavedInvoiceData(invoiceData);
-            console.log('savedInvoiceData ayarlandı:', invoiceData);
-            
-            // Daha uzun bir gecikme ile modalı aç (React state güncellemelerinin tamamlanmasını bekle)
-            setTimeout(() => {
-              console.log('State güncellemeleri tamamlandı, şimdi modalı açıyoruz');
-              setShowCashPaymentModal(true);
-              console.log('showCashPaymentModal ayarlandı:', true);
-            }, 500);
+            setShowCashPaymentModal(true);
+            console.log('showCashPaymentModal ayarlandı:', true);
           }, 300);
           
-          // State güncellemelerini kontrol et
           console.log('Modal açma işlemi başlatıldı');
         }
         
