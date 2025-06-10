@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Modal, Button, message } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Modal, Button } from 'antd';
 import { DollarOutlined } from '@ant-design/icons';
 import CashPaymentForm from './CashPaymentForm';
 
@@ -36,9 +36,18 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
 }) => {
   // Buton modu için local state
   const [buttonModalVisible, setButtonModalVisible] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
   
   // Debug için her render'da log ekleyelim
-  console.log('CashPaymentModal RENDER - isVisible:', isVisible, 'invoiceHeaderID:', invoiceHeaderID);
+  console.log('CashPaymentModal RENDER - isVisible:', isVisible, 'invoiceHeaderID:', invoiceHeaderID, 'modalVisible:', modalVisible);
+  
+  // isVisible prop'u değiştiğinde modalVisible state'ini güncelle
+  useEffect(() => {
+    console.log('CashPaymentModal useEffect - isVisible değişti:', isVisible);
+    if (isVisible !== undefined) {
+      setModalVisible(isVisible);
+    }
+  }, [isVisible]);
   
   // Buton tıklandığında modalı göster (sadece buton modu için)
   const showModal = () => {
@@ -53,8 +62,11 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
       setButtonModalVisible(false);
     } 
     // isVisible prop'u ile kontrol edilen mod için
-    else if (onClose) {
-      onClose();
+    else {
+      setModalVisible(false);
+      if (onClose) {
+        onClose();
+      }
     }
   };
 
@@ -65,6 +77,8 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
     // Buton modu için
     if (isVisible === undefined) {
       setButtonModalVisible(false);
+    } else {
+      setModalVisible(false);
     }
     
     // Eğer onSuccess callback'i varsa çağır
@@ -73,30 +87,28 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
     }
   };
 
-  // İki farklı render modu: isVisible prop'u varsa sadece modal göster, yoksa buton + modal göster
-  return (
-    <>
-      {/* isVisible prop'u yoksa buton göster */}
-      {isVisible === undefined && (
-        <>
-          <Button 
-            type={buttonType} 
-            icon={<DollarOutlined />} 
-            onClick={showModal}
-            size={buttonSize}
-          >
-            {buttonText}
-          </Button>
-          
-          {/* Buton modu için modal */}
-          <Modal
-            title="Nakit Tahsilat"
-            open={buttonModalVisible}
-            onCancel={handleCancel}
-            width={800}
-            footer={null}
-            destroyOnClose={true}
-          >
+  // Buton modu için render
+  if (isVisible === undefined) {
+    return (
+      <>
+        <Button 
+          type={buttonType} 
+          icon={<DollarOutlined />} 
+          onClick={showModal}
+          size={buttonSize}
+        >
+          {buttonText}
+        </Button>
+        
+        <Modal
+          title="Nakit Tahsilat"
+          open={buttonModalVisible}
+          onCancel={handleCancel}
+          width={800}
+          footer={null}
+          destroyOnClose={true}
+        >
+          {buttonModalVisible && (
             <CashPaymentForm
               invoiceHeaderID={invoiceHeaderID}
               invoiceNumber={invoiceNumber}
@@ -108,34 +120,36 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
               onSuccess={handleSuccess}
               onCancel={handleCancel}
             />
-          </Modal>
-        </>
-      )}
-      
-      {/* isVisible prop'u varsa sadece modal göster */}
-      {isVisible !== undefined && (
-        <Modal
-          title="Nakit Tahsilat"
-          open={isVisible === true}
-          onCancel={handleCancel}
-          width={800}
-          footer={null}
-          destroyOnClose={true}
-        >
-          <CashPaymentForm
-            invoiceHeaderID={invoiceHeaderID}
-            invoiceNumber={invoiceNumber}
-            invoiceAmount={invoiceAmount}
-            currencyCode={currencyCode}
-            currAccCode={currAccCode}
-            currAccTypeCode={currAccTypeCode}
-            officeCode={officeCode}
-            onSuccess={handleSuccess}
-            onCancel={handleCancel}
-          />
+          )}
         </Modal>
+      </>
+    );
+  }
+  
+  // isVisible prop'u ile kontrol edilen mod için render
+  return (
+    <Modal
+      title="Nakit Tahsilat"
+      open={modalVisible}
+      onCancel={handleCancel}
+      width={800}
+      footer={null}
+      destroyOnClose={true}
+    >
+      {modalVisible && (
+        <CashPaymentForm
+          invoiceHeaderID={invoiceHeaderID}
+          invoiceNumber={invoiceNumber}
+          invoiceAmount={invoiceAmount}
+          currencyCode={currencyCode}
+          currAccCode={currAccCode}
+          currAccTypeCode={currAccTypeCode}
+          officeCode={officeCode}
+          onSuccess={handleSuccess}
+          onCancel={handleCancel}
+        />
       )}
-    </>
+    </Modal>
   );
 };
 

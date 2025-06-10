@@ -1736,19 +1736,27 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
           // Önce invoiceData'yı ayarla, sonra modalı aç
           console.log('Nakit tahsilat modalı açılıyor, invoiceData:', invoiceData);
           
-          // Önce null'a ayarla, sonra yeni değeri set et (React state güncellemesini zorlamak için)
+          // Önce modalı kapat
+          setShowCashPaymentModal(false);
+          
+          // Önce savedInvoiceData'yı temizle
           setSavedInvoiceData(null);
           
-          // Kısa bir gecikme ile yeni değeri ayarla
+          // Yeni fatura verilerini ayarla ve modalı aç
           setTimeout(() => {
-            setSavedInvoiceData(invoiceData);
+            // Önce fatura verilerini ayarla
+            setSavedInvoiceData({
+              ...invoiceData,
+              // Fatura tutarını doğru şekilde ayarla
+              amount: invoiceData.amount || 0
+            });
             
-            // Daha uzun bir gecikme ile modalı aç
+            // Sonra modalı aç
             setTimeout(() => {
               setShowCashPaymentModal(true);
               console.log('showCashPaymentModal ayarlandı:', true);
-            }, 100);
-          }, 100);
+            }, 500);
+          }, 500);
           
           console.log('Modal açma işlemi başlatıldı');
         }
