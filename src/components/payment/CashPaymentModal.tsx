@@ -43,12 +43,16 @@ const CashPaymentModal: React.FC<CashPaymentModalProps> = ({
     // isVisible true ise modalı aç
     if (isVisible === true) {
       console.log('Modal açılıyor, isVisible:', isVisible, 'invoiceHeaderID:', invoiceHeaderID);
-      setIsModalVisible(true);
+      // Modalı açmak için timeout kullan - React state güncellemelerinin tamamlanmasını bekle
+      setTimeout(() => {
+        setIsModalVisible(true);
+        console.log('Modal açıldı, isModalVisible:', true);
+      }, 100);
     } else {
       console.log('Modal kapalı kalıyor, isVisible:', isVisible);
       setIsModalVisible(false);
     }
-  }, [isVisible, invoiceHeaderID]); // isVisible veya invoiceHeaderID değiştiğinde tetikle
+  }, [isVisible]); // Sadece isVisible değiştiğinde tetikle
 
   const showModal = () => {
     setIsModalVisible(true);

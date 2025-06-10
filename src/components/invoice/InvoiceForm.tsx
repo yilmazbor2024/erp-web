@@ -1731,17 +1731,22 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         
         // Sadece ödeme tipi "Peşin" veya 1 ise nakit tahsilat modalını aç
         if (normalizedPaymentType === 'Peşin' || normalizedPaymentType === '1' || normalizedPaymentType === 1) {
+          // Önce savedInvoiceData'yı ayarla
+          setSavedInvoiceData(invoiceData);
+          console.log('savedInvoiceData ayarlandı:', invoiceData);
+          
           // Daha uzun bir gecikme ile modalı aç (React state güncellemelerinin tamamlanmasını bekle)
           setTimeout(() => {
-            console.log('savedInvoiceData ayarlandı, şimdi modalı açıyoruz');
+            console.log('State güncellemeleri tamamlandı, şimdi modalı açıyoruz');
             console.log('savedInvoiceData kontrol:', invoiceData);
             
             // Modalı aç
             setShowCashPaymentModal(true);
-          }, 500);
+            console.log('showCashPaymentModal ayarlandı:', true);
+          }, 1000);
           
           // State güncellemelerini kontrol et
-          console.log('showCashPaymentModal ayarlanıyor:', true);
+          console.log('Modal açma işlemi başlatıldı');
           console.log('savedInvoiceData:', invoiceData);
         }
         
