@@ -599,21 +599,19 @@ const CreateWholesaleInvoice: React.FC = () => {
         </Card>
       </Spin>
 
-      {/* Nakit tahsilat modal */}
-      {savedInvoiceData && (
-        <CashPaymentModal
-          isVisible={showCashPaymentModal}
-          onClose={handleCashPaymentModalClose}
-          onSuccess={handleCashPaymentSuccess}
-          invoiceHeaderID={savedInvoiceData.id}
-          invoiceNumber={savedInvoiceData.invoiceNumber}
-          invoiceAmount={savedInvoiceData.amount}
-          currencyCode={savedInvoiceData.currencyCode}
-          currAccCode={savedInvoiceData.currAccCode}
-          currAccTypeCode={savedInvoiceData.currAccTypeCode}
-          officeCode={savedInvoiceData.officeCode}
-        />
-      )}
+      {/* Nakit tahsilat modal - Her zaman render et, görünürlüğü isVisible ile kontrol et */}
+      <CashPaymentModal
+        isVisible={showCashPaymentModal}
+        onClose={handleCashPaymentModalClose}
+        onSuccess={handleCashPaymentSuccess}
+        invoiceHeaderID={savedInvoiceData?.id || ''}
+        invoiceNumber={savedInvoiceData?.invoiceNumber || ''}
+        invoiceAmount={savedInvoiceData?.amount || 0}
+        currencyCode={savedInvoiceData?.currencyCode || 'TRY'}
+        currAccCode={savedInvoiceData?.currAccCode || ''}
+        currAccTypeCode={savedInvoiceData?.currAccTypeCode || 3}
+        officeCode={savedInvoiceData?.officeCode || ''}
+      />
     </div>
   );
 };
