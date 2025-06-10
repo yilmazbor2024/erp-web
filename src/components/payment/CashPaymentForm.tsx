@@ -851,17 +851,40 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'red' }}>{currencyCode} {invoiceAmount?.toFixed(2)}</span>
               </div>
               
+              {currencyCode !== 'TRY' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Fatura Toplamı (TRY):</span>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'red' }}>TRY {(invoiceAmount * currentExchangeRate).toFixed(2)}</span>
+                </div>
+              )}
+              
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Ödenen Tutar:</span>
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'green' }}>{currencyCode} {paidAmount.toFixed(2)}</span>
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: paidAmount > invoiceAmount ? '8px' : '0' }}>
+              {currencyCode !== 'TRY' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Ödenen Tutar (TRY):</span>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'green' }}>TRY {(paidAmount * currentExchangeRate).toFixed(2)}</span>
+                </div>
+              )}
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{paidAmount > invoiceAmount ? 'Para Üstü:' : 'Kalan Tutar:'}</span>
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: paidAmount > invoiceAmount ? 'blue' : 'orange' }}>
                   {currencyCode} {Math.abs(paidAmount - invoiceAmount).toFixed(2)}
                 </span>
               </div>
+              
+              {currencyCode !== 'TRY' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: paidAmount > invoiceAmount ? '8px' : '0' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{paidAmount > invoiceAmount ? 'Para Üstü (TRY):' : 'Kalan Tutar (TRY):'}</span>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: paidAmount > invoiceAmount ? 'blue' : 'orange' }}>
+                    TRY {(Math.abs(paidAmount - invoiceAmount) * currentExchangeRate).toFixed(2)}
+                  </span>
+                </div>
+              )}
               
               {paidAmount > invoiceAmount && (
                 <div style={{ backgroundColor: '#e6f7ff', padding: '8px', borderRadius: '4px', marginTop: '8px', border: '1px solid #91d5ff' }}>
