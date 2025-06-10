@@ -55,7 +55,7 @@ interface CustomerAddress {
 
 // Sevkiyat yöntemi arayüzü - API'den gelen veri yapısına uygun
 interface ShipmentMethod {
-  shipmentMethodCode: string;
+  ShipmentMethodCode: string;
   shipmentMethodName?: string;
   shipmentMethodDescription?: string;
   description?: string;
@@ -103,12 +103,17 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     try {
       const response = await shipmentApi.getShipmentMethods();
       if (response && response.data) {
-        setShipmentMethods(response.data);
+        // API'den gelen verileri ShipmentMethod arayüzüne uygun şekilde dönüştür
+        const formattedMethods = response.data.map(method => ({
+          ...method,
+          ShipmentMethodCode: method.shipmentMethodCode
+        }));
+        setShipmentMethods(formattedMethods);
         console.log('Sevkiyat yöntemleri yüklendi:', response.data);
         
         // Varsayılan olarak hiçbir sevkiyat yöntemi seçilmeyecek
         // Kullanıcının manuel olarak seçmesi gerekiyor
-        form.setFieldsValue({ shipmentMethodCode: '' });
+        form.setFieldsValue({ ShipmentMethodCode: '' });
       }
     } catch (error) {
       console.error('Sevkiyat yöntemleri alınırken hata oluştu:', error);
@@ -631,12 +636,15 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       if (customers) {
         const customer = customers.find(c => c.customerCode === customerId);
         if (customer && customer.currencyCode) {
-          // Müşterinin para birimi varsa, onu seç
-          form.setFieldsValue({ currencyCode: customer.currencyCode });
-          setIsCustomerCurrency(true);
-          
-          // Müşteri para birimi değiştiğinde callback fonksiyonu çağır
-          if (onCurrencyChange) onCurrencyChange(customer.currencyCode);
+          // Müşterinin para birimi varsa, onu seç - ancak mevcut seçili para birimi varsa değiştirme
+          const currentCurrency = form.getFieldValue('currencyCode');
+          if (!currentCurrency) {
+            form.setFieldsValue({ currencyCode: customer.currencyCode });
+            setIsCustomerCurrency(true);
+            
+            // Müşteri para birimi değiştiğinde callback fonksiyonu çağır
+            if (onCurrencyChange) onCurrencyChange(customer.currencyCode);
+          }
         } else {
           setIsCustomerCurrency(false);
         }
@@ -648,12 +656,15 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       if (vendors) {
         const vendor = vendors.find(v => v.vendorCode === vendorId);
         if (vendor && vendor.currencyCode) {
-          // Tedarikçinin para birimi varsa, onu seç
-          form.setFieldsValue({ currencyCode: vendor.currencyCode });
-          setIsCustomerCurrency(true);
-          
-          // Tedarikçi para birimi değiştiğinde callback fonksiyonu çağır
-          if (onCurrencyChange) onCurrencyChange(vendor.currencyCode);
+          // Tedarikçinin para birimi varsa, onu seç - ancak mevcut seçili para birimi varsa değiştirme
+          const currentCurrency = form.getFieldValue('currencyCode');
+          if (!currentCurrency) {
+            form.setFieldsValue({ currencyCode: vendor.currencyCode });
+            setIsCustomerCurrency(true);
+            
+            // Tedarikçi para birimi değiştiğinde callback fonksiyonu çağır
+            if (onCurrencyChange) onCurrencyChange(vendor.currencyCode);
+          }
         } else {
           setIsCustomerCurrency(false);
         }
@@ -1289,6 +1300,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                       
                       // Döviz kurunu getir
                       fetchExchangeRate(customer.currencyCode);
+                      
+                      // Para birimi değişikliğini bildir
+                      if (onCurrencyChange) {
+                        console.log('Müşteri seçimi sonrası para birimi değişti:', customer.currencyCode);
+                        onCurrencyChange(customer.currencyCode);
+                      }
                     } else {
                       setIsCustomerCurrency(false);
                     }
@@ -1370,6 +1387,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                       
                       // Döviz kurunu getir
                       fetchExchangeRate(vendor.currencyCode);
+                      
+                      // Para birimi değişikliğini bildir
+                      if (onCurrencyChange) {
+                        console.log('Tedarikçi seçimi sonrası para birimi değişti:', vendor.currencyCode);
+                        onCurrencyChange(vendor.currencyCode);
+                      }
                     } else {
                       setIsVendorCurrency(false);
                     }
@@ -1403,7 +1426,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
 
         <Col xs={24} sm={12}>
           <Form.Item
-            name="shipmentMethodCode"
+            name="ShipmentMethodCode"
             label="Sevkiyat Yöntemi"
           >
             <Select
@@ -1415,11 +1438,11 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 if (!value) return;
                 console.log('Sevkiyat yöntemi seçildi:', value);
                 // Seçilen değeri doğrudan form alanına ata
-                form.setFieldsValue({ shipmentMethodCode: value });
+                form.setFieldsValue({ ShipmentMethodCode: value });
                 
                 // Form alanının güncel değerini kontrol et
                 setTimeout(() => {
-                  const currentValue = form.getFieldValue('shipmentMethodCode');
+                  const currentValue = form.getFieldValue('ShipmentMethodCode');
                   console.log('Sevkiyat yöntemi form alanı güncel değeri:', currentValue);
                 }, 100);
               }}
@@ -1445,8 +1468,8 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               <Option value="">Sevkiyat yöntemi seçin</Option>
               {shipmentMethods?.length > 0 ? 
                 shipmentMethods.map((method, index) => (
-                  <Option key={index} value={method.shipmentMethodCode}>
-                    {method.shipmentMethodDescription || method.description || `${method.shipmentMethodName} (${method.shipmentMethodCode})`}
+                  <Option key={index} value={method.ShipmentMethodCode}>
+                    {method.shipmentMethodDescription || method.description || `${method.shipmentMethodName} (${method.ShipmentMethodCode})`}
                   </Option>
                 )) : 
                 <Option disabled value="">Sevkiyat yöntemi bulunamadı</Option>

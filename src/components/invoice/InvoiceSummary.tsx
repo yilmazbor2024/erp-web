@@ -56,14 +56,16 @@ const InvoiceSummary: React.FC<InvoiceSummaryProps> = ({
       <Row gutter={[16, 16]}>
         <Col xs={24} md={12}>
           <Card title="Fatura Notları" variant="borderless">
-            {/* Form.Item yerine doğrudan Input.TextArea kullanıyoruz */}
-            <Input.TextArea 
-              rows={4} 
-              placeholder="Fatura ile ilgili notlar..."
-              style={{ width: '100%' }}
-              value={form?.getFieldValue('notes') || ''}
-              onChange={(e) => form?.setFieldsValue({ notes: e.target.value })}
-            />
+            <Form.Item
+              name="notes"
+              noStyle
+            >
+              <Input.TextArea 
+                rows={4} 
+                placeholder="Fatura ile ilgili notlar..."
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
           </Card>
         </Col>
         

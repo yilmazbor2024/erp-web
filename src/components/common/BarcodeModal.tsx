@@ -36,6 +36,8 @@ interface BarcodeModalProps {
   removeAllScannedItems: () => void;
   updateScannedItemQuantity: (index: number, quantity: number) => void;
   updateScannedItemPrice: (index: number, price: number) => void;
+  currencyCode?: string; // Para birimi kodu
+  taxTypeMode?: string; // Vergi tipi modu (vergili/vergisiz)
 }
 
 const BarcodeModal: React.FC<BarcodeModalProps> = ({
@@ -60,9 +62,39 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
   removeAllScannedItems,
   updateScannedItemQuantity,
   updateScannedItemPrice,
+  currencyCode,
+  taxTypeMode = 'vergili',
 }) => {
   const [bulkPrice, setBulkPrice] = useState<number | null>(null);
-  const [bulkVatRate, setBulkVatRate] = useState<number>(10); // Varsayılan KDV oranı
+  const [bulkVatRate, setBulkVatRate] = useState<number>(taxTypeMode === 'vergisiz' ? 0 : 10); // Vergi tipine göre varsayılan KDV oranı
+  
+  // Vergi tipi değiştiğinde KDV oranını güncelle
+  useEffect(() => {
+    if (taxTypeMode === 'vergisiz') {
+      setBulkVatRate(0);
+      
+      // Tüm taranan ürünlerin KDV oranını 0 yap
+      if (scannedItems.length > 0) {
+        const updatedItems = scannedItems.map(item => ({
+          ...item,
+          variant: {
+            ...item.variant,
+            vatRate: 0
+          }
+        }));
+        setScannedItems(updatedItems);
+      }
+      
+      // Bulunan ürünlerin KDV oranını 0 yap
+      if (productVariants.length > 0) {
+        const updatedVariants = productVariants.map(variant => ({
+          ...variant,
+          vatRate: 0
+        }));
+        setProductVariants(updatedVariants);
+      }
+    }
+  }, [taxTypeMode]);
   const [searchByProduct, setSearchByProduct] = useState<boolean>(false); // false: barkod/varyant ile arama, true: ürün kodu/açıklaması ile arama
   const [localInventoryStock, setLocalInventoryStock] = useState<InventoryStock[]>([]);
   const [localLoadingInventory, setLocalLoadingInventory] = useState<boolean>(false);
@@ -482,7 +514,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
                 onChange={(value) => setBulkPrice(value)}
                 min={0}
                 style={{ width: 120 }}
-                addonAfter="TL"
+                addonAfter={currencyCode || "TL"}
               />
             </Col>
             <Col>
@@ -657,7 +689,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
                 Toplam: {scannedItems.length} ürün | {scannedItems.reduce((sum, item) => sum + item.quantity, 0)} adet
               </Tag>
               <Tag color="green" style={{ fontSize: '14px' }}>
-                Toplam Tutar: {scannedItems.reduce((sum, item) => sum + (item.variant.salesPrice1 || 0) * item.quantity, 0).toFixed(2)} TL
+                Toplam Tutar: {scannedItems.reduce((sum, item) => sum + (item.variant.salesPrice1 || 0) * item.quantity, 0).toFixed(2)} {currencyCode}
               </Tag>
             </Space>
           </div>

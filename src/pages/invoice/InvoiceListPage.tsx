@@ -191,7 +191,7 @@ const InvoiceListPage: React.FC = () => {
   const handleCreateSuccess = (data: any) => {
     setCreateModalVisible(false);
     loadInvoices();
-    // Not: Başarı mesajı InvoiceForm bileşeninde gösteriliyor
+    message.success('Fatura başarıyla oluşturuldu.');
   };
 
   // Tablo sütunları
