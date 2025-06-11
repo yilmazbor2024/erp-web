@@ -20,13 +20,15 @@ const { Option } = Select;
 const { Text, Title } = Typography;
 
 interface CashPaymentFormProps {
-  invoiceHeaderID: string;
-  invoiceNumber: string;
-  invoiceAmount: number;
-  currencyCode: string;
-  currAccCode: string;
-  currAccTypeCode: string;
-  officeCode: string;
+  invoiceHeaderID: string;     // Fatura başlık ID'si
+  invoiceNumber: string;       // Fatura numarası
+  invoiceAmount: number;       // Fatura toplam tutarı (Genel Toplam)
+  invoiceAmountTRY?: number;   // TL Karşılığı
+  exchangeRate?: number;       // Döviz Kuru
+  currencyCode: string;        // Para birimi kodu (TRY, USD, EUR, GBP vb.)
+  currAccCode: string;         // Müşteri kodu
+  currAccTypeCode: string;     // Müşteri tipi kodu
+  officeCode: string;          // Ofis kodu
   onSuccess?: (response: any) => void;
   onCancel?: () => void;
 }
@@ -59,6 +61,8 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   invoiceHeaderID,
   invoiceNumber,
   invoiceAmount,
+  invoiceAmountTRY,
+  exchangeRate,
   currencyCode,
   currAccCode,
   currAccTypeCode,
@@ -93,14 +97,15 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   const [currentCurrencyCode, setCurrentCurrencyCode] = useState<string>('TRY');
 
   useEffect(() => {
-    // Fatura bilgilerini konsola yazdır (debug için)
     console.log('Nakit tahsilat formu açıldı, fatura bilgileri:', {
       invoiceHeaderID,
       invoiceNumber,
       invoiceAmount,
       currencyCode,
       currAccCode,
-      currAccTypeCode
+      currAccTypeCode,
+      invoiceAmountTRY,
+      exchangeRate
     });
     
     // Eğer fatura tutarı 0 veya geçersizse, konsola uyarı yazdır
@@ -175,31 +180,47 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       // Seçili para birimi
       const currencyCode = form.getFieldValue('currencyCode');
       console.log('Para birimi kontrol ediliyor:', currencyCode);
+      console.log('Gelen fatura bilgileri:', {
+        invoiceAmount,
+        currencyCode,
+        invoiceAmountTRY,
+        exchangeRate
+      });
       
-      // Eğer TRY ise kur 1 olarak ayarla ve inputu devre dışı bırak
+      // Para birimi TRY ise kur 1 olarak ayarlanır
       if (currencyCode === 'TRY') {
-        form.setFieldsValue({ exchangeRate: 1 });
-        setCurrentExchangeRate(1);
-        setExchangeRateDisabled(true);
         console.log('TRY para birimi seçildi, kur 1 olarak ayarlandı');
-        return;
-      }
-      
-      // TRY değilse input aktif olsun
-      setExchangeRateDisabled(false);
-      console.log('TRY dışında para birimi seçildi, kur manuel girilecek');
-      
-      // Varsayılan değer olarak 0 ayarla
-      if (!form.getFieldValue('exchangeRate')) {
-        form.setFieldsValue({ exchangeRate: 0 });
-        setCurrentExchangeRate(0);
+        setCurrentExchangeRate(1.0000);
+        setCurrentCurrencyCode('TRY');
+      } else {
+        // Para birimi TRY değilse, gelen kur kullanılır veya API'den alınır
+        if (exchangeRate) {
+          console.log(`${currencyCode} para birimi seçildi, gelen kur kullanılıyor: ${exchangeRate}`);
+          setCurrentExchangeRate(exchangeRate);
+        } else {
+          console.log(`${currencyCode} para birimi seçildi, kur API'den alınıyor...`);
+          // API'den güncel kur alınır
+          const today = new Date();
+          const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+          exchangeRateApi.getExchangeRate(currencyCode, 'TRY', dateStr)
+            .then(rate => {
+              console.log(`${currencyCode} için kur alındı: ${rate}`);
+              setCurrentExchangeRate(rate);
+            })
+            .catch(error => {
+              console.error(`${currencyCode} için kur alınamadı:`, error);
+              // Hata durumunda varsayılan olarak 1 kullanılır
+              setCurrentExchangeRate(1.0000);
+            });
+        }
+        setCurrentCurrencyCode(currencyCode);
       }
     } catch (error) {
       console.error('Döviz kuru kontrolünde hata:', error);
     }
   };
   
-  // Para birimi değiştiğinde döviz kuru kontrolünü yap
+  // Para birimi değiştiğinde döviz kurunu güncelle
   useEffect(() => {
     if (currencies.length > 0) {
       loadExchangeRates();
@@ -418,8 +439,20 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       
       console.log('Eklenen tutar:', Number(formAmount));
       console.log('TRY karşılığı:', tryAmount);
-      console.log('Fatura toplamı:', invoiceAmount);
-      console.log('Mevcut ödenen toplam:', paidAmount);
+      
+      // TRY cinsinden fatura tutarını hesapla (tüm fonksiyon için kullanılacak)
+      const invoiceTotalTRY = invoiceAmountTRY !== undefined ? invoiceAmountTRY : (invoiceAmount * (exchangeRate !== undefined ? exchangeRate : currentExchangeRate));
+      console.log('Fatura toplamı (TRY):', invoiceTotalTRY);
+      console.log('Fatura toplamı (Orijinal):', invoiceAmount);
+      console.log('Mevcut ödenen toplam (TRY):', paidAmount);
+      
+      // Eklenen tutarın TRY karşılığı + mevcut ödenen toplam, fatura tutarının TRY karşılığını aşıyorsa uyarı ver
+      if (tryAmount + paidAmount > invoiceTotalTRY * 1.05) { // %5 tolerans ekledik
+        const confirmAdd = window.confirm(`Dikkat! Eklediğiniz tutar (${tryAmount.toFixed(2)} TRY) ile toplam ödeme tutarı (${(tryAmount + paidAmount).toFixed(2)} TRY), fatura tutarını (${invoiceTotalTRY.toFixed(2)} TRY) aşıyor. Yine de eklemek istiyor musunuz?`);
+        if (!confirmAdd) {
+          return;
+        }
+      }
       
       // Yeni ödeme satırı oluştur
       const newRow: PaymentRow = {
@@ -442,17 +475,20 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       setPaidAmount(totalPaid);
       console.log('Güncel ödenen toplam:', totalPaid);
       
-      // Kalan tutarı hesapla
-      const remaining = invoiceAmount - totalPaid;
-      setRemainingAmount(remaining);
-      console.log('Kalan tutar:', remaining);
+      // TRY cinsinden kalan tutarı hesapla
+      const remainingTRY = invoiceTotalTRY - totalPaid;
+      // Orijinal para birimindeki kalan tutarı hesapla (gösterim için)
+      const remainingOriginal = currencyCode !== 'TRY' ? remainingTRY / (exchangeRate !== undefined ? exchangeRate : currentExchangeRate) : remainingTRY;
+      setRemainingAmount(remainingOriginal);
+      console.log('Kalan tutar (TRY):', remainingTRY);
+      console.log('Kalan tutar (Orijinal):', remainingOriginal);
       
-      // Para üstü kontrolü
-      if (totalPaid > invoiceAmount) {
-        const advance = totalPaid - invoiceAmount;
+      // Para üstü kontrolü - TRY cinsinden yapılıyor
+      if (totalPaid > invoiceTotalTRY) {
+        const advance = totalPaid - invoiceTotalTRY;
         setAdvanceAmount(advance);
         setShowAdvanceWarning(true);
-        console.log('Para üstü:', advance);
+        console.log('Para üstü (TRY):', advance);
       } else {
         setShowAdvanceWarning(false);
         setAdvanceAmount(0);
@@ -665,15 +701,32 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
               <Text strong>Müşteri Kodu:</Text> <Text>{currAccCode}</Text>
             </Col>
             <Col span={12}>
-              {currencyCode !== 'TRY' ? (
-                <>
-                  <Text strong>Toplam Tutar:</Text> <Text>{invoiceAmount && invoiceAmount > 0 ? invoiceAmount.toFixed(2) : '0.00'} {currencyCode} = {(invoiceAmount * currentExchangeRate).toFixed(2)} TRY</Text>
-                </>
-              ) : (
-                <>
-                  <Text strong>Toplam Tutar:</Text> <Text>{invoiceAmount && invoiceAmount > 0 ? invoiceAmount.toFixed(2) : '0.00'} {currencyCode}</Text>
-                </>
-              )}
+              <div className="summary-section">
+                <h3>Nakit Ödeme Özeti</h3>
+                <div className="summary-item">
+                  <span className="summary-label">Genel Toplam:</span>
+                  <span className="summary-value" style={{ color: 'red', fontWeight: 'bold' }}>
+                    TRY {invoiceAmountTRY !== undefined ? invoiceAmountTRY.toFixed(2) : ((invoiceAmount || 0) * (exchangeRate !== undefined ? exchangeRate : currentExchangeRate)).toFixed(2)}
+                  </span>
+                </div>
+                {currencyCode !== 'TRY' && (
+                  <div className="summary-item" style={{ fontSize: '11px', color: 'gray', fontStyle: 'italic', marginTop: '-8px', marginBottom: '8px' }}>
+                    (GBP {invoiceAmount.toFixed(2)} - Döviz Kuru: {exchangeRate !== undefined ? exchangeRate.toFixed(4) : currentExchangeRate.toFixed(4)} TRY)
+                  </div>
+                )}
+                <div className="summary-item">
+                  <span className="summary-label">Ödenen Tutar:</span>
+                  <span className="summary-value" style={{ color: 'green', fontWeight: 'bold' }}>
+                    TRY {(paidAmount || 0).toFixed(2)}
+                  </span>
+                </div>
+                <div className="summary-item">
+                  <span className="summary-label">Kalan Tutar:</span>
+                  <span className="summary-value" style={{ color: 'orange', fontWeight: 'bold' }}>
+                    TRY {(invoiceAmountTRY !== undefined ? invoiceAmountTRY - (paidAmount || 0) : ((invoiceAmount || 0) * (exchangeRate !== undefined ? exchangeRate : currentExchangeRate)) - (paidAmount || 0)).toFixed(2)}
+                  </span>
+                </div>
+              </div>
             </Col>
             <Col span={12}>
               <Text strong>Ödeme Tipi:</Text> <Text>Peşin</Text>
@@ -854,65 +907,32 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
             
             {/* Sağ taraf - özet bilgiler */}
             <div style={{ width: '40%', border: '1px solid #f0f0f0', padding: '12px', backgroundColor: '#fafafa', borderRadius: '5px' }}>
-              {currencyCode !== 'TRY' ? (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Fatura Toplamı:</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'red' }}>TRY {(invoiceAmount * currentExchangeRate).toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Orijinal Tutar ({currencyCode}):</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'blue' }}>{currencyCode} {invoiceAmount?.toFixed(2)}</span>
-                  </div>
-                </>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Fatura Toplamı:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'red' }}>TRY {invoiceAmount?.toFixed(2)}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Genel Toplam:</span>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'red' }}>
+                  TRY {invoiceAmountTRY !== undefined ? invoiceAmountTRY.toFixed(2) : ((invoiceAmount || 0) * (exchangeRate !== undefined ? exchangeRate : currentExchangeRate)).toFixed(2)}
+                </span>
+              </div>
+              
+              {currencyCode !== 'TRY' && (
+                <div style={{ fontSize: '11px', color: 'gray', fontStyle: 'italic', marginTop: '-5px', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px', textAlign: 'right' }}>
+                  (GBP {(invoiceAmount || 0).toFixed(2)} - Döviz Kuru: {exchangeRate !== undefined ? exchangeRate.toFixed(4) : currentExchangeRate.toFixed(4)} TRY)
                 </div>
               )}
               
-              {currencyCode !== 'TRY' ? (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Ödenen Tutar:</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'green' }}>TRY {(paidAmount * currentExchangeRate).toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Orijinal Ödeme ({currencyCode}):</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'blue' }}>{currencyCode} {paidAmount.toFixed(2)}</span>
-                  </div>
-                </>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>Ödenen Tutar:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'green' }}>TRY {paidAmount.toFixed(2)}</span>
-                </div>
-              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Ödenen Tutar:</span>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'green' }}>
+                  TRY {(paidAmount || 0).toFixed(2)}
+                </span>
+              </div>
               
-              {currencyCode !== 'TRY' ? (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{paidAmount > invoiceAmount ? 'Para Üstü:' : 'Kalan Tutar:'}</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: paidAmount > invoiceAmount ? 'blue' : 'orange' }}>
-                      TRY {(Math.abs(paidAmount - invoiceAmount) * currentExchangeRate).toFixed(2)}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: paidAmount > invoiceAmount ? '8px' : '0' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{paidAmount > invoiceAmount ? `Orijinal Para Üstü (${currencyCode}):` : `Orijinal Kalan (${currencyCode}):`}</span>
-                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: paidAmount > invoiceAmount ? 'blue' : 'orange' }}>
-                      {currencyCode} {Math.abs(paidAmount - invoiceAmount).toFixed(2)}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: paidAmount > invoiceAmount ? '8px' : '0' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold' }}>{paidAmount > invoiceAmount ? 'Para Üstü:' : 'Kalan Tutar:'}</span>
-                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: paidAmount > invoiceAmount ? 'blue' : 'orange' }}>
-                    TRY {Math.abs(paidAmount - invoiceAmount).toFixed(2)}
-                  </span>
-                </div>
-              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>Kalan Tutar:</span>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: 'orange' }}>
+                  TRY {(invoiceAmountTRY !== undefined ? invoiceAmountTRY - (paidAmount || 0) : ((invoiceAmount || 0) * (exchangeRate !== undefined ? exchangeRate : currentExchangeRate)) - (paidAmount || 0)).toFixed(2)}
+                </span>
+              </div>
               
               {paidAmount > invoiceAmount && (
                 <div style={{ backgroundColor: '#e6f7ff', padding: '8px', borderRadius: '4px', marginTop: '8px', border: '1px solid #91d5ff' }}>

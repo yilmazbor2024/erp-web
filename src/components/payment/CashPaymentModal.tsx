@@ -3,13 +3,16 @@ import { Modal, Button } from 'antd';
 import { DollarOutlined } from '@ant-design/icons';
 import CashPaymentForm from './CashPaymentForm';
 import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { AuthProvider } from '../../contexts/AuthContext';
 
 // CashPaymentModal Props
 interface CashPaymentModalProps {
   invoiceHeaderID: string;
   invoiceNumber: string;
-  invoiceAmount: number;
+  invoiceAmount: number;       // Genel Toplam
+  invoiceAmountTRY?: number;   // TL Karşılığı
+  exchangeRate?: number;       // Döviz Kuru
   currencyCode: string;
   currAccCode: string;
   currAccTypeCode: string;
@@ -66,13 +69,15 @@ const StandaloneModal: React.FC<any> = (props) => {
       destroyOnClose={false}
       maskClosable={false}
       keyboard={false}
-      zIndex={9999}
+      zIndex={1050}
       style={{ top: 20 }}
     >
       <CashPaymentForm
-        invoiceHeaderID={props.id || ''}
+        invoiceHeaderID={props.id || props.invoiceHeaderID || ''}
         invoiceNumber={props.invoiceNumber || ''}
-        invoiceAmount={props.amount || 0}
+        invoiceAmount={props.amount || props.invoiceAmount || 0}
+        invoiceAmountTRY={props.invoiceAmountTRY}
+        exchangeRate={props.exchangeRate}
         currencyCode={props.currencyCode || 'TRY'}
         currAccCode={props.currAccCode || ''}
         currAccTypeCode={props.currAccTypeCode || ''}
@@ -84,14 +89,21 @@ const StandaloneModal: React.FC<any> = (props) => {
   );
 };
 
+// Modal root için referans tutacak değişken
+let rootInstance: any = null;
+
 // Doğrudan modal render fonksiyonu
 function renderStandaloneModal(props: any) {
   if (modalRoot) {
-    ReactDOM.render(
+    // Eğer önceden bir root instance oluşturulmuşsa onu kullan
+    if (!rootInstance) {
+      rootInstance = createRoot(modalRoot);
+    }
+    
+    rootInstance.render(
       <AuthProvider>
         <StandaloneModal {...props} />
-      </AuthProvider>,
-      modalRoot
+      </AuthProvider>
     );
   }
 }

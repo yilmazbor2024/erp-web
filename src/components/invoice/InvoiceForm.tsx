@@ -82,6 +82,7 @@ interface InvoiceDetailRequest {
   unitOfMeasureCode: string;
   unitPrice: number;
   vatRate: number;
+  vatCode?: string; // KDV kodu (%0, %10, %20 gibi)
   discountRate: number;
   description: string;
   totalAmount: number;
@@ -1414,8 +1415,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     // Eğer "vergisiz" seçildiyse tüm fatura satırlarındaki KDV oranını 0 yap
     if (taxMode === 'vergisiz') {
       const updatedDetails = invoiceDetails.map(detail => {
-        // KDV oranını 0 olarak ayarla
-        const updatedDetail = { ...detail, vatRate: 0 };
+        // KDV oranını 0 ve KDV kodunu %0 olarak ayarla
+        const updatedDetail = { ...detail, vatRate: 0, vatCode: '%0' };
         
         // Döviz kuru bilgisini ekle
         if (currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode]) {
@@ -1428,16 +1429,46 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       
       setInvoiceDetails(updatedDetails);
       updateTotals(updatedDetails);
-      console.log('Tüm KDV oranları 0 olarak ayarlandı');
+      console.log('Tüm KDV oranları 0 ve KDV kodları %0 olarak ayarlandı');
       
       // Taranan ürünlerin KDV oranlarını da güncelle
       if (scannedItems.length > 0) {
         const updatedScannedItems = scannedItems.map(item => {
           item.variant.vatRate = 0;
+          item.variant.vatCode = '%0';
           return item;
         });
         setScannedItems(updatedScannedItems);
-        console.log('Taranan ürünlerin KDV oranları 0 olarak ayarlandı');
+        console.log('Taranan ürünlerin KDV oranları 0 ve KDV kodları %0 olarak ayarlandı');
+      }
+    } else if (taxMode === 'normal') {
+      // Normal vergi tipi seçildiğinde varsayılan KDV oranını %10 yap
+      const updatedDetails = invoiceDetails.map(detail => {
+        // KDV oranını 10 ve KDV kodunu %10 olarak ayarla (varsayılan)
+        const updatedDetail = { ...detail, vatRate: 10, vatCode: '%10' };
+        
+        // Döviz kuru bilgisini ekle
+        if (currentCurrencyCode !== 'TRY' && exchangeRates[currentCurrencyCode]) {
+          updatedDetail.exchangeRate = exchangeRates[currentCurrencyCode];
+        }
+        
+        // Hesaplamaları yap
+        return calculateLineAmounts(updatedDetail, currentCurrencyCode);
+      });
+      
+      setInvoiceDetails(updatedDetails);
+      updateTotals(updatedDetails);
+      console.log('Tüm KDV oranları varsayılan %10 ve KDV kodları %10 olarak ayarlandı');
+      
+      // Taranan ürünlerin KDV oranlarını da güncelle
+      if (scannedItems.length > 0) {
+        const updatedScannedItems = scannedItems.map(item => {
+          item.variant.vatRate = 10;
+          item.variant.vatCode = '%10';
+          return item;
+        });
+        setScannedItems(updatedScannedItems);
+        console.log('Taranan ürünlerin KDV oranları varsayılan %10 ve KDV kodları %10 olarak ayarlandı');
       }
     }
   };
@@ -1636,6 +1667,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         unitOfMeasureCode: detail.unitOfMeasureCode || 'AD',
         unitPrice: detail.unitPrice || 0,
         vatRate: detail.vatRate || 10,
+        vatCode: detail.vatRate === 0 ? '%0' : detail.vatRate === 10 ? '%10' : detail.vatRate === 20 ? '%20' : '%10', // KDV kodu doğru ayarla
         discountRate: detail.discountRate || 0,
         description: detail.description || detail.productDescription || '',
         totalAmount: totalAmount,
@@ -1672,6 +1704,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       IsEInvoice: values.isEInvoice || false,
       Notes: values.notes || '',
       ProcessCode: invoiceTypeCode, // İşlem kodu fatura tipi ile aynı
+      TaxTypeCode: values.taxTypeCode || '0', // Vergi tipi kodunu ekle (varsayılan olarak 0=Standart)
       TotalAmount: totalAmount,
       DiscountAmount: discountAmount,
       SubtotalAmount: subtotalAmount,
@@ -1794,9 +1827,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       
       // API yanıtını kontrol et
       if (response && response.success) {
-        // Ödeme tipini kontrol et
-        const currentPaymentType = form.getFieldValue('paymentType');
+        // Ödeme tipini kontrol et - form değerlerinden ve values'dan kontrol edelim
+        const currentPaymentType = form.getFieldValue('paymentType') || values.paymentType;
         const currentNormalizedPaymentType = typeof currentPaymentType === 'number' ? String(currentPaymentType) : currentPaymentType;
+        
+        console.log('API yanıtı sonrası ödeme tipi kontrolü:', {
+          formPaymentType: form.getFieldValue('paymentType'),
+          valuesPaymentType: values.paymentType,
+          currentPaymentType,
+          currentNormalizedPaymentType,
+          sevkiyatBicimi: values.ShipmentMethodCode
+        });
         
         // Her durumda aynı başarı mesajını göster
         message.success('Fatura başarıyla kaydedildi');
@@ -1844,26 +1885,49 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         
         console.log('Nakit ödeme modalını açılıyor...', invoiceData);
         
-        // Ödeme tipini kontrol et
+        // Ödeme tipini kontrol et - sevkiyat biçimi seçilmiş olsa bile peşin ödeme kontrolü yap
         const paymentType = values.paymentType;
         console.log('Ödeme tipi:', paymentType);
         console.log('Ödeme tipi türü:', typeof paymentType);
         console.log('Form değerleri:', values);
+        console.log('Sevkiyat biçimi:', values.ShipmentMethodCode);
         
-        // Ödeme tipi peşin ise nakit tahsilat modalını aç
-        if (paymentType === 'Peşin') {
+        // Ödeme tipi peşin ise nakit tahsilat modalını aç (sevkiyat biçimi seçilmiş olsa bile)
+        // String ve sayı kontrolü yapıyoruz
+        if (paymentType === 'Peşin' || paymentType === 1 || String(paymentType) === '1') {
           // Nakit ödeme modalını aç
           setShowCashPaymentModal(true);
           
           // Modal açma işlemini setTimeout ile biraz geciktirelim
           setTimeout(() => {
             console.log('Nakit ödeme modalı açılıyor (gecikmeli)...');
-            CashPaymentModalAPI.open({
+            
+            // Fatura bilgilerini detaylı gösterelim
+            console.log('FATURA BİLGİLERİ DETAYI:');
+            console.log('Orijinal para birimi:', currentCurrencyCode);
+            console.log('API dönen para birimi:', invoiceData.currencyCode);
+            console.log('Fatura tutarı:', invoiceData.amount);
+            console.log('Net tutar:', netAmount);
+            console.log('Döviz kuru:', exchangeRate);
+            console.log('TRY karşılığı:', currentCurrencyCode !== 'TRY' ? parseFloat((netAmount * exchangeRate).toFixed(2)) : netAmount);
+            
+            // API'den dönen para birimi TRY olsa bile, orijinal para birimi ve döviz kuru bilgilerini aktaralım
+            const modalData = {
               ...invoiceData,
+              // Orijinal para birimini kullanalım
+              currencyCode: currentCurrencyCode,
+              // TRY karşılığını hesaplayalım
+              invoiceAmountTRY: currentCurrencyCode !== 'TRY' ? parseFloat((netAmount * exchangeRate).toFixed(2)) : undefined,
+              // Döviz kurunu gönderelim
+              exchangeRate: exchangeRate,
               onSuccess: handleCashPaymentSuccess,
               onCancel: handleCashPaymentModalClose,
-              zIndex: 1500 // z-index değerini artır
-            });
+              zIndex: 1050 // z-index değerini makul bir seviyeye ayarla
+            };
+            
+            console.log('Nakit ödeme modalına gönderilen veriler:', modalData);
+            
+            CashPaymentModalAPI.open(modalData);
           }, 100);
           
           console.log('Nakit ödeme modalı açma isteği gönderildi');

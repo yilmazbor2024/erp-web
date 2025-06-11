@@ -21,6 +21,7 @@ export interface ProductVariant {
   unitOfMeasureCode2: string;
   salesPrice1: number;
   vatRate: number | null;
+  vatCode?: string; // KDV kodu (%0, %10, %20 gibi)
   isBlocked: boolean;
   // Eski kodla uyumluluk için eklenen alanlar
   color?: string; // colorDescription ile aynı değere sahip olacak

@@ -18,7 +18,7 @@ import {
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import CashPaymentModal, { openCashPaymentModal } from '../../components/payment/CashPaymentModal';
+import CashPaymentModal, { CashPaymentModalAPI } from '../../components/payment/CashPaymentModal';
 import dayjs from 'dayjs';
 import invoiceApi, { CreateWholesaleInvoiceRequest, CreateInvoiceDetailRequest } from '../../services/invoiceApi';
 import { useAuth } from '../../contexts/AuthContext';
@@ -202,8 +202,8 @@ const CreateWholesaleInvoice: React.FC = () => {
             // Eski yöntem
             setShowCashPaymentModal(true);
             
-            // Yeni yöntem - global fonksiyon ile doğrudan açma
-            openCashPaymentModal({
+            // CashPaymentModalAPI ile modalı aç
+            CashPaymentModalAPI.open({
               ...paymentModalData,
               onSuccess: handleCashPaymentSuccess,
               onClose: handleCashPaymentModalClose
@@ -620,19 +620,7 @@ const CreateWholesaleInvoice: React.FC = () => {
         </Card>
       </Spin>
 
-      {/* Nakit tahsilat modal - Her zaman render et, görünürlüğü isVisible ile kontrol et */}
-      <CashPaymentModal
-        isVisible={showCashPaymentModal}
-        onClose={handleCashPaymentModalClose}
-        onSuccess={handleCashPaymentSuccess}
-        invoiceHeaderID={savedInvoiceData?.id || ''}
-        invoiceNumber={savedInvoiceData?.invoiceNumber || ''}
-        invoiceAmount={savedInvoiceData?.amount || 0}
-        currencyCode={savedInvoiceData?.currencyCode || 'TRY'}
-        currAccCode={savedInvoiceData?.currAccCode || ''}
-        currAccTypeCode={savedInvoiceData?.currAccTypeCode || 3}
-        officeCode={savedInvoiceData?.officeCode || ''}
-      />
+      {/* Nakit tahsilat modal artık CashPaymentModalAPI ile açılıyor, burada render etmeye gerek yok */}
     </div>
   );
 };

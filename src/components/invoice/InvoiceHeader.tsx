@@ -131,16 +131,19 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   // Vergi tiplerini izle ve "Vergisiz" seçeneğini varsayılan olarak ayarla
   useEffect(() => {
     if (taxTypes?.length > 0) {
+      // Tüm vergi tiplerini konsola yazdır
+      console.log('Mevcut tüm vergi tipleri:', JSON.stringify(taxTypes, null, 2));
+      
       // "Vergisiz" vergi tipini bul
       const taxFreeType = taxTypes.find(tax => 
-        tax.taxTypeDescription?.toLowerCase() === 'vergisiz' || 
-        tax.taxTypeCode?.toLowerCase() === 'vergisiz'
+        tax.taxTypeDescription?.toLowerCase() === 'Vergisiz' || 
+        tax.taxTypeCode === '4' // Vergisiz için kesin kod kontrolü
       );
       
       // Eğer "Vergisiz" vergi tipi varsa, onu varsayılan olarak ayarla
       if (taxFreeType) {
         form.setFieldsValue({ taxTypeCode: taxFreeType.taxTypeCode });
-        console.log('Varsayılan vergi tipi ayarlandı:', taxFreeType.taxTypeCode);
+        console.log('Varsayılan vergi tipi ayarlandı:', taxFreeType.taxTypeCode, taxFreeType);
         // Varsayılan olarak "Vergisiz" seçildiğinde KDV oranlarını sıfırla
         handleTaxTypeChange(taxFreeType.taxTypeCode);
       }
@@ -149,27 +152,32 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   
   // Vergi tipi değiştiğinde çalışacak fonksiyon
   const handleTaxTypeChange = (taxTypeCode: string) => {
-    console.log('Vergi tipi değişti:', taxTypeCode);
+    console.log('Vergi tipi değişti - Seçilen TaxTypeCode:', taxTypeCode);
     
     // Seçilen vergi tipini bul
     const selectedTaxType = taxTypes?.find(tax => tax.taxTypeCode === taxTypeCode);
+    console.log('Seçilen vergi tipi detayları:', selectedTaxType);
+    
+    // Form alanını güncelle - bu önemli, API'ye gönderilecek
+    form.setFieldsValue({ taxTypeCode: taxTypeCode });
     
     // Eğer "Vergisiz" seçildiyse tüm fatura satırlarındaki KDV oranını 0 yap
-  // Kesin kontrol: TaxTypeCode = 4 ve bsTaxTypeDesc = "Vergisiz"
-  if (selectedTaxType && 
-      (selectedTaxType.taxTypeCode === '4' || 
-       selectedTaxType.taxTypeDescription === 'Vergisiz')) {
+    // Kesin kontrol: TaxTypeCode = 4 ve bsTaxTypeDesc = "Vergisiz"
+    if (selectedTaxType && 
+        (selectedTaxType.taxTypeCode === '4' || 
+         selectedTaxType.taxTypeDescription === 'Vergisiz')) {
       
-      console.log('Vergisiz seçildi, tüm KDV oranları 0 olarak ayarlanıyor');
+      console.log('Vergisiz seçildi (TaxTypeCode=4), tüm KDV oranları 0 ve KDV kodları %0 olarak ayarlanıyor');
       
       // InvoiceForm bileşeninden gelen onTaxTypeChange fonksiyonunu çağır
       if (onTaxTypeChange) {
         onTaxTypeChange('vergisiz');
       }
     } else {
-      // Başka bir vergi tipi seçildiyse, normal KDV oranlarını kullan
+      // Başka bir vergi tipi seçildiyse, normal KDV oranlarını kullan (varsayılan %10)
+      console.log('Normal vergi tipi seçildi (TaxTypeCode=' + taxTypeCode + '), varsayılan KDV oranı %10 kullanılıyor');
       if (onTaxTypeChange) {
-        onTaxTypeChange('normal');
+        onTaxTypeChange('normal'); // normal mod - varsayılan KDV oranı %10
       }
     }
   };
