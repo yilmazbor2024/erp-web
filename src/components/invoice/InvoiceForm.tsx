@@ -1734,7 +1734,16 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     console.log('API isteği hazırlandı:', requestData);
     
     // API'ye gönder
-    let response;
+    let response: { 
+      success?: boolean, 
+      data?: { 
+        invoiceHeaderID?: string, 
+        invoiceId?: string, 
+        invoiceNumber?: string, 
+        netAmount?: number, 
+        message?: string 
+      } 
+    } = {};
     console.log('Fatura API çağrısı yapılıyor, fatura tipi:', type);
     console.log('API isteği:', requestData);
     
@@ -1826,7 +1835,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       message.destroy('invoiceSave');
       
       // API yanıtını kontrol et
-      if (response && response.success) {
+      if (response?.success) {
         // Ödeme tipini kontrol et - form değerlerinden ve values'dan kontrol edelim
         const currentPaymentType = form.getFieldValue('paymentType') || values.paymentType;
         const currentNormalizedPaymentType = typeof currentPaymentType === 'number' ? String(currentPaymentType) : currentPaymentType;
@@ -1844,14 +1853,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         
         // Başarı callback'ini çağır
         if (onSuccess) {
-          onSuccess(response.data);
+          onSuccess(response.data || {});
         }
         
         // Fatura verilerini kaydet
         const savedInvoice = {
-          id: response.data.invoiceHeaderID || 'temp-id-' + Date.now(),
-          invoiceNumber: response.data.invoiceNumber || values.invoiceNumber,
-          amount: response.data.netAmount || values.netAmount || 0,
+          id: response.data?.invoiceHeaderID || 'temp-id-' + Date.now(),
+          invoiceNumber: response.data?.invoiceNumber || values.invoiceNumber,
+          amount: response.data?.netAmount || values.netAmount || 0,
           currencyCode: values.docCurrencyCode || 'TRY',
           currAccCode: values.currAccCode,
           currAccTypeCode: currAccTypeCode,
@@ -1920,6 +1929,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
               invoiceAmountTRY: currentCurrencyCode !== 'TRY' ? parseFloat((netAmount * exchangeRate).toFixed(2)) : undefined,
               // Döviz kurunu gönderelim
               exchangeRate: exchangeRate,
+              // InvoiceHeaderID'yi açık bir şekilde belirtelim
+              invoiceHeaderID: response.data?.invoiceHeaderID || '',
               onSuccess: handleCashPaymentSuccess,
               onCancel: handleCashPaymentModalClose,
               zIndex: 1050 // z-index değerini makul bir seviyeye ayarla
@@ -1927,7 +1938,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
             
             console.log('Nakit ödeme modalına gönderilen veriler:', modalData);
             
-            CashPaymentModalAPI.open(modalData);
+            // InvoiceHeaderID'yi modalData'ya ekleyerek gönderiyoruz
+            CashPaymentModalAPI.open({
+              ...modalData,
+              invoiceHeaderID: response.data?.invoiceHeaderID || ''
+            });
           }, 100);
           
           console.log('Nakit ödeme modalı açma isteği gönderildi');
@@ -1957,7 +1972,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       
       // Hata mesajını daha detaylı göster
       if (error?.response?.data?.message) {
-        errorMessage = error.response.data.message;
+        errorMessage = error.response?.data?.message || 'Bir hata oluştu';
       } else if (error?.message) {
         errorMessage = error.message;
       }

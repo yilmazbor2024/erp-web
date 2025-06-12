@@ -91,10 +91,13 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
   
   // Ödeme satırları
   const [paymentRows, setPaymentRows] = useState<PaymentRow[]>([]);
-  const [currentExchangeRate, setCurrentExchangeRate] = useState<number>(1.0000);
+  const [currentExchangeRate, setCurrentExchangeRate] = useState<number>(exchangeRate || 1.0000);
   const [showAdvanceWarning, setShowAdvanceWarning] = useState<boolean>(false);
   const [advanceAmount, setAdvanceAmount] = useState<number>(0);
-  const [currentCurrencyCode, setCurrentCurrencyCode] = useState<string>('TRY');
+  const [currentCurrencyCode, setCurrentCurrencyCode] = useState<string>(currencyCode || 'TRY');
+  
+  // Seçilen kasa hesabı
+  const [selectedCashAccount, setSelectedCashAccount] = useState<string>('');
 
   useEffect(() => {
     console.log('Nakit tahsilat formu açıldı, fatura bilgileri:', {
@@ -113,17 +116,24 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       console.warn('Fatura tutarı geçersiz veya sıfır:', invoiceAmount);
     }
     
+    // Fatura para birimini ayarla
+    const faturaCurrencyCode = currencyCode || 'TRY';
+    setCurrentCurrencyCode(faturaCurrencyCode);
+    
+    // Döviz kuru ayarla
+    const faturaDovizKuru = exchangeRate && exchangeRate > 0 ? exchangeRate : 1.0000;
+    setCurrentExchangeRate(faturaDovizKuru);
+    
     // Form başlangıç değerlerini ayarla
     form.setFieldsValue({
       amount: invoiceAmount && invoiceAmount > 0 ? invoiceAmount : 0, // Fatura tutarını otomatik doldur
       description: `${invoiceNumber} nolu fatura için nakit tahsilat`,
-      currencyCode: currencyCode || 'TRY',
-      exchangeRate: 1
+      currencyCode: faturaCurrencyCode,
+      exchangeRate: faturaDovizKuru
     });
     
-    // Başlangıç para birimini ayarla
-    setCurrentCurrencyCode(currencyCode || 'TRY');
-    setRemainingAmount(invoiceAmount && invoiceAmount > 0 ? invoiceAmount : 0); // Kalan tutarı fatura tutarı olarak ayarla
+    // Kalan tutarı fatura tutarı olarak ayarla
+    setRemainingAmount(invoiceAmount && invoiceAmount > 0 ? invoiceAmount : 0);
     
     // Kasa hesaplarını ve para birimlerini yükle
     fetchCashAccounts();
@@ -326,22 +336,44 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('Kasa hesapları:', response.data);
+      
+      let accounts = [];
       if (Array.isArray(response.data)) {
-        setCashAccounts(response.data);
+        accounts = response.data;
       } else if (response.data && Array.isArray(response.data.data)) {
-        setCashAccounts(response.data.data);
-        console.log('Kasa hesapları data içinden alındı:', response.data.data);
+        accounts = response.data.data;
+        console.log('Kasa hesapları data içinden alındı:', accounts);
       } else {
         console.error('Kasa hesapları verisi geçerli bir dizi değil:', response.data);
         message.error('Kasa hesapları verisi geçerli bir format değil');
         // Test verileri ekle
-        const testAccounts = [
+        accounts = [
           { cashAccountCode: '101', cashAccountName: 'MERKEZ TL KASA', cashAccountDescription: 'Merkez ofis TL kasa', currencyCode: 'TRY', currencyDescription: 'Türk Lirası', officeCode: 'M', officeDescription: 'Merkez Ofis' },
           { cashAccountCode: '102', cashAccountName: 'ŞUBE TL KASA', cashAccountDescription: 'Şube kasa', currencyCode: 'TRY', currencyDescription: 'Türk Lirası', officeCode: 'S', officeDescription: 'Şube Ofis' },
-          { cashAccountCode: '102USD', cashAccountName: 'USD KASA', cashAccountDescription: 'Dolar kasa', currencyCode: 'USD', currencyDescription: 'ABD Doları', officeCode: 'M', officeDescription: 'Merkez Ofis' }
+          { cashAccountCode: '103', cashAccountName: 'USD KASA', cashAccountDescription: 'Dolar kasa', currencyCode: 'USD', currencyDescription: 'ABD Doları', officeCode: 'M', officeDescription: 'Merkez Ofis' },
+          { cashAccountCode: '104', cashAccountName: 'EUR KASA', cashAccountDescription: 'Euro kasa', currencyCode: 'EUR', currencyDescription: 'Euro', officeCode: 'M', officeDescription: 'Merkez Ofis' },
+          { cashAccountCode: '105', cashAccountName: 'GBP KASA', cashAccountDescription: 'Sterlin kasa', currencyCode: 'GBP', currencyDescription: 'Sterlin', officeCode: 'M', officeDescription: 'Merkez Ofis' }
         ];
-        setCashAccounts(testAccounts);
       }
+      
+      setCashAccounts(accounts);
+      
+      // Fatura para birimine uygun kasa hesabını otomatik seç
+      const matchingCashAccount = accounts.find((account: any) => account.currencyCode === currencyCode);
+      if (matchingCashAccount) {
+        console.log(`Fatura para birimine (${currencyCode}) uygun kasa bulundu:`, matchingCashAccount.cashAccountCode);
+        setSelectedCashAccount(matchingCashAccount.cashAccountCode);
+        form.setFieldsValue({ cashAccountCode: matchingCashAccount.cashAccountCode });
+      } else {
+        console.log(`Fatura para birimine (${currencyCode}) uygun kasa bulunamadı, varsayılan TL kasa seçiliyor`);
+        // Eğer uygun kasa bulunamazsa, TL kasa seç
+        const defaultCashAccount = accounts.find((account: any) => account.currencyCode === 'TRY');
+        if (defaultCashAccount) {
+          setSelectedCashAccount(defaultCashAccount.cashAccountCode);
+          form.setFieldsValue({ cashAccountCode: defaultCashAccount.cashAccountCode });
+        }
+      }
+      
     } catch (error) {
       console.error('Kasa hesapları yüklenirken hata:', error);
       message.error('Kasa hesapları yüklenemedi');
@@ -349,9 +381,18 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       const testAccounts = [
         { cashAccountCode: '101', cashAccountName: 'MERKEZ TL KASA', cashAccountDescription: 'Merkez ofis TL kasa', currencyCode: 'TRY', currencyDescription: 'Türk Lirası', officeCode: 'M', officeDescription: 'Merkez Ofis' },
         { cashAccountCode: '102', cashAccountName: 'ŞUBE TL KASA', cashAccountDescription: 'Şube kasa', currencyCode: 'TRY', currencyDescription: 'Türk Lirası', officeCode: 'S', officeDescription: 'Şube Ofis' },
-        { cashAccountCode: '102USD', cashAccountName: 'USD KASA', cashAccountDescription: 'Dolar kasa', currencyCode: 'USD', currencyDescription: 'ABD Doları', officeCode: 'M', officeDescription: 'Merkez Ofis' }
+        { cashAccountCode: '103', cashAccountName: 'USD KASA', cashAccountDescription: 'Dolar kasa', currencyCode: 'USD', currencyDescription: 'ABD Doları', officeCode: 'M', officeDescription: 'Merkez Ofis' },
+        { cashAccountCode: '104', cashAccountName: 'EUR KASA', cashAccountDescription: 'Euro kasa', currencyCode: 'EUR', currencyDescription: 'Euro', officeCode: 'M', officeDescription: 'Merkez Ofis' },
+        { cashAccountCode: '105', cashAccountName: 'GBP KASA', cashAccountDescription: 'Sterlin kasa', currencyCode: 'GBP', currencyDescription: 'Sterlin', officeCode: 'M', officeDescription: 'Merkez Ofis' }
       ];
       setCashAccounts(testAccounts);
+      
+      // Test verileri için de otomatik kasa seçimi yap
+      const matchingCashAccount = testAccounts.find((account: any) => account.currencyCode === currencyCode);
+      if (matchingCashAccount) {
+        setSelectedCashAccount(matchingCashAccount.cashAccountCode);
+        form.setFieldsValue({ cashAccountCode: matchingCashAccount.cashAccountCode });
+      }
     } finally {
       setLoadingCashAccounts(false);
     }
@@ -448,6 +489,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       
       // Eklenen tutarın TRY karşılığı + mevcut ödenen toplam, fatura tutarının TRY karşılığını aşıyorsa uyarı ver
       if (tryAmount + paidAmount > invoiceTotalTRY * 1.05) { // %5 tolerans ekledik
+        // Mevcut ödeme tutarı ve yeni eklenen tutarı ayrı ayrı göster
         const confirmAdd = window.confirm(`Dikkat! Eklediğiniz tutar (${tryAmount.toFixed(2)} TRY) ile toplam ödeme tutarı (${(tryAmount + paidAmount).toFixed(2)} TRY), fatura tutarını (${invoiceTotalTRY.toFixed(2)} TRY) aşıyor. Yine de eklemek istiyor musunuz?`);
         if (!confirmAdd) {
           return;
@@ -484,11 +526,20 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       console.log('Kalan tutar (Orijinal):', remainingOriginal);
       
       // Para üstü kontrolü - TRY cinsinden yapılıyor
-      if (totalPaid > invoiceTotalTRY) {
+      // Küçük yuvarlamalar için 0.01 tolerans değeri ekliyoruz
+      const TOLERANCE = 0.01;
+      if (totalPaid > invoiceTotalTRY + TOLERANCE) {
         const advance = totalPaid - invoiceTotalTRY;
-        setAdvanceAmount(advance);
-        setShowAdvanceWarning(true);
-        console.log('Para üstü (TRY):', advance);
+        // Avans miktarı çok küçükse (0.01'den küçük) gösterme
+        if (advance > TOLERANCE) {
+          setAdvanceAmount(advance);
+          setShowAdvanceWarning(true);
+          console.log('Para üstü (TRY):', advance);
+        } else {
+          setShowAdvanceWarning(false);
+          setAdvanceAmount(0);
+          console.log('Para üstü çok küçük, gösterilmiyor');
+        }
       } else {
         setShowAdvanceWarning(false);
         setAdvanceAmount(0);
@@ -552,6 +603,12 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
       return;
     }
     
+    // Ödeme tutarlarının sıfır olup olmadığını kontrol et
+    if (paymentRows.some(row => row.amount <= 0)) {
+      message.error('Ödeme tutarları sıfırdan büyük olmalıdır');
+      return;
+    }
+    
     setLoading(true);
     try {
       // Token kontrolü
@@ -574,7 +631,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
         PaymentRows: paymentRows.map(row => ({
           CurrencyCode: row.currencyCode,
           ExchangeRate: row.exchangeRate,
-          Payment: row.amount,
+          Amount: row.amount, // Payment yerine Amount kullanıyoruz (backend modeline uygun olarak)
           CashAccountCode: row.cashAccountCode,
           Description: row.description || `${invoiceNumber} nolu fatura için nakit tahsilat`
         }))
@@ -688,50 +745,33 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
     <Card variant="borderless" style={{ padding: 0 }}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Fatura Bilgileri Özet Bölümü */}
-        <Card 
-          title="Fatura Bilgileri" 
+        <Card
+          title="Fatura Bilgileri"
           style={{ marginBottom: 16, backgroundColor: '#f9f9f9' }}
           size="small"
         >
-          <Row gutter={[16, 8]}>
-            <Col span={12}>
-              <Text strong>Fatura No:</Text> <Text>{invoiceNumber}</Text>
-            </Col>
-            <Col span={12}>
-              <Text strong>Müşteri Kodu:</Text> <Text>{currAccCode}</Text>
-            </Col>
-            <Col span={12}>
-              <div className="summary-section">
-                <h3>Nakit Ödeme Özeti</h3>
-                <div className="summary-item">
-                  <span className="summary-label">Genel Toplam:</span>
-                  <span className="summary-value" style={{ color: 'red', fontWeight: 'bold' }}>
-                    TRY {invoiceAmountTRY !== undefined ? invoiceAmountTRY.toFixed(2) : ((invoiceAmount || 0) * (exchangeRate !== undefined ? exchangeRate : currentExchangeRate)).toFixed(2)}
-                  </span>
-                </div>
-                {currencyCode !== 'TRY' && (
-                  <div className="summary-item" style={{ fontSize: '11px', color: 'gray', fontStyle: 'italic', marginTop: '-8px', marginBottom: '8px' }}>
-                    (GBP {invoiceAmount.toFixed(2)} - Döviz Kuru: {exchangeRate !== undefined ? exchangeRate.toFixed(4) : currentExchangeRate.toFixed(4)} TRY)
-                  </div>
-                )}
-                <div className="summary-item">
-                  <span className="summary-label">Ödenen Tutar:</span>
-                  <span className="summary-value" style={{ color: 'green', fontWeight: 'bold' }}>
-                    TRY {(paidAmount || 0).toFixed(2)}
-                  </span>
-                </div>
-                <div className="summary-item">
-                  <span className="summary-label">Kalan Tutar:</span>
-                  <span className="summary-value" style={{ color: 'orange', fontWeight: 'bold' }}>
-                    TRY {(invoiceAmountTRY !== undefined ? invoiceAmountTRY - (paidAmount || 0) : ((invoiceAmount || 0) * (exchangeRate !== undefined ? exchangeRate : currentExchangeRate)) - (paidAmount || 0)).toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </Col>
-            <Col span={12}>
-              <Text strong>Ödeme Tipi:</Text> <Text>Peşin</Text>
-            </Col>
-          </Row>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <tbody>
+              <tr>
+                <td style={{ padding: '4px 8px', width: '25%' }}>
+                  <Text strong>Fatura No:</Text><br/>
+                  <Text>{invoiceNumber}</Text>
+                </td>
+                <td style={{ padding: '4px 8px', width: '25%' }}>
+                  <Text strong>Müşteri Kodu:</Text><br/>
+                  <Text>{currAccCode}</Text>
+                </td>
+                <td style={{ padding: '4px 8px', width: '25%' }}>
+                  <Text strong>Ödeme Tipi:</Text><br/>
+                  <Text>Peşin</Text>
+                </td>
+                <td style={{ padding: '4px 8px', width: '25%' }}>
+                  <Text strong>Fatura ID:</Text><br/>
+                  <Text style={{ fontSize: '12px', color: '#666' }}>{invoiceHeaderID}</Text>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </Card>
         
         {/* Ödeme satırları tablosu */}
@@ -916,7 +956,7 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
               
               {currencyCode !== 'TRY' && (
                 <div style={{ fontSize: '11px', color: 'gray', fontStyle: 'italic', marginTop: '-5px', marginBottom: '8px', borderBottom: '1px solid #e8e8e8', paddingBottom: '8px', textAlign: 'right' }}>
-                  (GBP {(invoiceAmount || 0).toFixed(2)} - Döviz Kuru: {exchangeRate !== undefined ? exchangeRate.toFixed(4) : currentExchangeRate.toFixed(4)} TRY)
+                  ({currencyCode} {(invoiceAmount || 0).toFixed(2)} - Döviz Kuru: {exchangeRate !== undefined ? exchangeRate.toFixed(4) : currentExchangeRate.toFixed(4)} TRY)
                 </div>
               )}
               

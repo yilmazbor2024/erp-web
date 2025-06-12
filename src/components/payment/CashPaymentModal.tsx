@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, Button } from 'antd';
 import { DollarOutlined } from '@ant-design/icons';
 import CashPaymentForm from './CashPaymentForm';
 import ReactDOM from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { AuthProvider } from '../../contexts/AuthContext';
+
+// Modal için root element ve root instance
+let modalRoot: HTMLElement | null = null;
+let rootInstance: any = null;
 
 // CashPaymentModal Props
 interface CashPaymentModalProps {
@@ -23,22 +27,35 @@ interface CashPaymentModalProps {
   buttonSize?: "large" | "middle" | "small";
 }
 
-// Modal için root element
-let modalRoot: HTMLElement | null = null;
-
 // Document hazır olduğunda modal root oluştur
 if (typeof document !== 'undefined') {
   modalRoot = document.getElementById('cash-payment-modal-root');
   if (!modalRoot) {
     modalRoot = document.createElement('div');
     modalRoot.id = 'cash-payment-modal-root';
-    // modalRoot'u tüm ekranı kaplamayacak şekilde ayarlıyoruz
-    modalRoot.style.position = 'absolute'; // fixed yerine absolute kullanıyoruz
-    modalRoot.style.zIndex = '1000'; // z-index değerini düşürüyoruz
-    modalRoot.style.pointerEvents = 'none'; // Tıklama olaylarını arkaya geçirir
+    // modalRoot'u doğru şekilde ayarlıyoruz
+    modalRoot.style.position = 'fixed';
+    modalRoot.style.top = '0';
+    modalRoot.style.left = '0';
+    modalRoot.style.width = '100%';
+    modalRoot.style.height = '100%';
+    modalRoot.style.zIndex = '-1'; // Başlangıçta görünmez olması için z-index'i düşük ayarla
+    modalRoot.style.pointerEvents = 'none'; // Tıklama olaylarını devre dışı bırak
+    modalRoot.style.display = 'none'; // Başlangıçta gizle
     document.body.appendChild(modalRoot);
-    console.log('Modal root oluşturuldu');
+    console.log('Modal root oluşturuldu ve gizlendi');
   }
+  
+  // Sayfa kapatıldığında veya yenilendiğinde temizlik yap
+  window.addEventListener('beforeunload', () => {
+    if (rootInstance) {
+      try {
+        rootInstance.render(<></>);
+      } catch (error) {
+        console.error('Modal unmount hatası:', error);
+      }
+    }
+  });
 }
 
 // Bağımsız modal bileşeni
@@ -89,32 +106,73 @@ const StandaloneModal: React.FC<any> = (props) => {
   );
 };
 
-// Modal root için referans tutacak değişken
-let rootInstance: any = null;
+// Modal için unmount fonksiyonu - temizlik için kullanılır
+function unmountModalRoot() {
+  if (rootInstance) {
+    try {
+      rootInstance.render(<></>);
+      console.log('Modal unmount edildi');
+    } catch (error) {
+      console.error('Modal unmount hatası:', error);
+    }
+  }
+}
 
 // Doğrudan modal render fonksiyonu
 function renderStandaloneModal(props: any) {
   if (modalRoot) {
-    // Eğer önceden bir root instance oluşturulmuşsa onu kullan
-    if (!rootInstance) {
-      rootInstance = createRoot(modalRoot);
+    try {
+      // Eğer önceden bir root instance oluşturulmuşsa onu kullan
+      if (!rootInstance) {
+        // React 18 createRoot API'si ile yeni bir root instance oluştur
+        rootInstance = createRoot(modalRoot);
+        console.log('Yeni root instance oluşturuldu');
+      }
+      
+      // Modal içeriğini render et
+      rootInstance.render(
+        <AuthProvider>
+          <StandaloneModal {...props} />
+        </AuthProvider>
+      );
+      
+      console.log('Modal başarıyla render edildi');
+    } catch (error) {
+      console.error('Modal render hatası:', error);
+      
+      // Hata durumunda root instance'i sıfırla ve yeniden dene
+      try {
+        if (rootInstance) {
+          rootInstance.render(<></>);
+        }
+        rootInstance = createRoot(modalRoot);
+        rootInstance.render(
+          <AuthProvider>
+            <StandaloneModal {...props} />
+          </AuthProvider>
+        );
+        console.log('Modal hata sonrası yeniden render edildi');
+      } catch (retryError) {
+        console.error('Modal yeniden render hatası:', retryError);
+      }
     }
-    
-    rootInstance.render(
-      <AuthProvider>
-        <StandaloneModal {...props} />
-      </AuthProvider>
-    );
+  } else {
+    console.error('modalRoot bulunamadı');
   }
 }
 
 // Global modal API
 export const CashPaymentModalAPI = {
   open: (props: any) => {
-    console.log('CashPaymentModalAPI.open çağrıldı:', props);
+    console.log('CashPaymentModalAPI.open çağrıldı', props);
     
-    // Modal'i doğrudan render et
-    renderStandaloneModal(props);
+    // Modal root elementini görünür yap ve etkileşimi etkinleştir
+    if (modalRoot) {
+      modalRoot.style.display = 'block';
+      modalRoot.style.pointerEvents = 'auto';
+      modalRoot.style.zIndex = '1050';
+      console.log('Modal görünür yapıldı ve etkileşim etkinleştirildi');
+    }
     
     // Modal'i açmak için event yayınla
     if (typeof document !== 'undefined') {
@@ -122,8 +180,11 @@ export const CashPaymentModalAPI = {
         detail: { visible: true, props } 
       });
       document.dispatchEvent(event);
-      console.log('cash-payment-modal-update eventi yayınlandı');
+      console.log('cash-payment-modal-update eventi yayınlandı (aç)');
     }
+    
+    // Modal'i render et
+    renderStandaloneModal(props);
     
     return true;
   },
@@ -131,9 +192,44 @@ export const CashPaymentModalAPI = {
   close: () => {
     console.log('CashPaymentModalAPI.close çağrıldı');
     
-    // Modal'i temizle
-    if (modalRoot) {
-      ReactDOM.unmountComponentAtNode(modalRoot);
+    // Modal'i temizle - createRoot API'si ile uyumlu şekilde
+    if (rootInstance) {
+      try {
+        // React 18 ile null yerine boş bir fragment render etmek daha güvenli
+        rootInstance.render(<></>);
+        
+        // Temizlik için bir timeout kullan
+        setTimeout(() => {
+          try {
+            // Modal root elementini gizle
+            if (modalRoot) {
+              modalRoot.style.display = 'none';
+              modalRoot.style.pointerEvents = 'none';
+              modalRoot.style.zIndex = '-1';
+              
+              // Ek olarak, body'deki tüm antd modal masklarını temizle
+              const masks = document.querySelectorAll('.ant-modal-mask');
+              masks.forEach(mask => {
+                (mask as HTMLElement).style.display = 'none';
+              });
+              
+              // Ant Design'ın modal-root elementlerini de kontrol et
+              const antdRoots = document.querySelectorAll('.ant-modal-root');
+              antdRoots.forEach(root => {
+                (root as HTMLElement).style.display = 'none';
+              });
+              
+              console.log('Modal tamamen temizlendi ve gizlendi');
+            }
+          } catch (error) {
+            console.error('Modal temizleme hatası:', error);
+          }
+        }, 100);
+        
+        console.log('Modal temizlendi');
+      } catch (error) {
+        console.error('Modal render hatası:', error);
+      }
     }
     
     // Modal'i kapatmak için event yayınla
