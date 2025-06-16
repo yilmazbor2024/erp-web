@@ -413,7 +413,12 @@ const CustomerCreate = () => {
       if (customerResponse.success) {
         // Müşteri başarıyla oluşturuldu
         const createdCustomerCode = customerResponse.data.customerCode;
+        
         console.log('Müşteri başarıyla oluşturuldu. Müşteri kodu:', createdCustomerCode);
+        
+        // Normal müşteri oluşturma akışında token kullanılmaz
+        // QR code akışında token kullanılır
+        console.log('Normal müşteri oluşturma akışı: Token kullanılmadan devam ediliyor');
         
         // 2. Adım: Adres ve iletişim bilgilerini ekle
         try {
@@ -464,6 +469,7 @@ const CustomerCreate = () => {
                 CreatedUserName: "SYSTEM", // Oluşturan kullanıcı, NOT NULL alan
                 LastUpdatedUserName: "SYSTEM" // Son güncelleyen kullanıcı, NOT NULL alan
               };
+              // Normal akışta token kullanmadan adres ekle
               const adresResponse = await customerApi.createCustomerAddress(createdCustomerCode, addressData);
               console.log('Adres ekleme yanıtı:', adresResponse);
               adresEklendiMi = adresResponse.success;

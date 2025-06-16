@@ -139,31 +139,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchUserData = async () => {
     try {
       setIsLoading(true);
-      console.log('AuthContext: Fetching user data...');
-      
-      // Token kontrolü
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        console.warn('AuthContext: No token found, skipping user data fetch');
-        setIsAuthenticated(false);
-        setUser(null);
-        setError('Oturum açmanız gerekiyor');
-        return;
-      }
-      
-      // API'den kullanıcı bilgilerini al
-      console.log('AuthContext: Token found, attempting to fetch user data');
-      const userData = await authApi.getCurrentUser();
-      
-      if (!userData || !userData.id) {
-        console.error('AuthContext: Failed to fetch user data: Invalid or empty user data');
-        setError('Kullanıcı bilgileri alınamadı');
-        setUser(null);
-        setIsAuthenticated(false);
-        return;
-      }
-      
-      console.log('AuthContext: User data fetched successfully:', userData);
+      console.log('🔐 AuthContext: Kullanıcı verisi alınıyor...');
+    
+    // Token kontrolü
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.warn('⚠️ AuthContext: Token bulunamadı, kullanıcı verisi alınmıyor');
+      setIsAuthenticated(false);
+      setUser(null);
+      setError('Oturum açmanız gerekiyor');
+      return;
+    }
+    
+    // API'den kullanıcı bilgilerini al
+    console.log('🔑 AuthContext: Token bulundu, kullanıcı verisi alınıyor');
+    const userData = await authApi.getCurrentUser();
+    
+    if (!userData || !userData.id) {
+      console.error('❌ AuthContext: Kullanıcı verisi alınamadı: Geçersiz veya boş veri');
+      setError('Kullanıcı bilgileri alınamadı');
+      setUser(null);
+      setIsAuthenticated(false);
+      return;
+    }
+    
+    console.log('👍 AuthContext: Kullanıcı verisi başarıyla alındı');
       setUser(userData);
       setIsAuthenticated(true);
       setError(null);
