@@ -10,13 +10,22 @@ export interface CurrencyResponse {
   // API yanıtınızda olabilecek diğer alanlar
 }
 
-export const useCurrencies = (langCode: string = 'TR', enabled: boolean = true) => {
+export const useCurrencies = (token?: string | null, langCode: string = 'TR', enabled: boolean = true) => {
   return useQuery<CurrencyResponse[], Error>({
-    queryKey: ['currencies', langCode],
+    queryKey: ['currencies', langCode, token],
     queryFn: async () => {
       try {
         console.log('useCurrencies: Fetching currencies with langCode:', langCode);
-        const response = await currencyApi.getCurrencies(langCode);
+        let response;
+        
+        if (token) {
+          // Token varsa token ile para birimlerini getir
+          console.log('useCurrencies: Using token to fetch currencies');
+          response = await currencyApi.getCurrenciesWithToken(token, langCode);
+        } else {
+          // Token yoksa normal şekilde getir (login gerektirir)
+          response = await currencyApi.getCurrencies(langCode);
+        }
         
         if (Array.isArray(response)) {
           console.log('useCurrencies: Currencies fetched successfully:', response.length);

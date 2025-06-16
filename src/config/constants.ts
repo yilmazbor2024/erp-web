@@ -31,13 +31,26 @@ console.log(`API_BASE_URL set to: ${API_BASE_URL} (NODE_ENV: ${process.env.NODE_
 
 // Frontend URL'si (barkod oluşturma vb. için)
 let frontendBaseUrl: string;
-if (process.env.NODE_ENV === 'production') {
-  frontendBaseUrl = 'http://edikravat.tr';
+
+// Ortam değişkeninden frontend URL'sini al veya varsayılan değeri kullan
+if (process.env.REACT_APP_FRONTEND_URL && process.env.REACT_APP_FRONTEND_URL.trim() !== '') {
+  frontendBaseUrl = process.env.REACT_APP_FRONTEND_URL;
 } else {
-  frontendBaseUrl = 'http://localhost:3000';
+  // REACT_APP_FRONTEND_URL tanımlı değilse veya boşsa
+  if (process.env.NODE_ENV === 'production' || process.env.REACT_APP_NODE_ENV === 'production') {
+    console.warn(
+      'PRODUCTION WARNING: REACT_APP_FRONTEND_URL ortam değişkeni tanımsız. ' +
+      'Varsayılan olarak "http://edikravat.tr" kullanılıyor.'
+    );
+    frontendBaseUrl = 'http://edikravat.tr';
+  } else {
+    frontendBaseUrl = 'http://localhost:3000';
+  }
 }
 
 export const FRONTEND_URL = frontendBaseUrl;
+console.log(`FRONTEND_URL set to: ${FRONTEND_URL} (NODE_ENV: ${process.env.NODE_ENV})`);
+
 
 // API Endpoints
 export const API_ENDPOINTS = {
@@ -53,15 +66,15 @@ export const API_ENDPOINTS = {
     LIST: '/api/v1/Customer',
     DETAIL: (code: string) => `/api/v1/Customer/${code}`,
     CREATE: '/api/v1/Customer/create-new', // Memorylerde belirtilen doğru endpoint
-    CREATE_BASIC: '/api/v1/Customer/create-basic', // Alternatif endpoint
+    //CREATE_BASIC: '/api/v1/Customer/create-basic', // Alternatif endpoint
     UPDATE: (code: string) => `/api/v1/Customer/update/${code}`,
     ADDRESSES: (code: string) => `/api/v1/Customer/${code}/addresses`,
     COMMUNICATIONS: (code: string) => `/api/v1/Customer/${code}/communications`,
     CONTACTS: (code: string) => `/api/v1/Customer/${code}/contacts`,
   },
-  CUSTOMER_BASIC: {
-    CREATE: '/api/v1/Customer/create-basic',
-  },
+  //CUSTOMER_BASIC: {
+    //CREATE: '/api/v1/Customer/create-basic',
+  //},
   // Reference Data
   REFERENCE: {
     ADDRESS_TYPE_BY_CODE: (code: string) => `/api/v1/Customer/address-types/${code}`,

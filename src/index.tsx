@@ -1,8 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+// Önce i18n yapılandırmasını import et (App'den önce olmalı)
+import './i18n/i18n';
 import './index.css';
-import App from './App';
+import App from './App';  
 import reportWebVitals from './reportWebVitals';
 
 const queryClient = new QueryClient({

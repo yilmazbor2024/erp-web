@@ -31,6 +31,7 @@ import CustomerEdit from './pages/Customers/CustomerEdit';
 import CustomerView from './pages/Customers/CustomerView';
 import CustomerDetail from './pages/Customers/CustomerDetail';
 import CustomerRegistration from './pages/Customers/CustomerRegistration';
+import CustomerRegister from './pages/CustomerRegister';
 
 // Vendor pages
 import VendorList from './pages/Vendors/VendorList';
@@ -126,6 +127,9 @@ function App() {
               
               {/* Müşteri Kayıt Sayfası - Token ile erişilebilir */}
               <Route path="/customer-registration" element={<CustomerRegistration />} />
+              
+              {/* Token Bazlı Müşteri Kayıt Sayfası - CustomerCreate'in birebir kopyası */}
+              <Route path="/customer-register" element={<CustomerRegister />} />
               
               {/* Başarılı Kayıt Sayfası */}
               <Route path="/registration-success" element={<div style={{padding: '50px', textAlign: 'center'}}>

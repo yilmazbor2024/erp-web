@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, ReactNode, useState } from 'react';
 import { Modal, Input, Button, Table, InputNumber, Row, Col, Space, Typography, Spin, Empty, message, Tag, Switch } from 'antd';
 import { ScanOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import BarcodePerformanceMetrics from './BarcodePerformanceMetrics';
 import { ProductVariant } from '../../services/productApi';
 import { InventoryStock, InventorySearchParams } from '../../services/inventoryApi';
 import inventoryApi from '../../services/inventoryApi';
@@ -100,6 +101,17 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
   const [localLoadingInventory, setLocalLoadingInventory] = useState<boolean>(false);
   const [fetchStock, setFetchStock] = useState<boolean>(false); // Stok bilgisi getirme seçeneği - varsayılan kapalı
   const [fetchPrice, setFetchPrice] = useState<boolean>(false); // Fiyat bilgisi getirme seçeneği - varsayılan kapalı
+  
+  // Performans metrikleri için state'ler
+  const [scanStartTime, setScanStartTime] = useState<number | null>(null);
+  const [lastScanTime, setLastScanTime] = useState<number | null>(null);
+  const [scanCount, setScanCount] = useState<number>(0);
+  const [averageScanTime, setAverageScanTime] = useState<number>(0);
+  const [scanTimes, setScanTimes] = useState<number[]>([]);
+  const [dbFetchTimes, setDbFetchTimes] = useState<number[]>([]);
+  const [uiRenderTimes, setUiRenderTimes] = useState<number[]>([]);
+  const [scansPerSecond, setScansPerSecond] = useState<number>(0);
+  const [showPerformanceMetrics, setShowPerformanceMetrics] = useState<boolean>(false);
   
   // Toplu fiyat güncelleme fonksiyonu
   const updateAllPrices = () => {
@@ -207,28 +219,82 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     }
   };
 
+  // Performans metriklerini sıfırla
+  const resetPerformanceMetrics = () => {
+    setScanStartTime(null);
+    setLastScanTime(null);
+    setScanCount(0);
+    setAverageScanTime(0);
+    setScanTimes([]);
+    setDbFetchTimes([]);
+    setUiRenderTimes([]);
+    setScansPerSecond(0);
+  };
+  
+  // Performans metriklerini güncelle
+  const updatePerformanceMetrics = (dbFetchTime: number, uiRenderTime: number) => {
+    const now = performance.now();
+    const newScanCount = scanCount + 1;
+    setScanCount(newScanCount);
+    
+    // İlk tarama ise başlangıç zamanını ayarla
+    if (scanStartTime === null) {
+      setScanStartTime(now);
+    }
+    
+    // Son tarama zamanından bu yana geçen süre
+    if (lastScanTime !== null) {
+      const timeBetweenScans = now - lastScanTime;
+      const newScanTimes = [...scanTimes, timeBetweenScans];
+      setScanTimes(newScanTimes);
+      
+      // Ortalama tarama süresini hesapla
+      const avgTime = newScanTimes.reduce((sum, time) => sum + time, 0) / newScanTimes.length;
+      setAverageScanTime(avgTime);
+      
+      // Saniyedeki tarama sayısını hesapla
+      if (scanStartTime !== null) {
+        const totalElapsedTime = (now - scanStartTime) / 1000; // saniye cinsinden
+        const scansPerSec = newScanCount / totalElapsedTime;
+        setScansPerSecond(scansPerSec);
+      }
+    }
+    
+    // Veritabanı ve UI render sürelerini kaydet
+    setDbFetchTimes([...dbFetchTimes, dbFetchTime]);
+    setUiRenderTimes([...uiRenderTimes, uiRenderTime]);
+    
+    // Son tarama zamanını güncelle
+    setLastScanTime(now);
+  };
+
   // Arama işlemini gerçekleştir
   const handleSearch = async () => {
     if (!barcodeInput.trim()) {
-      message.warning('Lütfen arama metni girin');
+      message.warning('Lütfen bir barkod veya varyant kodu girin');
       return;
     }
+    
+    const searchStartTime = performance.now(); // Arama başlangıç zamanı
     
     try {
       // Doğrudan seçilen moda göre arama yap
       if (searchByProduct) {
         // Ürün kodu veya açıklaması ile arama
-        console.log('Ürün kodu/açıklaması ile arama yapılıyor:', barcodeInput);
         
+        const dbStartTime = performance.now();
         // Ürün kodu ile stok verilerini yükle
         const stockData = await loadInventoryStock({ 
           productCode: barcodeInput.trim(),
           showOnlyPositiveStock: true 
         });
+        const dbEndTime = performance.now();
+        const dbFetchTime = dbEndTime - dbStartTime;
         
-        console.log('Ürün kodu araması için stok verileri yüklendi:', stockData);
+
         
         // State güncellemesinin tamamlanması için küçük bir gecikme
+        const uiStartTime = performance.now();
         await new Promise(resolve => setTimeout(resolve, 100));
         
         if (onSearchByProductCodeOrDescription) {
@@ -236,22 +302,38 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
         } else {
           message.error('Ürün kodu veya açıklaması ile arama fonksiyonu tanımlanmamış');
         }
+        const uiEndTime = performance.now();
+        const uiRenderTime = uiEndTime - uiStartTime;
+        
+        // Performans metriklerini güncelle
+        updatePerformanceMetrics(dbFetchTime, uiRenderTime);
       } else {
         // Barkod ile arama - Barkod formatını kontrol et
-        console.log('Barkod ile arama yapılıyor:', barcodeInput);
         
-        // Barkod formatını kontrol et (genellikle sayısal ve belirli uzunlukta olur)
-        const isValidBarcode = /^\d{8,14}$/.test(barcodeInput.trim());
+        // Barkod formatını kontrol et - daha esnek bir format kontrolü
+        const cleanBarcode = barcodeInput.trim();
+        const isNumeric = /^\d+$/.test(cleanBarcode);
+        // Özel durumlar için 13-14 karakterli barkodlar da geçerli olmalı
+        const isValidBarcode = isNumeric && (cleanBarcode.length >= 8 && cleanBarcode.length <= 14);
         
         if (isValidBarcode) {
-          // Önce stok verilerini yükle
-          const stockData = await loadInventoryStock({ 
-            barcode: barcodeInput.trim(),
-            showOnlyPositiveStock: true 
-          });
-          
-          console.log('Barkod araması için stok verileri yüklendi:', stockData);
-          
+          // Geçerli barkod formatı - önce stok verilerini yükle
+          if (fetchStock) {
+            setLocalLoadingInventory(true);
+            const dbStartTime = performance.now();
+            const stockData = await loadInventoryStock({ barcode: cleanBarcode });
+            const dbEndTime = performance.now();
+            const dbFetchTime = dbEndTime - dbStartTime;
+
+            
+            const uiStartTime = performance.now();
+            // UI güncelleme işlemleri
+            const uiEndTime = performance.now();
+            const uiRenderTime = uiEndTime - uiStartTime;
+            
+            // Performans metriklerini güncelle
+            updatePerformanceMetrics(dbFetchTime, uiRenderTime);
+          }
           // State güncellemesinin tamamlanması için küçük bir gecikme
           await new Promise(resolve => setTimeout(resolve, 100));
           
@@ -323,9 +405,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     // Hem local hem de props'tan gelen stok verilerini birleştir
     const stockData = [...(localInventoryStock || []), ...(inventoryStock || [])];
     
-    // Debug için stok verilerini konsola yazdır
-    console.log('getStockQuantity - Ürün:', variant.productCode, variant.colorCode, variant.itemDim1Code);
-    console.log('getStockQuantity - Stok verileri:', stockData);
+
     
     // Önce barkod ile eşleşme ara
     let stock = variant.barcode && stockData.find(s => 
@@ -410,13 +490,6 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
               unCheckedChildren="Barkod/Varyant"
               style={{ marginBottom: 8, width: 180 }}
             />
-            {!searchByProduct && (
-              <div style={{ marginBottom: 8 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Barkod veya varyant formatı (URUNCODE-RENKKODU-BEDENKODU) girebilirsiniz
-                </Text>
-              </div>
-            )}
             <Text>Ürün Kodu/Açıklaması ile Ara</Text>
           </Space>
         </Col>
@@ -443,6 +516,31 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
         </Col>
       </Row>
 
+      {/* Performans metrikleri butonu */}
+      {scanCount > 0 && !searchByProduct && (
+        <div style={{ marginBottom: 16 }}>
+          <Button 
+            type="primary" 
+            size="small"
+            icon={<ScanOutlined />}
+            onClick={() => setShowPerformanceMetrics(!showPerformanceMetrics)}
+            style={{ marginBottom: 8 }}
+          >
+            {showPerformanceMetrics ? "Performans Metriklerini Gizle" : "Performans Metriklerini Göster"}
+          </Button>
+          
+          {showPerformanceMetrics && (
+            <BarcodePerformanceMetrics
+              scanCount={scanCount}
+              averageScanTime={averageScanTime}
+              scansPerSecond={scansPerSecond}
+              dbFetchTimes={dbFetchTimes}
+              uiRenderTimes={uiRenderTimes}
+            />
+          )}
+        </div>
+      )}
+      
       {/* Arama kutusu ve ara butonu */}
       <Row gutter={8} style={{ marginBottom: 8, marginTop: 8 }}>
         <Col flex="auto">

@@ -220,9 +220,9 @@ export const customerApi = {
       IdentityNum: customerData.identityNum || customerData.identityNumber || customerData.IdentityNum || '',
       TaxOfficeCode: customerData.taxOffice || customerData.TaxOfficeCode || '',
       IsSubjectToEInvoice: customerData.isSubjectToEInvoice || false,
-      IsSubjectToEDispatch: customerData.isSubjectToEShipment || customerData.isSubjectToEDispatch || false,
+      IsSubjectToEDispatch: customerData.isSubjectToEDispatch || customerData.isSubjectToEShipment || false,
       EInvoiceStartDate: customerData.eInvoiceStartDate || customerData.EInvoiceStartDate,
-      EShipmentStartDate: customerData.eShipmentStartDate || customerData.EShipmentStartDate,
+      EDispatchStartDate: customerData.eDispatchStartDate || customerData.eShipmentStartDate || customerData.EDispatchStartDate || customerData.EShipmentStartDate,
       CityCode: customerData.cityCode || '',
       DistrictCode: customerData.districtCode || ''
     };
@@ -245,7 +245,7 @@ export const customerApi = {
     }
     
     if (formattedData.IsSubjectToEDispatch) {
-      formData.append('EShipmentStartDate', new Date().toISOString());
+      formData.append('EDispatchStartDate', new Date().toISOString());
     }
     
     console.log('Form data:', formData.toString());

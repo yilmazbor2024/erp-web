@@ -643,13 +643,55 @@ const productApi = {
   async getProductVariantsByBarcode(searchText: string): Promise<ProductVariant[]> {
     try {
       if (!searchText) {
-        throw new Error('Arama metni boş olamaz');
+        console.warn('Barkod araması için boş değer gönderildi');
+        return [];
       }
       
-      console.log(`Sadece barkod ile ürün varyantı aranıyor: ${searchText}`);
+      // Barkod değerini temizle (boşluk vs.)
+      const cleanBarcode = searchText.trim();
+      console.log(`Sadece barkod ile ürün varyantı aranıyor: ${cleanBarcode}`);
       
-      // Sadece ProductController endpoint'ini kullan
-      const response = await axiosInstance.get(`/api/Product/variants/by-barcode/${searchText}`);
+      try {
+        // Önce Item API'sini deneyelim
+        console.log(`/api/Item API'si deneniyor: ${cleanBarcode}`);
+        const itemResponse = await axiosInstance.get(`/api/Item/${cleanBarcode}`);
+        
+        if (itemResponse.data && itemResponse.data.success && itemResponse.data.data) {
+          console.log('Item API ile ürün bulundu:', itemResponse.data.data);
+          const item = itemResponse.data.data;
+          
+          // Item API'den gelen veriyi ProductVariant formatına dönüştür
+          const variant: ProductVariant = {
+            productCode: item.itemCode || '',
+            productDescription: item.itemDescription || '',
+            colorCode: item.colorCode || '',
+            colorDescription: item.colorDescription || '',
+            manufacturerColorCode: item.manufacturerColorCode || '',
+            itemDim1Code: item.itemDim1Code || '',
+            itemDim2Code: item.itemDim2Code || '',
+            itemDim3Code: item.itemDim3Code || '',
+            barcodeTypeCode: item.barcodeTypeCode || '',
+            barcode: item.barcode || item.usedBarcode || cleanBarcode,
+            notHaveBarcodes: Boolean(item.notHaveBarcodes),
+            qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
+            productTypeCode: item.itemTypeCode || '',
+            productTypeDescription: item.productTypeDescription || '',
+            unitOfMeasureCode1: item.unitOfMeasureCode || '',
+            unitOfMeasureCode2: '',
+            salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
+            vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
+            isBlocked: Boolean(item.isBlocked)
+          };
+          
+          return [variant];
+        }
+      } catch (itemError) {
+        console.log('Item API ile ürün bulunamadı, Product API deneniyor:', itemError);
+      }
+      
+      // Item API başarısız olduysa Product API'yi dene
+      console.log(`Product API deneniyor: /api/Product/variants/by-barcode/${cleanBarcode}`);
+      const response = await axiosInstance.get(`/api/Product/variants/by-barcode/${cleanBarcode}`);
       
       if (response.data && (response.data.success || response.data.isSuccess) && 
           ((Array.isArray(response.data.data) && response.data.data.length > 0) || 
@@ -669,7 +711,7 @@ const productApi = {
           itemDim2Code: item.itemDim2Code || '',
           itemDim3Code: item.itemDim3Code || '',
           barcodeTypeCode: item.barcodeTypeCode || '',
-          barcode: item.barcode || item.usedBarcode || '',
+          barcode: item.barcode || item.usedBarcode || cleanBarcode,
           notHaveBarcodes: Boolean(item.notHaveBarcodes),
           qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
           productTypeCode: item.productTypeCode || item.itemTypeCode || '',
@@ -685,6 +727,7 @@ const productApi = {
       }
       
       // Bulunamadıysa boş dizi döndür
+      console.log(`Barkod ${cleanBarcode} ile hiçbir API'den sonuç alınamadı`);
       return [];
     } catch (error) {
       console.error('Barkod ile ürün varyantları aranırken hata oluştu:', error);

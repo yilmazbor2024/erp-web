@@ -43,7 +43,6 @@ if (typeof document !== 'undefined') {
     modalRoot.style.pointerEvents = 'none'; // Tıklama olaylarını devre dışı bırak
     modalRoot.style.display = 'none'; // Başlangıçta gizle
     document.body.appendChild(modalRoot);
-    console.log('Modal root oluşturuldu ve gizlendi');
   }
   
   // Sayfa kapatıldığında veya yenilendiğinde temizlik yap
@@ -211,13 +210,22 @@ export const CashPaymentModalAPI = {
               const masks = document.querySelectorAll('.ant-modal-mask');
               masks.forEach(mask => {
                 (mask as HTMLElement).style.display = 'none';
+                (mask as HTMLElement).remove(); // Mask elementini tamamen kaldır
               });
               
               // Ant Design'ın modal-root elementlerini de kontrol et
               const antdRoots = document.querySelectorAll('.ant-modal-root');
               antdRoots.forEach(root => {
                 (root as HTMLElement).style.display = 'none';
+                (root as HTMLElement).remove(); // Root elementini tamamen kaldır
               });
+              
+              // Body'nin overflow stilini eski haline getir
+              document.body.style.overflow = '';
+              document.body.style.paddingRight = '';
+              
+              // Ant Design'in eklediği tüm modal-related class'ları temizle
+              document.body.classList.remove('ant-modal-open');
               
               console.log('Modal tamamen temizlendi ve gizlendi');
             }

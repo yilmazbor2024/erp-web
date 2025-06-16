@@ -1,4 +1,5 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode, useCallback } from 'react';
+import ReactConfetti from 'react-confetti';
 import {
   Box,
   Button,
@@ -54,15 +55,15 @@ const CustomerCreate = () => {
     firstName: '',
     lastName: '',
     customerName: '',
-    customerCode: '',
+
     address: '',
     phone: '',
     email: '',
     contactName: '',
     isSubjectToEInvoice: false,
     eInvoiceStartDate: null as Date | null,
-    isSubjectToEShipment: false,
-    eShipmentStartDate: null as Date | null,
+    isSubjectToEDispatch: false,
+    eDispatchStartDate: null as Date | null,
     exchangeTypeCode: 'TRY', // Para birimi varsayılan değeri
   });
 
@@ -78,6 +79,107 @@ const CustomerCreate = () => {
 
   const { data: taxOfficesDataFromHook, isLoading: isLoadingTaxOfficesHook } = useTaxOffices();
   const { data: currenciesDataFromHook, isLoading: isLoadingCurrenciesHook } = useCurrencies();
+
+  // Konfeti efekti için state
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [windowDimensions, setWindowDimensions] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+
+  // Pencere boyutunu izleme
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Başarı sesi çalma fonksiyonu
+  const playSuccessSound = useCallback(() => {
+    // Web Audio API kullanarak ses oluşturma
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    // Başarı melodisi (C-E-G-C notaları)
+    const playNote = (frequency: number, startTime: number, duration: number) => {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      
+      gainNode.gain.setValueAtTime(0.3, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
+    };
+    
+    // C-E-G-C melodisi
+    playNote(261.63, audioContext.currentTime, 0.2); // C
+    playNote(329.63, audioContext.currentTime + 0.2, 0.2); // E
+    playNote(392.00, audioContext.currentTime + 0.4, 0.2); // G
+    playNote(523.25, audioContext.currentTime + 0.6, 0.3); // C (bir oktav yukarı)
+    
+    // Havai fişek sesi efekti
+    setTimeout(() => {
+      const noiseBuffer = audioContext.createBuffer(
+        1, audioContext.sampleRate * 0.5, audioContext.sampleRate
+      );
+      const output = noiseBuffer.getChannelData(0);
+      
+      for (let i = 0; i < noiseBuffer.length; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+      
+      const noise = audioContext.createBufferSource();
+      noise.buffer = noiseBuffer;
+      
+      const filter = audioContext.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 1000;
+      
+      const gainNode = audioContext.createGain();
+      gainNode.gain.setValueAtTime(0.8, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      
+      noise.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      noise.start();
+    }, 1000);
+  }, []);
+
+  // Hata sesi çalma fonksiyonu
+  const playErrorSound = useCallback(() => {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    
+    // Üzgün "Aww" sesi
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.type = 'sine';
+    oscillator.frequency.value = 300;
+    oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.6);
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.6);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.6);
+  }, []);
 
   // Oturum kontrolü
   useEffect(() => {
@@ -264,8 +366,8 @@ const CustomerCreate = () => {
         return { ...prev, [name]: checked, eInvoiceStartDate: new Date() };
       }
       
-      if (name === 'isSubjectToEShipment' && checked && !prev.eShipmentStartDate) {
-        return { ...prev, [name]: checked, eShipmentStartDate: new Date() };
+      if (name === 'isSubjectToEDispatch' && checked && !prev.eDispatchStartDate) {
+        return { ...prev, [name]: checked, eDispatchStartDate: new Date() };
       }
       
       return { ...prev, [name]: checked };
@@ -282,25 +384,24 @@ const CustomerCreate = () => {
       formType: 'quick',
       customerType: '3',
       isIndividual: false,
-      region: '', 
-      city: '', 
+      country: 'TR',
+      region: '',
+      city: '',
       district: '',
       taxOffice: '',
-      taxNumber: '', 
+      taxNumber: '',
       identityNum: '',
       firstName: '',
       lastName: '',
-      customerName: '', 
-      customerCode: '', 
-      country: 'TR', 
-      address: '', 
-      phone: '', 
+      customerName: '',
+      address: '',
+      phone: '',
       email: '',
       contactName: '',
       isSubjectToEInvoice: false,
       eInvoiceStartDate: null,
-      isSubjectToEShipment: false,
-      eShipmentStartDate: null,
+      isSubjectToEDispatch: false,
+      eDispatchStartDate: null,
       exchangeTypeCode: 'TRY'
     });
   };
@@ -363,8 +464,9 @@ const CustomerCreate = () => {
 
       // TypeScript için any tipini kullanarak genişletilebilir nesne oluştur
       const customerData: any = {
-        customerCode: formData.customerCode,
+
         customerName: formData.customerName,
+        customerType: formData.customerType,
         customerTypeCode: formData.customerType, // 3 = Müşteri, 1 = Tedarikçi
         countryCode: formData.country,
         stateCode: formData.region,
@@ -377,7 +479,12 @@ const CustomerCreate = () => {
         currencyCode: formData.exchangeTypeCode, // Para birimi değeri olarak exchangeTypeCode kullanıyoruz
         isIndividualAcc: formData.isIndividual,
         companyCode: 1, // Şirket kodu sayı olarak gönderilmeli
-        createdUserName: localStorage.getItem('userName') || 'system' // Oluşturan kullanıcı adı
+        createdUserName: localStorage.getItem('userName') || 'system', // Oluşturan kullanıcı adı
+        // E-Fatura ve E-İrsaliye durumu ve tarihleri
+        isSubjectToEInvoice: formData.isSubjectToEInvoice,
+        isSubjectToEDispatch: formData.isSubjectToEDispatch,
+        eInvoiceStartDate: formData.isSubjectToEInvoice ? formData.eInvoiceStartDate || new Date() : null,
+        eDispatchStartDate: formData.isSubjectToEDispatch ? formData.eDispatchStartDate || new Date() : null
       };
 
       // Detaylı mod için ek alanlar
@@ -405,6 +512,8 @@ const CustomerCreate = () => {
         });
       };
       
+      console.log('E-Fatura durumu:', formData.isSubjectToEInvoice, 'E-Fatura başlangıç tarihi:', formData.eInvoiceStartDate);
+      console.log('E-İrsaliye durumu:', formData.isSubjectToEDispatch, 'E-İrsaliye başlangıç tarihi:', formData.eDispatchStartDate);
       console.log('Gönderilecek müşteri verisi:', customerData);
       
       // 1. Adım: Temel müşteri bilgilerini gönder ve müşteri kodunu al
@@ -412,9 +521,12 @@ const CustomerCreate = () => {
       
       if (customerResponse.success) {
         // Müşteri başarıyla oluşturuldu
-        const createdCustomerCode = customerResponse.data.customerCode;
+        // Başarı durumunda konfeti ve ses efekti
+        setShowConfetti(true);
+        playSuccessSound();
         
-        console.log('Müşteri başarıyla oluşturuldu. Müşteri kodu:', createdCustomerCode);
+        // 5 saniye sonra konfeti efektini kaldır
+        setTimeout(() => setShowConfetti(false), 5000);
         
         // Normal müşteri oluşturma akışında token kullanılmaz
         // QR code akışında token kullanılır
@@ -436,7 +548,7 @@ const CustomerCreate = () => {
               // prCurrAccPostalAddress tablosuyla %100 uyumlu adres verisi oluşturma
               const addressData = { 
                 // Müşteri bilgileri - prCurrAccPostalAddress.CurrAccCode
-                CustomerCode: createdCustomerCode, // Müşteri kodu, NOT NULL alan
+                CustomerCode: customerResponse.data.customerCode, // Müşteri kodu, NOT NULL alan
                 
                 // Adres tipi bilgileri - prCurrAccPostalAddress.AddressTypeCode
                 AddressTypeCode: "2", // "2" = "İş Adresi" - veritabanındaki geçerli kod, NOT NULL alan
@@ -470,7 +582,7 @@ const CustomerCreate = () => {
                 LastUpdatedUserName: "SYSTEM" // Son güncelleyen kullanıcı, NOT NULL alan
               };
               // Normal akışta token kullanmadan adres ekle
-              const adresResponse = await customerApi.createCustomerAddress(createdCustomerCode, addressData);
+              const adresResponse = await customerApi.createCustomerAddress(customerResponse.data.customerCode, addressData);
               console.log('Adres ekleme yanıtı:', adresResponse);
               adresEklendiMi = adresResponse.success;
             } catch (adresHata) {
@@ -485,12 +597,12 @@ const CustomerCreate = () => {
             try {
               // CustomerCommunicationCreateRequest sınıfına uygun alanları kullan
               const communicationData = {
-                CustomerCode: createdCustomerCode,
+                CustomerCode: customerResponse.data.customerCode,
                 CommunicationTypeCode: "1", // "1" = "Telefon" - veritabanında yaygın kullanılan kod
                 Communication: formData.phone,
                 IsDefault: true // Varsayılan iletişim olarak işaretle - prCurrAccDefault tablosunu güncelleyecek
               };
-              const telefonResponse = await customerApi.createCustomerCommunication(createdCustomerCode, communicationData);
+              const telefonResponse = await customerApi.createCustomerCommunication(customerResponse.data.customerCode, communicationData);
               console.log('Telefon ekleme yanıtı:', telefonResponse);
               iletisimEklendiMi = telefonResponse.success;
             } catch (telefonHata) {
@@ -505,12 +617,12 @@ const CustomerCreate = () => {
             try {
               // CustomerCommunicationCreateRequest sınıfına uygun alanları kullan
               const communicationData = {
-                CustomerCode: createdCustomerCode,
+                CustomerCode: customerResponse.data.customerCode,
                 CommunicationTypeCode: "3", // "3" = "E-Posta" - veritabanındaki geçerli kod
                 Communication: formData.email,
                 IsDefault: !formData.phone // Telefon yoksa e-posta varsayılan olsun
               };
-              const emailResponse = await customerApi.createCustomerCommunication(createdCustomerCode, communicationData);
+              const emailResponse = await customerApi.createCustomerCommunication(customerResponse.data.customerCode, communicationData);
               console.log('Email ekleme yanıtı:', emailResponse);
               if (!iletisimEklendiMi) {
                 iletisimEklendiMi = emailResponse.success;
@@ -549,7 +661,7 @@ const CustomerCreate = () => {
                 contactData.IdentityNum = formData.identityNum;
               }
               
-              const contactResponse = await customerApi.createCustomerContact(createdCustomerCode, contactData);
+              const contactResponse = await customerApi.createCustomerContact(customerResponse.data.customerCode, contactData);
               console.log('Bağlantılı kişi ekleme yanıtı:', contactResponse);
               contactEklendiMi = contactResponse.success;
             } catch (contactHata) {
@@ -611,6 +723,10 @@ const CustomerCreate = () => {
           message: `Müşteri oluşturulurken hata oluştu: ${errorMessage}`,
           severity: 'error'
         });
+        
+        // Hata durumunda ses efekti
+        playErrorSound();
+        
         setIsLoading(false);
       }
     } catch (customerError: any) {
@@ -621,6 +737,9 @@ const CustomerCreate = () => {
         message: error.response?.data?.message || 'Müşteri oluşturulurken bir hata oluştu!',
         severity: 'error'
       });
+      
+      // Hata durumunda ses efekti
+      playErrorSound();
     } finally {
       setIsLoading(false);
     }
@@ -628,6 +747,15 @@ const CustomerCreate = () => {
 
   return (
     <Container maxWidth="md">
+      {showConfetti && (
+        <ReactConfetti
+          width={windowDimensions.width}
+          height={windowDimensions.height}
+          recycle={false}
+          numberOfPieces={500}
+          gravity={0.2}
+        />
+      )}
       <Paper elevation={3} sx={{ p: 3, mt: 3 }}>
         <Typography variant="h5" gutterBottom>Müşteri Oluştur</Typography>
         <Box component="form" noValidate sx={{ mt: 2 }} onSubmit={handleSubmit}>
@@ -644,15 +772,6 @@ const CustomerCreate = () => {
           </FormControl>
           
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
-            <TextField
-              fullWidth
-              label="Müşteri Kodu (Opsiyonel)"
-              name="customerCode"
-              value={formData.customerCode}
-              onChange={handleInputChange}
-              helperText="Boş bırakılırsa otomatik oluşturulur (121.XXXX)"
-              sx={{ flex: '1 1 100%' }}
-            />
             <TextField
               fullWidth
               required
@@ -842,19 +961,19 @@ const CustomerCreate = () => {
                 <FormControlLabel
                   control={
                     <Checkbox
-                      checked={formData.isSubjectToEShipment}
+                      checked={formData.isSubjectToEDispatch}
                       onChange={handleCheckboxChange}
-                      name="isSubjectToEShipment"
+                      name="isSubjectToEDispatch"
                     />
                   }
                   label="E-İrsaliye Tabi"
                 />
-                {formData.isSubjectToEShipment && (
+                {formData.isSubjectToEDispatch && (
                   <TextField
                     type="date"
                     label="E-İrsaliye Başlangıç Tarihi"
-                    value={formData.eShipmentStartDate ? formData.eShipmentStartDate.toISOString().split('T')[0] : ''}
-                    onChange={(e) => handleDateChange('eShipmentStartDate', e.target.value)}
+                    value={formData.eDispatchStartDate ? formData.eDispatchStartDate.toISOString().split('T')[0] : ''}
+                    onChange={(e) => handleDateChange('eDispatchStartDate', e.target.value)}
                     InputLabelProps={{ shrink: true }}
                     fullWidth
                   />

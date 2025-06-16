@@ -81,7 +81,12 @@
           "1": "Individual",
           "2": "Corporate",
           "3": "Both"
-        }
+        },
+        "individual": "Individual"
+      },
+      "identityNumber": {
+        "label": "Identity Number",
+        "helper": "Enter your 11-digit identity number"
       },
       "isSubjectToEInvoice": {
         "label": "Subject to E-Invoice"

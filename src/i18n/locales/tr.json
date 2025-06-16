@@ -81,7 +81,12 @@
           "1": "Bireysel",
           "2": "Kurumsal",
           "3": "Her İkisi"
-        }
+        },
+        "individual": "Bireysel"
+      },
+      "identityNumber": {
+        "label": "TC Kimlik No",
+        "helper": "11 haneli TC Kimlik numaranızı giriniz"
       },
       "isSubjectToEInvoice": {
         "label": "E-Fatura Mükellefi"

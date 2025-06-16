@@ -232,7 +232,7 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
 
   // Vergi daireleri
   const { data: taxOfficesData, isLoading: isLoadingTaxOffices } = useTaxOffices();
-  const { data: cityTaxOffices } = useTaxOfficesByCity(selectedCity, 'TR', !!selectedCity);
+  const { data: cityTaxOffices } = useTaxOfficesByCity(selectedCity, null, 'TR', !!selectedCity);
 
   // Vergi daireleri yüklendiğinde konsola yazdır
   useEffect(() => {
@@ -933,7 +933,13 @@ const CustomerDetail: React.FC<CustomerDetailProps> = ({ isNew = false, isEdit =
       
       // Gelen veriyi state'e kaydet
       setTempLink(data.tempLink);
-      setQrCodeUrl(data.qrCodeUrl);
+      
+      // QR kod URL'sini localhost yerine gerçek domain ile değiştir
+      const qrCodeUrlFixed = data.qrCodeUrl.replace('http://localhost:3000', 'https://edikirovat.tr');
+      console.log('Orijinal QR URL:', data.qrCodeUrl);
+      console.log('Düzeltilmiş QR URL:', qrCodeUrlFixed);
+      
+      setQrCodeUrl(qrCodeUrlFixed);
       setShowQrCode(true);
       
       // Bitiş zamanını hesapla ve kaydet

@@ -123,7 +123,16 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
       // Eğer tempLink undefined ise, varsayılan bir değer ata
       if (!tempLink) {
         // FRONTEND_URL kullanarak ortama göre doğru URL oluştur
-        tempLink = `${FRONTEND_URL}/customer-registration?token=${Math.random().toString(36).substring(2, 15)}`;
+        // Üretim ortamında olup olmadığımızı kontrol et
+        console.log(`Geçici link oluşturuluyor. FRONTEND_URL: ${FRONTEND_URL}, NODE_ENV: ${process.env.NODE_ENV}`);
+        
+        // Token oluştur
+        const randomToken = Math.random().toString(36).substring(2, 15);
+        
+        // URL oluştur
+        tempLink = `${FRONTEND_URL}/customer-registration?token=${randomToken}`;
+        
+        console.log(`Oluşturulan geçici link: ${tempLink}`);
       }
       
       // Eğer expiryMinutes undefined ise, varsayılan bir değer ata

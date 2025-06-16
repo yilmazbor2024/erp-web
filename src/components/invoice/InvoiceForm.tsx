@@ -8,9 +8,7 @@ import axios from 'axios';
 import { exchangeRateApi, ExchangeRateSource } from '../../services/exchangeRateApi';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthProvider } from '../../contexts/AuthContext';
-
-// API Base URL
-const API_BASE_URL = 'http://localhost:5180';
+import { API_BASE_URL } from '../../config/constants';
 
 // Bileşenler
 import InvoiceHeader from './InvoiceHeader';
@@ -686,15 +684,22 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
 
   // Ürün varyantlarını barkod ile arama
   const searchProductVariantsByBarcode = async (searchText: string) => {
-    if (!searchText || searchText.trim() === '') {
+    if (!searchText) {
       message.warning('Lütfen bir barkod girin');
       return;
     }
     
     try {
       setLoadingVariants(true);
-      // getVariantsByBarcode yerine searchProducts metodunu kullanıyoruz
-      const result = await productApi.searchProducts(searchText);
+      
+      // Önce doğrudan barkod API'sini deneyelim
+      let result = await productApi.getProductVariantsByBarcode(searchText);
+      
+      // Eğer barkod API'si sonuç vermezse, genel arama metodunu deneyelim
+      if (!result || result.length === 0) {
+        console.log('Barkod API sonuç vermedi, genel arama deneniyor:', searchText);
+        result = await productApi.searchProducts(searchText);
+      }
       
       if (result && result.length > 0) {
         setProductVariants(result);
