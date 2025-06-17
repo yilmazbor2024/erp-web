@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, ReactNode, useState } from 'react';
 import { Modal, Input, Button, Table, InputNumber, Row, Col, Space, Typography, Spin, Empty, message, Tag, Switch } from 'antd';
-import { ScanOutlined, DeleteOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { ScanOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, EditOutlined } from '@ant-design/icons';
 import BarcodePerformanceMetrics from './BarcodePerformanceMetrics';
 import { ProductVariant } from '../../services/productApi';
 import { InventoryStock, InventorySearchParams } from '../../services/inventoryApi';
@@ -101,6 +101,16 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
   const [localLoadingInventory, setLocalLoadingInventory] = useState<boolean>(false);
   const [fetchStock, setFetchStock] = useState<boolean>(false); // Stok bilgisi getirme seçeneği - varsayılan kapalı
   const [fetchPrice, setFetchPrice] = useState<boolean>(false); // Fiyat bilgisi getirme seçeneği - varsayılan kapalı
+  
+  // Ekran boyutunu kontrol etmek için state
+  const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth <= 768);
+  
+  // Ekran boyutunu izle
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Performans metrikleri için state'ler
   const [scanStartTime, setScanStartTime] = useState<number | null>(null);
@@ -459,62 +469,69 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
 
   return (
     <Modal
-      title="Satır Ekle"
+      title="Barkod Tarama"
       open={open}
       onCancel={onClose}
-      width={800}
-      footer={[
-        <Button key="cancel" onClick={onClose}>
-          İptal
-        </Button>,
-        <Button 
-          key="submit" 
-          type="primary" 
-          onClick={addAllToInvoice}
-          disabled={scannedItems.length === 0}
-        >
-          Tamamla ve Faturaya Ekle
-        </Button>
-      ]}
-      styles={{ body: { padding: '16px', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' } }}
+      width={isMobile ? '100%' : 1000}
+      style={{ top: isMobile ? 0 : 100 }}
+      bodyStyle={{ 
+        padding: isMobile ? '8px' : '24px',
+        maxHeight: isMobile ? 'calc(100vh - 120px)' : 'auto',
+        overflowY: 'auto'
+      }}
+      footer={null}
+      destroyOnClose
+      maskClosable={false}
+      afterOpenChange={(visible) => {
+        if (visible && inputRef.current) {
+          // Modal açıldığında input'a odaklan
+          setTimeout(() => {
+            inputRef.current?.focus();
+          }, 100);
+        }
+      }}
     >
       {/* Arama modu değiştirme switch'i */}
-      <Row gutter={8} style={{ marginBottom: 8 }}>
-        <Col span={24}>
-          <Space align="center">
-            <Text>Barkod ile Ara</Text>
-            <Switch
-              checked={searchByProduct}
-              onChange={(checked) => setSearchByProduct(checked)}
-              checkedChildren="Ürün Kodu/Açıklaması"
-              unCheckedChildren="Barkod/Varyant"
-              style={{ marginBottom: 8, width: 180 }}
-            />
-            <Text>Ürün Kodu/Açıklaması ile Ara</Text>
-          </Space>
-        </Col>
-      </Row>
+      {!isMobile && (
+        <Row gutter={8} style={{ marginBottom: 8 }}>
+          <Col span={24}>
+            <Space align="center">
+              <Text>Barkod ile Ara</Text>
+              <Switch
+                checked={searchByProduct}
+                onChange={(checked) => setSearchByProduct(checked)}
+                checkedChildren="Ürün Kodu/Açıklaması"
+                unCheckedChildren="Barkod/Varyant"
+                style={{ marginBottom: 8, width: 180 }}
+              />
+              <Text>Ürün Kodu/Açıklaması ile Ara</Text>
+            </Space>
+          </Col>
+        </Row>
+      )}
 
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col span={12}>
-          <Space>
-            <Switch
-              checked={fetchStock}
-              onChange={setFetchStock}
-            />
-            <Text>Stok Bilgisi Getir</Text>
-          </Space>
-        </Col>
-        <Col span={12}>
-          <Space>
-            <Switch
-              checked={fetchPrice}
-              onChange={setFetchPrice}
-            />
-            <Text>Fiyat Bilgisi Getir</Text>
-          </Space>
-        </Col>
-      </Row>
+      {!isMobile && (
+        <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+          <Col span={12}>
+            <Space>
+              <Switch
+                checked={fetchStock}
+                onChange={setFetchStock}
+              />
+              <Text>Stok Bilgisi Getir</Text>
+            </Space>
+          </Col>
+          <Col span={12}>
+            <Space>
+              <Switch
+                checked={fetchPrice}
+                onChange={setFetchPrice}
+              />
+              <Text>Fiyat Bilgisi Getir</Text>
+            </Space>
+          </Col>
+        </Row>
+      )}
 
       {/* Performans metrikleri butonu */}
       {scanCount > 0 && !searchByProduct && (
@@ -542,69 +559,57 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       )}
       
       {/* Arama kutusu ve ara butonu */}
-      <Row gutter={8} style={{ marginBottom: 8, marginTop: 8 }}>
-        <Col flex="auto">
-          <Input
-            ref={inputRef}
-            placeholder={searchByProduct 
-              ? "Ürün kodu veya açıklaması girin (en az 3 karakter)" 
-              : "Barkod girin"}
-            value={barcodeInput}
-            onChange={(e) => setBarcodeInput(e.target.value)}
-            onPressEnter={() => {
-              // Arama tipine göre minimum karakter kontrolü
-              const minLength = searchByProduct ? 3 : 1;
-              if (barcodeInput.trim().length >= minLength) {
-                handleSearch();
-                // Arama yapıldıktan sonra input'u temizle
+      <Row gutter={isMobile ? 8 : 16} style={{ marginBottom: isMobile ? 8 : 16, marginTop: isMobile ? 16 : 24 }}>
+        <Col span={24}>
+          <div style={{ display: 'flex', width: '100%', gap: '8px' }}>
+            <Input
+              ref={inputRef}
+              placeholder="Barkod girin veya okutun"
+              value={barcodeInput}
+              onChange={(e) => setBarcodeInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              style={{ width: '80%', flex: 4 }}
+              prefix={<ScanOutlined />}
+              disabled={loading}
+              autoFocus
+              size={isMobile ? "large" : "middle"}
+            />
+            <Button 
+              type="primary" 
+              onClick={handleSearch}
+              loading={loading}
+              icon={<SearchOutlined />}
+              style={{ width: '10%', flex: 1, padding: '0 8px' }}
+              size={isMobile ? "large" : "middle"}
+            />
+            <Button 
+              onClick={() => {
                 setBarcodeInput('');
-              } else if (barcodeInput.trim().length > 0) {
-                message.warning(`Lütfen en az ${minLength} karakter girin`);
-              }
-            }}
-            suffix={loading ? <Spin size="small" /> : <SearchOutlined />}
-            autoFocus
-            style={{ width: '100%' }}
-          />
-        </Col>
-        <Col>
-          <Button 
-            type="primary" 
-            onClick={() => {
-              // Arama tipine göre minimum karakter kontrolü
-              const minLength = searchByProduct ? 3 : 1;
-              if (barcodeInput.trim().length >= minLength) {
-                handleSearch();
-                // Arama yapıldıktan sonra input'u temizle
-                setBarcodeInput('');
-              } else if (barcodeInput.trim().length > 0) {
-                message.warning(`Lütfen en az ${minLength} karakter girin`);
-              }
-            }} 
-            loading={loading}
-            disabled={barcodeInput.trim().length < (searchByProduct ? 3 : 1)}
-          >
-            Ara
-          </Button>
+                setProductVariants([]);
+                if (inputRef.current) {
+                  inputRef.current.focus();
+                }
+              }}
+              icon={<DeleteOutlined />}
+              style={{ width: '10%', flex: 1, padding: '0 8px' }}
+              size={isMobile ? "large" : "middle"}
+            />
+          </div>
         </Col>
       </Row>
-      
+
       {/* Fazladan switch kaldırıldı */}
       
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col>
-          <Button 
-            danger 
-            icon={<DeleteOutlined />} 
-            onClick={removeAllScannedItems}
-            disabled={scannedItems.length === 0}
-          >
-            Tümünü Temizle
-          </Button>
-        </Col>
-        
         {scannedItems.length > 0 && (
           <>
+            <Col>
+              <Button 
+                style={{ backgroundColor: '#f5222d', color: 'white' }}
+                icon={<DeleteOutlined />} 
+                onClick={removeAllScannedItems}
+              />
+            </Col>
             <Col>
               <InputNumber
                 placeholder="Toplu fiyat"
@@ -628,12 +633,16 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
             </Col>
             <Col>
               <Button 
-                type="primary" 
+                style={{ 
+                  backgroundColor: '#1890ff', 
+                  color: 'white',
+                  boxShadow: '0 2px 0 rgba(0, 0, 0, 0.045)',
+                  borderRadius: '4px'
+                }}
+                icon={<EditOutlined />}
                 onClick={updateAllPrices}
                 disabled={bulkPrice === null}
-              >
-                Toplu Güncelle
-              </Button>
+              />
             </Col>
           </>
         )}
@@ -658,17 +667,13 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
                     addAllVariants();
                   }}
                   icon={<PlusOutlined />}
-                >
-                  Tüm Varyantları Ekle
-                </Button>
+                />
               <Button 
                 type="link" 
                 size="small"
                 onClick={() => setProductVariants([])} 
                 icon={<DeleteOutlined />}
-              >
-                Temizle
-              </Button>
+              />
             </Space>
           )}
         </div>
@@ -678,10 +683,77 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
           <Table
             dataSource={productVariants}
             rowKey={(record) => record.barcode || record.productCode + record.colorCode + record.itemDim1Code}
-            size="small"
+            size={isMobile ? "middle" : "small"}
             pagination={false}
-            scroll={{ y: 200 }}
-            columns={[
+            className="compact-table"
+            scroll={{ y: isMobile ? 150 : 200 }}
+            style={{ fontSize: isMobile ? '14px' : '12px' }}
+            columns={isMobile ? [
+              {
+                title: 'İşlem',
+                key: 'action',
+                width: 60,
+                render: (_: any, record: ProductVariant): ReactNode => (
+                  <Button 
+                    type="primary" 
+                    size="small"
+                    icon={<PlusOutlined />}
+                    loading={loading}
+                    onClick={async () => {
+                      try {
+                        // Fiyat getirme seçeneği işaretliyse fiyat bilgisini getir
+                        if (fetchPrice) {
+                          await getProductPrice(record);
+                        }
+                        
+                        // Ürünü taranan ürünler listesine ekle
+                        const existingItemIndex = scannedItems.findIndex(
+                          item => item.variant.barcode === record.barcode || 
+                          (item.variant.productCode === record.productCode && 
+                           item.variant.colorCode === record.colorCode && 
+                           item.variant.itemDim1Code === record.itemDim1Code)
+                        );
+                        
+                        if (existingItemIndex !== -1) {
+                          // Eğer ürün zaten listede varsa, miktarını artır
+                          const updatedItems = [...scannedItems];
+                          updatedItems[existingItemIndex].quantity += 1;
+                          setScannedItems(updatedItems);
+                          message.success('Ürün miktarı güncellendi');
+                        } else {
+                          // Yeni ürün ekle
+                          setScannedItems([...scannedItems, { variant: record, quantity: 1 }]);
+                          message.success('Ürün listeye eklendi');
+                        }
+                      } catch (error) {
+                        console.error('Ürün eklenirken hata:', error);
+                        message.error('Ürün eklenirken bir hata oluştu.');
+                      }
+                    }}
+                  />
+                )
+              },
+              {
+                title: 'Ürün Bilgileri',
+                key: 'productInfo',
+                render: (_, record: ProductVariant): ReactNode => (
+                  <div>
+                    <div><strong>{record.productCode}</strong> {record.barcode ? `(${record.barcode})` : ''}</div>
+                    <div style={{fontSize: '13px'}}>{record.productDescription}</div>
+                    <div style={{fontSize: '12px', color: '#666'}}>
+                      {record.colorDescription ? `${record.colorDescription} / ` : ''}
+                      {record.itemDim1Code || '-'}
+                    </div>
+                  </div>
+                )
+              },
+              {
+                title: 'Stok',
+                key: 'stock',
+                width: 60,
+                render: (_, record: ProductVariant) => getStockQuantity(record)
+              }
+            ] : [
               {
                 title: 'Ürün Kodu',
                 dataIndex: 'productCode',
@@ -737,32 +809,28 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
                         // Fiyat getirme seçeneği işaretliyse fiyat bilgisini getir
                         if (fetchPrice) {
                           await getProductPrice(record);
-                        } else {
-                          // Fiyat getirme seçeneği işaretli değilse, fiyat bilgisi olmadan ekle
-                          // Burada getProductPrice fonksiyonunu çağırmadan ürünü eklemek için
-                          // gerekli işlemleri yapmanız gerekebilir
-                          // Bu örnekte, fiyat bilgisi olmadan ürünü eklemek için
-                          // scannedItems state'ine doğrudan ekleme yapıyoruz
-                          const existingIndex = scannedItems.findIndex(item => 
-                            item.variant.barcode === record.barcode || 
-                            (item.variant.productCode === record.productCode && 
-                             item.variant.colorCode === record.colorCode && 
-                             item.variant.itemDim1Code === record.itemDim1Code)
-                          );
-                          
-                          if (existingIndex >= 0) {
-                            // Ürün zaten listede, miktarını artır
-                            updateScannedItemQuantity(existingIndex, scannedItems[existingIndex].quantity + 1);
-                          } else {
-                            // Yeni ürün, listeye ekle
-                            const newItem: ScannedItem = {
-                              variant: record,
-                              quantity: 1
-                            };
-                            setScannedItems([...scannedItems, newItem]);
-                          }
                         }
-                        message.success('Ürün listeye eklendi');
+                        
+                        // Ürünü taranan ürünler listesine ekle
+                        const existingItemIndex = scannedItems.findIndex(
+                          item => item.variant.barcode === record.barcode || 
+                          (item.variant.productCode === record.productCode && 
+                           item.variant.colorCode === record.colorCode && 
+                           item.variant.itemDim1Code === record.itemDim1Code)
+                        );
+                        
+                        if (existingItemIndex !== -1) {
+                          // Eğer ürün zaten listede varsa, miktarını artır
+                          const updatedItems = [...scannedItems];
+                          updatedItems[existingItemIndex].quantity += 1;
+                          setScannedItems(updatedItems);
+                          message.success('Ürün miktarı güncellendi');
+                        } else {
+                          // Yeni ürün ekle
+                          setScannedItems([...scannedItems, { variant: record, quantity: 1 }]);
+                          message.success('Ürün listeye eklendi');
+                        }
+                        
                       } catch (error) {
                         console.error('Ürün eklenirken hata:', error);
                         message.error('Ürün eklenirken bir hata oluştu.');
@@ -780,26 +848,106 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
 
       {scannedItems.length > 0 && (
         <>
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Title level={5}>Taranan Ürünler</Title>
-            <Space>
-              <Tag color="blue" style={{ fontSize: '14px' }}>
-                Toplam: {scannedItems.length} ürün | {scannedItems.reduce((sum, item) => sum + item.quantity, 0)} adet
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: isMobile ? 'column' : 'row',
+            justifyContent: 'space-between', 
+            alignItems: isMobile ? 'stretch' : 'center', 
+            marginBottom: isMobile ? 8 : 16, 
+            marginTop: isMobile ? 16 : 24,
+            gap: isMobile ? '8px' : '0'
+          }}>
+            <Title level={5} style={{ margin: isMobile ? '8px 0' : '0' }}>Taranan Ürünler</Title>
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: '8px'
+            }}>
+              <Tag color="blue" style={{ 
+                fontSize: isMobile ? '16px' : '14px',
+                padding: isMobile ? '8px 12px' : '4px 8px',
+                textAlign: 'center',
+                margin: 0,
+                width: '100%'
+              }}>
+                Toplam: {scannedItems.length} ürün | {scannedItems.reduce((sum, item) => sum + item.quantity, 0)} adet | {scannedItems.reduce((sum, item) => sum + (item.variant.salesPrice1 || 0) * item.quantity, 0).toFixed(2)} {currencyCode}
               </Tag>
-              <Tag color="green" style={{ fontSize: '14px' }}>
-                Toplam Tutar: {scannedItems.reduce((sum, item) => sum + (item.variant.salesPrice1 || 0) * item.quantity, 0).toFixed(2)} {currencyCode}
-              </Tag>
-            </Space>
+            </div>
           </div>
           
           <Table
             dataSource={scannedItems}
             rowKey={(item) => item.variant.barcode || item.variant.productCode + item.variant.colorCode + item.variant.itemDim1Code}
-            size="small"
+            size={isMobile ? "middle" : "small"}
             pagination={false}
             className="compact-table"
-            scroll={{ y: 200 }}
-            columns={[
+            scroll={{ y: isMobile ? 150 : 200 }}
+            style={{ fontSize: isMobile ? '14px' : '12px' }}
+            columns={isMobile ? [
+              {
+                title: 'Ürün Bilgileri',
+                key: 'productInfo',
+                render: (_, record: ScannedItem): ReactNode => (
+                  <div>
+                    <div><strong>{record.variant.productCode}</strong> {record.variant.barcode ? `(${record.variant.barcode})` : ''}</div>
+                    <div style={{fontSize: '13px'}}>{record.variant.productDescription}</div>
+                    <div style={{fontSize: '12px', color: '#666'}}>
+                      {record.variant.colorDescription ? `${record.variant.colorDescription} / ` : ''}
+                      {record.variant.itemDim1Code || '-'}
+                    </div>
+                  </div>
+                )
+              },
+              {
+                title: 'Miktar',
+                dataIndex: 'quantity',
+                key: 'quantity',
+                width: 80,
+                render: (quantity, record, index): ReactNode => (
+                  <InputNumber
+                    value={quantity}
+                    min={1}
+                    max={9999}
+                    step={1}
+                    precision={0}
+                    style={{ width: '100%' }}
+                    onChange={(value) => updateScannedItemQuantity(index, value as number)}
+                  />
+                )
+              },
+              {
+                title: 'Birim Fiyat',
+                dataIndex: ['variant', 'salesPrice1'],
+                key: 'salesPrice1',
+                width: 100,
+                render: (price, record, index): ReactNode => (
+                  <InputNumber
+                    value={price}
+                    min={0.01}
+                    max={999999}
+                    step={0.01}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                    parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
+                    onChange={(value) => updateScannedItemPrice(index, value as number)}
+                  />
+                )
+              },
+              {
+                title: 'İşlem',
+                key: 'action',
+                width: 50,
+                render: (_: any, record: ScannedItem, index: number): ReactNode => (
+                  <Button 
+                    type="link" 
+                    danger 
+                    icon={<DeleteOutlined />}
+                    onClick={() => removeScannedItem(index)}
+                  />
+                )
+              }
+            ] : [
               {
                 title: 'Ürün Kodu',
                 dataIndex: ['variant', 'productCode'],
@@ -885,6 +1033,26 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
               }
             ] as ColumnsType<ScannedItem>}
           />
+          
+          {/* Satırları Faturaya Ekleme Butonu */}
+          {scannedItems.length > 0 && (
+            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+              <Button 
+                type="primary" 
+                size="large"
+                icon={<PlusOutlined />}
+                onClick={addAllToInvoice}
+                style={{ 
+                  width: isMobile ? '100%' : '50%',
+                  height: isMobile ? '48px' : '40px',
+                  fontSize: isMobile ? '16px' : '14px',
+                  marginBottom: '10px'
+                }}
+              >
+                Satırları Faturaya Ekle
+              </Button>
+            </div>
+          )}
         </>
       )}
     </Modal>
