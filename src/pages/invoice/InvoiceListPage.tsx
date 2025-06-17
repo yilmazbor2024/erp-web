@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Card, Button, Space, Tag, Tooltip, Input, DatePicker, Select, Row, Col, Typography, Modal, message } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Table, Card, Button, Space, Tag, Tooltip, Input, DatePicker, Select, Row, Col, Typography, Modal, message, Grid } from 'antd';
 import { PlusOutlined, EditOutlined, EyeOutlined, FileTextOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -9,6 +9,7 @@ import InvoiceForm from '../../components/invoice/InvoiceForm';
 const { Title } = Typography;
 const { Option } = Select;
 const { RangePicker } = DatePicker;
+const { useBreakpoint } = Grid;
 
 // Fatura tipi enum
 enum InvoiceType {
@@ -58,6 +59,8 @@ const InvoiceListPage: React.FC = () => {
   const queryParams = new URLSearchParams(location.search);
   const typeParam = queryParams.get('type');
   const mappedTypeCode = mapTypeToInvoiceTypeCode(typeParam);
+  const screens = useBreakpoint();
+  const isMobile = !screens.md; // md breakpoint'ten küçük ekranlar mobil olarak kabul edilir
   const [loading, setLoading] = useState(false);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [pagination, setPagination] = useState({
@@ -194,41 +197,98 @@ const InvoiceListPage: React.FC = () => {
     message.success('Fatura başarıyla oluşturuldu.');
   };
 
-  // Tablo sütunları
-  const columns = [
+  // Tablo sütunları - Mobil ve masaüstü için farklı sütunlar
+  const getColumns = useCallback((): any[] => {
+    // Mobil için özel tablo düzeni - her satırda bilgiler alt alta
+    if (isMobile) {
+      return [
+        {
+          title: <div style={{ textAlign: 'center' }}>Fatura Listesi</div>,
+          key: 'invoiceInfo',
+          render: (_: React.ReactNode, record: any) => (
+            <div style={{ padding: '8px 0' }}>
+              {/* Fatura No ve Tarih aynı satırda */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ fontWeight: 'bold' }}>{record.invoiceNumber}</span>
+                <span>{dayjs(record.invoiceDate).format('DD.MM.YYYY')}</span>
+              </div>
+              
+              {/* Müşteri açıklaması 2. satırda */}
+              <div style={{ marginBottom: '8px', borderBottom: '1px dashed #e8e8e8', paddingBottom: '4px' }}>
+                <span style={{ fontWeight: '500' }}>
+                  {record.currAccTypeCode === 3 
+                    ? record.customerDescription || '-'
+                    : record.vendorDescription || '-'}
+                </span>
+              </div>
+              
+
+              
+              {/* Fatura toplamları alt satırda */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingTop: '4px' }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#8c8c8c' }}>KDV Hariç</div>
+                  <div>{record.totalNetAmount !== undefined && record.totalNetAmount !== null ? `${Number(record.totalNetAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#8c8c8c' }}>KDV</div>
+                  <div>{record.totalVatAmount !== undefined && record.totalVatAmount !== null ? `${Number(record.totalVatAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#8c8c8c' }}>Toplam</div>
+                  <div style={{ fontWeight: 'bold' }}>{record.totalGrossAmount !== undefined && record.totalGrossAmount !== null ? `${Number(record.totalGrossAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'}</div>
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: '8px' }}>
+                <Button 
+                  type="primary" 
+                  size="small" 
+                  icon={<EyeOutlined />}
+                  onClick={() => navigate(`/invoice/${record.invoiceHeaderID || record.invoiceHeaderId}`)}
+                >
+                  Görüntüle
+                </Button>
+              </div>
+              
+              {/* Fatura kartları arasında ayırıcı çizgi */}
+              <div style={{ borderTop: '3px solid #1890ff', marginTop: '4px', marginBottom: '-3px' }}></div>
+            </div>
+          )
+        }
+      ];
+    }
+    
+    // Masaüstü için tüm sütunları göster
+    return [
+      {
+        title: 'Fatura No / Tarih',
+        key: 'invoiceNumber',
+        render: (_: any, record: any) => (
+          <div>
+            <div><span style={{ fontWeight: 'bold' }}>{record.invoiceNumber}</span></div>
+            <div style={{ fontSize: '12px', color: '#8c8c8c' }}>{dayjs(record.invoiceDate).format('DD.MM.YYYY')}</div>
+          </div>
+        )
+      },
+
     {
-      title: 'Fatura No',
-      dataIndex: 'invoiceNumber',
-      key: 'invoiceNumber',
-      render: (text: string) => <span style={{ fontWeight: 'bold' }}>{text}</span>
+      title: 'KDV Hariç',
+      dataIndex: 'totalNetAmount',
+      key: 'totalNetAmount',
+      render: (text: number | undefined) => text ? `${text.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'
     },
     {
-      title: 'Fatura Tipi',
-      dataIndex: 'processCode',
-      key: 'processCode',
-      render: (text: string) => (
-        <Tag color={invoiceTypeColors[text as InvoiceType] || 'default'}>
-          {invoiceTypeDescriptions[text as InvoiceType] || text}
-        </Tag>
-      )
+      title: 'KDV',
+      dataIndex: 'totalVatAmount',
+      key: 'totalVatAmount',
+      render: (text: number | undefined) => text ? `${text.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'
     },
     {
-      title: 'Belge Tipi',
-      dataIndex: 'invoiceTypeCode',
-      key: 'invoiceTypeCode',
-      render: (text: string) => text || '-'
-    },
-    {
-      title: 'Belge Tipi Açıklaması',
-      dataIndex: 'invoiceTypeDescription',
-      key: 'invoiceTypeDescription',
-      render: (text: string) => text || '-'
-    },
-    {
-      title: 'Tarih',
-      dataIndex: 'invoiceDate',
-      key: 'invoiceDate',
-      render: (text: string) => dayjs(text).format('DD.MM.YYYY')
+      title: 'Toplam',
+      dataIndex: 'totalGrossAmount',
+      key: 'totalGrossAmount',
+      render: (text: number | undefined) => <span style={{ fontWeight: 'bold' }}>{text !== undefined && text !== null ? `${Number(text).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'}</span>
     },
     {
       title: 'Müşteri/Tedarikçi',
@@ -328,23 +388,26 @@ const InvoiceListPage: React.FC = () => {
       )
     }
   ];
-
+  }, [isMobile, navigate]);
+  
   return (
     <div>
       <Card>
-        <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
-          <Col>
-            <Title level={4}>Faturalar</Title>
-          </Col>
-          <Col>
-            <Space>
+        {isMobile ? (
+          // Mobil görünümde başlık üstte, buton altta
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <Title level={4}>Faturalar</Title>
+            </div>
+            <div>
               {typeParam === 'wholesale' && (
                 <Button
                   type="primary"
                   icon={<PlusOutlined />}
                   onClick={() => handleCreateInvoice('wholesale')}
+                  style={{ width: '100%', marginBottom: 8 }}
                 >
-                  Satış Fatura Ekle
+                  Satış Faturası Ekle
                 </Button>
               )}
               {typeParam === 'wholesale-purchase' && (
@@ -352,6 +415,7 @@ const InvoiceListPage: React.FC = () => {
                   type="primary"
                   icon={<PlusOutlined />}
                   onClick={() => handleCreateInvoice('wholesale-purchase')}
+                  style={{ width: '100%', marginBottom: 8 }}
                 >
                   Alış Faturası Ekle
                 </Button>
@@ -361,6 +425,7 @@ const InvoiceListPage: React.FC = () => {
                   type="primary"
                   icon={<PlusOutlined />}
                   onClick={() => handleCreateInvoice('expense-purchase')}
+                  style={{ width: '100%', marginBottom: 8 }}
                 >
                   Masraf Alış Faturası Ekle
                 </Button>
@@ -370,68 +435,151 @@ const InvoiceListPage: React.FC = () => {
                   type="primary"
                   icon={<PlusOutlined />}
                   onClick={() => handleCreateInvoice('expense-sales')}
+                  style={{ width: '100%', marginBottom: 8 }}
                 >
                   Masraf Satış Faturası Ekle
                 </Button>
               )}
-            </Space>
-          </Col>
-        </Row>
+            </div>
+          </div>
+        ) : (
+          // Masaüstü görünümde yan yana
+          <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+            <Col>
+              <Title level={4}>Faturalar</Title>
+            </Col>
+            <Col>
+              <Space>
+                {typeParam === 'wholesale' && (
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => handleCreateInvoice('wholesale')}
+                  >
+                    Satış Faturası Ekle
+                  </Button>
+                )}
+                {typeParam === 'wholesale-purchase' && (
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => handleCreateInvoice('wholesale-purchase')}
+                  >
+                    Alış Faturası Ekle
+                  </Button>
+                )}
+                {typeParam === 'expense-purchase' && (
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => handleCreateInvoice('expense-purchase')}
+                  >
+                    Masraf Alış Faturası Ekle
+                  </Button>
+                )}
+                {typeParam === 'expense-sales' && (
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={() => handleCreateInvoice('expense-sales')}
+                  >
+                    Masraf Satış Faturası Ekle
+                  </Button>
+                )}
+              </Space>
+            </Col>
+          </Row>
+        )}
 
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
-            <Input
-              placeholder="Fatura No"
-              value={filters.invoiceNumber}
-              onChange={(e) => setFilters({ ...filters, invoiceNumber: e.target.value })}
-              allowClear
-            />
-          </Col>
-          <Col span={6}>
-            <Select
-              placeholder="Fatura Tipi"
-              style={{ width: '100%' }}
-              value={filters.invoiceTypeCode}
-              onChange={(value) => setFilters({ ...filters, invoiceTypeCode: value })}
-              allowClear
-            >
-              <Option value={InvoiceType.WHOLESALE_SALES}>{invoiceTypeDescriptions[InvoiceType.WHOLESALE_SALES]}</Option>
-              <Option value={InvoiceType.WHOLESALE_PURCHASE}>{invoiceTypeDescriptions[InvoiceType.WHOLESALE_PURCHASE]}</Option>
-              <Option value={InvoiceType.EXPENSE_SALES}>{invoiceTypeDescriptions[InvoiceType.EXPENSE_SALES]}</Option>
-              <Option value={InvoiceType.EXPENSE_PURCHASE}>{invoiceTypeDescriptions[InvoiceType.EXPENSE_PURCHASE]}</Option>
-            </Select>
-          </Col>
-          <Col span={8}>
-            <RangePicker
-              style={{ width: '100%' }}
-              value={filters.dateRange}
-              onChange={(dates) => setFilters({ ...filters, dateRange: dates as [dayjs.Dayjs, dayjs.Dayjs] })}
-              format="DD.MM.YYYY"
-              allowClear
-            />
-          </Col>
-          <Col span={4}>
-            <Space>
-              <Button
-                type="primary"
-                icon={<SearchOutlined />}
-                onClick={applyFilters}
-              >
-                Ara
-              </Button>
-              <Button onClick={clearFilters}>Temizle</Button>
-            </Space>
-          </Col>
-        </Row>
+        {/* Mobil ve masaüstü için farklı filtre düzenleri */}
+        {isMobile ? (
+          // Mobil için alt alta düzen
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 12 }}>
+              <Input
+                placeholder="Fatura No"
+                value={filters.invoiceNumber}
+                onChange={(e) => setFilters({ ...filters, invoiceNumber: e.target.value })}
+                allowClear
+                style={{ width: '100%', marginBottom: 12 }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: 12 }}>
+              <RangePicker
+                style={{ width: '100%', marginBottom: 12 }}
+                value={filters.dateRange}
+                onChange={(dates) => setFilters({ ...filters, dateRange: dates as [dayjs.Dayjs, dayjs.Dayjs] })}
+                format="DD.MM.YYYY"
+                allowClear
+              />
+            </div>
+            
+            <div>
+              <Space style={{ width: '100%', justifyContent: 'center' }}>
+                <Button
+                  type="primary"
+                  icon={<SearchOutlined />}
+                  onClick={applyFilters}
+                >
+                  Ara
+                </Button>
+                <Button 
+                  onClick={clearFilters}
+                >
+                  Temizle
+                </Button>
+              </Space>
+            </div>
+          </div>
+        ) : (
+          // Masaüstü için yan yana düzen
+          <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Col span={12}>
+              <Input
+                placeholder="Fatura No"
+                value={filters.invoiceNumber}
+                onChange={(e) => setFilters({ ...filters, invoiceNumber: e.target.value })}
+                allowClear
+                style={{ marginBottom: 12 }}
+              />
+            </Col>
+            <Col span={12}>
+              <RangePicker
+                style={{ width: '100%', marginBottom: 12 }}
+                value={filters.dateRange}
+                onChange={(dates) => setFilters({ ...filters, dateRange: dates as [dayjs.Dayjs, dayjs.Dayjs] })}
+                format="DD.MM.YYYY"
+                allowClear
+              />
+            </Col>
+            <Col span={24} style={{ textAlign: 'center' }}>
+              <Space>
+                <Button
+                  type="primary"
+                  icon={<SearchOutlined />}
+                  onClick={applyFilters}
+                >
+                  Ara
+                </Button>
+                <Button onClick={clearFilters}>Temizle</Button>
+              </Space>
+            </Col>
+          </Row>
+        )}
+
+        {/* Arama kısmı ile fatura listesi arasına ayıraç */}
+        <div style={{ margin: '20px 0', padding: '10px 0', borderTop: '1px solid #e8e8e8', borderBottom: '1px solid #e8e8e8' }}></div>
 
         <Table
-          columns={columns}
+          columns={getColumns()}
           dataSource={invoices}
           rowKey={(record) => record.invoiceHeaderID || record.invoiceHeaderId || Math.random().toString()}
           pagination={pagination}
           loading={loading}
           onChange={handleTableChange}
-          scroll={{ x: 1200 }}
+          scroll={{ x: isMobile ? undefined : 1200 }}
+          size={isMobile ? "small" : "middle"}
         />
       </Card>
 
