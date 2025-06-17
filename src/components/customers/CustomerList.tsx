@@ -34,7 +34,8 @@ import {
   Mail as MailIcon,
   Add as AddIcon,
   QrCode as QrCodeIcon,
-  ContentCopy as ContentCopyIcon
+  ContentCopy as ContentCopyIcon,
+  Share as ShareIcon
 } from '@mui/icons-material';
 import { useCustomerList } from '../../hooks/useCustomerList';
 import { Customer } from '../../types/customer';
@@ -48,6 +49,7 @@ interface CustomerListProps {
 export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
   const [page, setPage] = React.useState(1);
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [inputValue, setInputValue] = React.useState('');
   const { data, isLoading, error } = useCustomerList({ page, searchTerm });
   const navigate = useNavigate();
   
@@ -74,8 +76,14 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
   };
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value);
-    setPage(1);
+    const value = event.target.value;
+    setInputValue(value);
+    
+    // Sadece 3 veya daha fazla karakter girildiğinde veya hiç karakter yoksa arama yap
+    if (value.length === 0 || value.length >= 3) {
+      setSearchTerm(value);
+      setPage(1);
+    }
   };
 
   const handleViewCustomer = (customerCode: string) => {
@@ -249,46 +257,142 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
 
   if (isMobile) {
     return (
-      <Box p={2}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">Müşteriler</Typography>
+      <Box sx={{ px: '5px', py: 2 }}>
+        {/* Başlık en üstte ortada */}
+        <Typography 
+          variant="h5" 
+          component="h1" 
+          sx={{ textAlign: 'center', mb: 3, fontWeight: 'bold', pt: 1 }}
+        >
+          Müşteriler
+        </Typography>
+        
+        {/* Butonlar tek satırda */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2, gap: 2 }}>
           <Button 
             variant="contained" 
             color="primary" 
             startIcon={<AddIcon />}
             onClick={handleAddCustomer}
+            sx={{ flex: 1 }}
           >
-            Yeni
+            Yeni Müşteri
+          </Button>
+          <Button 
+            variant="outlined" 
+            color="primary" 
+            startIcon={<ShareIcon />}
+            onClick={() => setQrDialogOpen(true)}
+            sx={{ flex: 1 }}
+          >
+            Link Ver
           </Button>
         </Box>
         
+        {/* Arama alanı */}
         <TextField
           fullWidth
           variant="outlined"
-          placeholder="Müşteri Ara..."
-          value={searchTerm}
+          placeholder="Müşteri Ara (min 3 karakter)..."
+          value={inputValue}
           onChange={handleSearch}
           InputProps={{
-            endAdornment: <SearchIcon />
+            endAdornment: <SearchIcon 
+              sx={{ 
+                color: inputValue.length > 0 && inputValue.length < 3 ? 'action.disabled' : 'inherit',
+                cursor: inputValue.length > 0 && inputValue.length < 3 ? 'not-allowed' : 'pointer'
+              }} 
+            />
           }}
           sx={{ mb: 2 }}
         />
         
-        <Box sx={{ display: 'grid', gap: 2 }}>
+        <Box sx={{ display: 'grid', gap: 1.2, mx: 0 }}>
           {data.customers.map((customer) => (
-            <Card key={customer.customerCode}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  {customer.customerName}
-                  {customer.isBlocked && <span style={{ color: 'red', marginLeft: 8 }}>Bloke</span>}
-                </Typography>
-                <Typography color="textSecondary" gutterBottom>
-                  Müşteri Kodu: {customer.customerCode}
-                </Typography>
-                <Typography variant="body2">
+            <Card key={customer.customerCode} sx={{ mx: 0 }}>
+              <CardContent sx={{ px: 1.2, py: 1.2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.8 }}>
+                  <Typography 
+                    variant="body1" 
+                    component="div" 
+                    sx={{ 
+                      fontSize: '0.95rem', 
+                      fontWeight: 'medium',
+                      flexGrow: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {customer.customerName}
+                    {customer.isBlocked && <span style={{ color: 'red', marginLeft: 8 }}>Bloke</span>}
+                  </Typography>
+                  <Typography 
+                    sx={{ 
+                      color: 'primary.main', 
+                      fontSize: '0.85rem',
+                      ml: 1,
+                      fontWeight: 'medium'
+                    }}
+                  >
+                    {customer.customerCode}
+                  </Typography>
+                </Box>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontSize: '0.855rem',
+                    color: 'text.secondary',
+                    mb: 0.8
+                  }}
+                >
                   {customer.cityDescription} / {customer.districtDescription}
                 </Typography>
-                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  mt: 0.8, 
+                  pt: 0.8, 
+                  borderTop: '1px solid #eee',
+                  fontSize: '0.85rem'
+                }}>
+                  <Box>
+                    <Typography variant="caption" display="block" color="textSecondary">
+                      Borç
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'medium' }}>
+                      {customer.debit !== undefined 
+                        ? `${customer.debit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
+                        : '0.00 TL'}
+                    </Typography>
+                  </Box>
+                  
+                  <Box>
+                    <Typography variant="caption" display="block" color="textSecondary">
+                      Alacak
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'medium' }}>
+                      {customer.credit !== undefined 
+                        ? `${customer.credit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
+                        : '0.00 TL'}
+                    </Typography>
+                  </Box>
+                  
+                  <Box>
+                    <Typography variant="caption" display="block" color="textSecondary">
+                      Bakiye
+                    </Typography>
+                    <Typography variant="body2" sx={{ 
+                      fontWeight: 'bold',
+                      color: customer.balance && customer.balance < 0 ? 'error.main' : 'success.main'
+                    }}>
+                      {customer.balance !== undefined 
+                        ? `${customer.balance.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
+                        : '0.00 TL'}
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1, mx: '5px' }}>
                   <Tooltip title="Detay Görüntüle">
                     <IconButton size="small" color="primary" onClick={() => handleViewCustomer(customer.customerCode)}>
                       <VisibilityIcon />
@@ -315,8 +419,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
   };
   
   return (
-    <Box p={2}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+    <Box sx={{ px: '5px', py: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, mx: '5px' }}>
         <Typography variant="h5">Müşteriler</Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button 
@@ -338,19 +442,47 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
         </Box>
       </Box>
       
-      <TextField
-        fullWidth
-        variant="outlined"
-        placeholder="Müşteri Ara..."
-        value={searchTerm}
-        onChange={handleSearch}
-        InputProps={{
-          endAdornment: <SearchIcon />
-        }}
-        sx={{ mb: 2 }}
-      />
+      <Box sx={{ display: 'flex', mb: 2, mx: '5px' }}>
+        <TextField
+          fullWidth
+          variant="outlined"
+          placeholder="Müşteri Ara (min 3 karakter)..."
+          value={inputValue}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+          }}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (inputValue.length === 0 || inputValue.length >= 3) {
+                setSearchTerm(inputValue);
+                setPage(1);
+              }
+            }
+          }}
+          InputProps={{
+            endAdornment: (
+              <IconButton 
+                onClick={() => {
+                  if (inputValue.length === 0 || inputValue.length >= 3) {
+                    setSearchTerm(inputValue);
+                    setPage(1);
+                  }
+                }}
+                disabled={inputValue.length > 0 && inputValue.length < 3}
+              >
+                <SearchIcon 
+                  sx={{ 
+                    color: inputValue.length > 0 && inputValue.length < 3 ? 'action.disabled' : 'inherit'
+                  }} 
+                />
+              </IconButton>
+            )
+          }}
+        />
+      </Box>
       
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} sx={{ mx: '5px' }}>
         <Table>
           <TableHead>
             <TableRow>
@@ -358,6 +490,9 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
               <TableCell>Müşteri Adı</TableCell>
               <TableCell>Şehir</TableCell>
               <TableCell>İlçe</TableCell>
+              <TableCell align="right">Borç</TableCell>
+              <TableCell align="right">Alacak</TableCell>
+              <TableCell align="right">Bakiye</TableCell>
               <TableCell>Durum</TableCell>
               <TableCell align="center">İşlemler</TableCell>
             </TableRow>
@@ -371,6 +506,24 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
                 </TableCell>
                 <TableCell>{customer.cityDescription}</TableCell>
                 <TableCell>{customer.districtDescription}</TableCell>
+                <TableCell align="right" sx={{ color: 'error.main', fontWeight: 'medium' }}>
+                  {customer.debit !== undefined 
+                    ? `${customer.debit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
+                    : '0.00 TL'}
+                </TableCell>
+                <TableCell align="right" sx={{ color: 'success.main', fontWeight: 'medium' }}>
+                  {customer.credit !== undefined 
+                    ? `${customer.credit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
+                    : '0.00 TL'}
+                </TableCell>
+                <TableCell align="right" sx={{ 
+                  fontWeight: 'bold',
+                  color: customer.balance && customer.balance < 0 ? 'error.main' : 'success.main'
+                }}>
+                  {customer.balance !== undefined 
+                    ? `${customer.balance.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
+                    : '0.00 TL'}
+                </TableCell>
                 <TableCell>
                   {customer.isBlocked ? 
                     <span style={{ color: 'red' }}>Bloke</span> : 
