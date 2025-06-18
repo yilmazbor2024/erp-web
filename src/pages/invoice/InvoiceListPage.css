@@ -1,0 +1,29 @@
+/* Ant Design tablo wrapper border kaldırma */
+.ant-table-wrapper.css-dev-only-do-not-override-1v5z42l {
+  border: none !important;
+}
+
+.ant-table-wrapper.css-dev-only-do-not-override-1v5z42l .ant-table {
+  border: none !important;
+}
+
+.ant-table-wrapper.css-dev-only-do-not-override-1v5z42l .ant-table-container {
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.ant-table-wrapper.css-dev-only-do-not-override-1v5z42l .ant-table-cell {
+  border: none !important;
+}
+
+.ant-table-wrapper.css-dev-only-do-not-override-1v5z42l::before {
+  display: none !important;
+}
+
+.ant-table-wrapper.css-dev-only-do-not-override-1v5z42l .ant-table-thead > tr > th {
+  border-bottom: 1px solid #f0f0f0 !important;
+}
+
+.ant-table-wrapper.css-dev-only-do-not-override-1v5z42l .ant-table-tbody > tr > td {
+  border-bottom: 1px solid #f0f0f0 !important;
+}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import './InvoiceListPage.css';
 import { Table, Card, Button, Space, Tag, Tooltip, Input, DatePicker, Select, Row, Col, Typography, Modal, message, Grid } from 'antd';
 import { PlusOutlined, EditOutlined, EyeOutlined, FileTextOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -33,6 +34,17 @@ const invoiceTypeColors = {
   [InvoiceType.WHOLESALE_PURCHASE]: 'blue',
   [InvoiceType.EXPENSE_SALES]: 'orange',
   [InvoiceType.EXPENSE_PURCHASE]: 'purple'
+};
+
+// Para birimi kodlarını sembollere dönüştüren yardımcı fonksiyon
+const getCurrencySymbol = (currencyCode: string): string => {
+  switch(currencyCode?.toUpperCase()) {
+    case 'USD': return '$';
+    case 'EUR': return '€';
+    case 'GBP': return '£';
+    case 'TRY': return '₺';
+    default: return currencyCode; // Bilinmeyen para birimleri için kodu olduğu gibi döndür
+  }
 };
 
 // URL'deki type parametresini doğru fatura tipi koduna dönüştür
@@ -203,14 +215,14 @@ const InvoiceListPage: React.FC = () => {
     if (isMobile) {
       return [
         {
-          title: <div style={{ textAlign: 'center' }}>Fatura Listesi</div>,
+          title: <div style={{ textAlign: 'center', display: 'none' }}>Fatura Listesi</div>,
           key: 'invoiceInfo',
           render: (_: React.ReactNode, record: any) => (
             <div style={{ padding: '8px 0' }}>
               {/* Fatura No ve Tarih aynı satırda */}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <span style={{ fontWeight: 'bold' }}>{record.invoiceNumber}</span>
-                <span>{dayjs(record.invoiceDate).format('DD.MM.YYYY')}</span>
+                <span style={{ fontWeight: 'bold', color: '#e67e22' }}>{dayjs(record.invoiceDate).format('DD.MM.YYYY')}</span>
               </div>
               
               {/* Müşteri açıklaması 2. satırda */}
@@ -224,26 +236,79 @@ const InvoiceListPage: React.FC = () => {
               
 
               
-              {/* Fatura toplamları alt satırda */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingTop: '4px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', color: '#8c8c8c' }}>KDV Hariç</div>
-                  <div>{record.totalNetAmount !== undefined && record.totalNetAmount !== null ? `${Number(record.totalNetAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'}</div>
+              {/* Fatura toplamları alt satırda - Net + KDV = TOPLAM formatında */}
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', paddingTop: '4px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', color: '#8c8c8c' }}>Net</div>
+                  <div>{
+                    // Hem büyük harfle başlayan hem de küçük harfle başlayan alan adlarını kontrol et
+                    (() => {
+                      const value = record.TotalNetAmount !== undefined && record.TotalNetAmount !== null ? 
+                        record.TotalNetAmount : 
+                        (record.totalNetAmount !== undefined && record.totalNetAmount !== null ? 
+                          record.totalNetAmount : 0);
+                      // Para birimi olarak faturanın kendi para birimini kullan
+                      const currencyCode = record.DocCurrencyCode || record.docCurrencyCode || 'TRY';
+                      const symbol = getCurrencySymbol(currencyCode);
+                      return `${Number(value).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${symbol}`;
+                    })()
+                  }</div>
                 </div>
-                <div>
+                
+                <div style={{ margin: '0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ fontSize: '12px', color: 'transparent' }}>+</div>
+                  <div style={{ fontWeight: 'bold' }}>+</div>
+                </div>
+                
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', color: '#8c8c8c' }}>KDV</div>
-                  <div>{record.totalVatAmount !== undefined && record.totalVatAmount !== null ? `${Number(record.totalVatAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'}</div>
+                  <div>{
+                      // Hem büyük harfle başlayan hem de küçük harfle başlayan alan adlarını kontrol et
+                      (() => {
+                        let value = 0;
+                        if (record.TotalVatAmount !== undefined && record.TotalVatAmount !== null) {
+                          value = Number(record.TotalVatAmount);
+                        } else if (record.totalVatAmount !== undefined && record.totalVatAmount !== null) {
+                          value = Number(record.totalVatAmount);
+                        }
+                        // KDV değeri çok küçükse (0.01'den küçük) sıfır olarak göster
+                        const displayValue = value < 0.01 ? 0 : value;
+                        // Para birimi olarak faturanın kendi para birimini kullan
+                        const currencyCode = record.DocCurrencyCode || record.docCurrencyCode || 'TRY';
+                        const symbol = getCurrencySymbol(currencyCode);
+                        return `${displayValue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${symbol}`;
+                      })()
+                  }</div>
                 </div>
-                <div>
+                
+                <div style={{ margin: '0 8px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ fontSize: '12px', color: 'transparent' }}></div>
+                  <div style={{ fontWeight: 'bold' }}></div>
+                </div>
+                
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', color: '#8c8c8c' }}>Toplam</div>
-                  <div style={{ fontWeight: 'bold' }}>{record.totalGrossAmount !== undefined && record.totalGrossAmount !== null ? `${Number(record.totalGrossAmount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'}</div>
+                  <div style={{ fontWeight: 'bold' }}>{
+                    // Hem büyük harfle başlayan hem de küçük harfle başlayan alan adlarını kontrol et
+                    (() => {
+                      const value = record.TotalGrossAmount !== undefined && record.TotalGrossAmount !== null ? 
+                        record.TotalGrossAmount : 
+                        (record.totalGrossAmount !== undefined && record.totalGrossAmount !== null ? 
+                          record.totalGrossAmount : 0);
+                      // Para birimi olarak faturanın kendi para birimini kullan
+                      const currencyCode = record.DocCurrencyCode || record.docCurrencyCode || 'TRY';
+                      const symbol = getCurrencySymbol(currencyCode);
+                      return `${Number(value).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${symbol}`;
+                    })()
+                  }</div>
                 </div>
               </div>
               
               <div style={{ marginBottom: '8px' }}>
                 <Button 
-                  type="primary" 
+                  type="default" 
                   size="small" 
+                  style={{ backgroundColor: '#8c8c8c', color: 'white' }}
                   icon={<EyeOutlined />}
                   onClick={() => navigate(`/invoice/${record.invoiceHeaderID || record.invoiceHeaderId}`)}
                 >
@@ -267,28 +332,62 @@ const InvoiceListPage: React.FC = () => {
         render: (_: any, record: any) => (
           <div>
             <div><span style={{ fontWeight: 'bold' }}>{record.invoiceNumber}</span></div>
-            <div style={{ fontSize: '12px', color: '#8c8c8c' }}>{dayjs(record.invoiceDate).format('DD.MM.YYYY')}</div>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#e67e22' }}>{dayjs(record.invoiceDate).format('DD.MM.YYYY')}</div>
           </div>
         )
       },
 
     {
-      title: 'KDV Hariç',
+      title: 'Net',
       dataIndex: 'totalNetAmount',
       key: 'totalNetAmount',
-      render: (text: number | undefined) => text ? `${text.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'
+      render: (_: any, record: any) => {
+        // Hem büyük harfle başlayan hem de küçük harfle başlayan alan adlarını kontrol et
+        const value = record.TotalNetAmount !== undefined && record.TotalNetAmount !== null ? 
+          record.TotalNetAmount : 
+          (record.totalNetAmount !== undefined && record.totalNetAmount !== null ? 
+            record.totalNetAmount : 0);
+        // Para birimi olarak faturanın kendi para birimini kullan
+        const currencyCode = record.DocCurrencyCode || record.docCurrencyCode || 'TRY';
+        const symbol = getCurrencySymbol(currencyCode);
+        return `${Number(value).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${symbol}`;
+      }
     },
     {
       title: 'KDV',
       dataIndex: 'totalVatAmount',
       key: 'totalVatAmount',
-      render: (text: number | undefined) => text ? `${text.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'
+      render: (_: any, record: any) => {
+        // Hem büyük harfle başlayan hem de küçük harfle başlayan alan adlarını kontrol et
+        const value = record.TotalVatAmount !== undefined && record.TotalVatAmount !== null ? 
+          record.TotalVatAmount : 
+          (record.totalVatAmount !== undefined && record.totalVatAmount !== null ? 
+            record.totalVatAmount : 0);
+            
+        // KDV değeri çok küçükse (0.01'den küçük) sıfır olarak göster
+        const numValue = Number(value);
+        const displayValue = numValue < 0.01 ? 0 : numValue;
+        // Para birimi olarak faturanın kendi para birimini kullan
+        const currencyCode = record.DocCurrencyCode || record.docCurrencyCode || 'TRY';
+        const symbol = getCurrencySymbol(currencyCode);
+        return `${displayValue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${symbol}`;
+      }
     },
     {
       title: 'Toplam',
       dataIndex: 'totalGrossAmount',
       key: 'totalGrossAmount',
-      render: (text: number | undefined) => <span style={{ fontWeight: 'bold' }}>{text !== undefined && text !== null ? `${Number(text).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL` : '0,00 TL'}</span>
+      render: (_: any, record: any) => {
+        // Hem büyük harfle başlayan hem de küçük harfle başlayan alan adlarını kontrol et
+        const value = record.TotalGrossAmount !== undefined && record.TotalGrossAmount !== null ? 
+          record.TotalGrossAmount : 
+          (record.totalGrossAmount !== undefined && record.totalGrossAmount !== null ? 
+            record.totalGrossAmount : 0);
+        // Para birimi olarak faturanın kendi para birimini kullan
+        const currencyCode = record.DocCurrencyCode || record.docCurrencyCode || 'TRY';
+        const symbol = getCurrencySymbol(currencyCode);
+        return <span style={{ fontWeight: 'bold' }}>{`${Number(value).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${symbol}`}</span>;
+      }
     },
     {
       title: 'Müşteri/Tedarikçi',
@@ -364,7 +463,7 @@ const InvoiceListPage: React.FC = () => {
             <Button
               key={`view-${record.invoiceHeaderID || record.invoiceHeaderId}`}
               type="text"
-              icon={<EyeOutlined />}
+              icon={<EyeOutlined style={{ color: '#8c8c8c' }} />}
               onClick={() => viewInvoiceDetails(record.invoiceHeaderID || record.invoiceHeaderId, record.invoiceTypeCode)}
             />
           </Tooltip>
@@ -396,8 +495,14 @@ const InvoiceListPage: React.FC = () => {
         {isMobile ? (
           // Mobil görünümde başlık üstte, buton altta
           <div style={{ marginBottom: 16 }}>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <Title level={4}>Faturalar</Title>
+            <div style={{ textAlign: 'center', marginBottom: 16, backgroundColor: 'white', padding: '8px' }}>
+              <Title level={4} style={{ color: '#9370DB', fontSize: '1.2em', margin: 0, fontWeight: 'bold' }}>
+                {typeParam === 'wholesale' && 'Satış Faturaları'}
+                {typeParam === 'wholesale-purchase' && 'Alış Faturaları'}
+                {typeParam === 'expense-purchase' && 'Masraf Faturaları'}
+                {typeParam === 'expense-sales' && 'Masraf Satış Faturaları'}
+                {!typeParam && 'Faturalar'}
+              </Title>
             </div>
             <div>
               {typeParam === 'wholesale' && (
@@ -446,7 +551,15 @@ const InvoiceListPage: React.FC = () => {
           // Masaüstü görünümde yan yana
           <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
             <Col>
-              <Title level={4}>Faturalar</Title>
+              <div style={{ backgroundColor: 'white', padding: '8px', borderRadius: '4px' }}>
+                <Title level={4} style={{ color: '#9370DB', fontSize: '1.2em', margin: 0, fontWeight: 'bold' }}>
+                  {typeParam === 'wholesale' && 'Satış Faturaları'}
+                  {typeParam === 'wholesale-purchase' && 'Alış Faturaları'}
+                  {typeParam === 'expense-purchase' && 'Masraf Faturaları'}
+                  {typeParam === 'expense-sales' && 'Masraf Satış Faturaları'}
+                  {!typeParam && 'Faturalar'}
+                </Title>
+              </div>
             </Col>
             <Col>
               <Space>
@@ -568,19 +681,26 @@ const InvoiceListPage: React.FC = () => {
           </Row>
         )}
 
-        {/* Arama kısmı ile fatura listesi arasına ayıraç */}
-        <div style={{ margin: '20px 0', padding: '10px 0', borderTop: '1px solid #e8e8e8', borderBottom: '1px solid #e8e8e8' }}></div>
+        {/* Arama kısmı ile fatura listesi arasındaki boşluk */}
+        <div style={{ margin: '10px 0' }}></div>
 
-        <Table
-          columns={getColumns()}
-          dataSource={invoices}
-          rowKey={(record) => record.invoiceHeaderID || record.invoiceHeaderId || Math.random().toString()}
-          pagination={pagination}
-          loading={loading}
-          onChange={handleTableChange}
-          scroll={{ x: isMobile ? undefined : 1200 }}
-          size={isMobile ? "small" : "middle"}
-        />
+        <div style={{ padding: '3px', border: 'black', borderWidth: '2px', borderStyle: 'solid', borderColor: '#0e0303' }}>
+          <div style={{ backgroundColor: 'black', color: 'white', padding: '10px', fontSize: '1.2em', fontWeight: 'bold', textAlign: 'center', marginBottom: '10px', borderBottom: '1px solid #000' }}>
+            Fatura Listesi
+          </div>
+          <Table
+            columns={getColumns()}
+            dataSource={invoices}
+            rowKey={(record) => record.invoiceHeaderID || record.invoiceHeaderId || Math.random().toString()}
+            pagination={pagination}
+            loading={loading}
+            onChange={handleTableChange}
+            scroll={{ x: isMobile ? undefined : 1200 }}
+            size={isMobile ? "small" : "middle"}
+            bordered={false}
+            style={{ border: 'none' }}
+          />
+        </div>
       </Card>
 
       {/* Modal kaldırıldı, yerine sayfa yönlendirmesi kullanılıyor */}
