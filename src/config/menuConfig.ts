@@ -405,16 +405,10 @@ export const mobileCardMenu: MenuItem[] = [
         icon: 'ArchiveBoxIcon'
       },
       {
-        id: 'warehouse-transfers',
-        title: 'Depolar Arası Sevk',
-        path: '/inventory/warehouse-transfers',
-        icon: 'SwapOutlined'
-      },
-      {
         id: 'warehouse-transfer',
         title: 'Depo ve Depolar Arası Transfer',
-        path: '/inventory/transfer',
-        icon: 'ArchiveBoxIcon'
+        path: '/inventory/warehouse-transfers',
+        icon: 'SwapOutlined'
       },
       {
         id: 'shipping',
