@@ -25,6 +25,8 @@ import InvoiceEditPage from './pages/invoice/InvoiceEditPage';
 import ProductPriceList from './pages/Products/ProductPriceList';
 import ProductDetail from './pages/Products/ProductDetail';
 import InventoryStockPage from './pages/inventory/InventoryStockPage';
+import WarehouseTransferListPage from './pages/inventory/WarehouseTransferListPage';
+import WarehouseTransferDetailPage from './pages/inventory/WarehouseTransferDetailPage';
 import ExchangeRatesPage from './pages/finance/ExchangeRatesPage';
 import ExchangeRateManagementPage from './pages/admin/ExchangeRateManagementPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -95,6 +97,12 @@ const AppRoutes: React.FC = () => {
           
           {/* Envanter/Stok Sayfaları */}
           <Route path="inventory/count" element={<div>Sayım Sayfası (Geliştirme Aşamasında)</div>} />
+          <Route path="inventory/stock" element={<InventoryStockPage />} />
+          
+          {/* Depolar Arası Sevk Sayfaları */}
+          <Route path="inventory/warehouse-transfers" element={<WarehouseTransferListPage />} />
+          <Route path="inventory/warehouse-transfers/:transferNumber" element={<WarehouseTransferDetailPage />} />
+          <Route path="inventory/warehouse-transfers/create" element={<div>Yeni Sevk Oluşturma (Geliştirme Aşamasında)</div>} />
           
           {/* Finans Sayfaları */}
           <Route path="finance/exchange-rates" element={<ExchangeRatesPage />} />

@@ -1,0 +1,461 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  Container,
+  Typography,
+  Box,
+  Paper,
+  Button,
+  Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  CircularProgress,
+  Chip,
+  Divider,
+  Card,
+  CardContent,
+  IconButton,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Tooltip
+} from '@mui/material';
+import {
+  ArrowBack as ArrowBackIcon,
+  Check as CheckIcon,
+  Close as CloseIcon,
+  Lock as LockIcon,
+  LockOpen as LockOpenIcon,
+  Print as PrintIcon
+} from '@mui/icons-material';
+import warehouseTransferApi, { 
+  WarehouseTransferResponse,
+  WarehouseTransferItemResponse
+} from '../../services/warehouseTransferApi';
+import { formatDate, formatDateTime } from '../../utils/dateUtils';
+import { useSnackbar } from 'notistack';
+
+const WarehouseTransferDetailPage: React.FC = () => {
+  const { transferNumber } = useParams<{ transferNumber: string }>();
+  const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
+  
+  // State tanımlamaları
+  const [transfer, setTransfer] = useState<WarehouseTransferResponse | null>(null);
+  const [transferItems, setTransferItems] = useState<WarehouseTransferItemResponse[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState<boolean>(false);
+  const [actionType, setActionType] = useState<'approve' | 'cancel' | 'lock' | 'unlock' | null>(null);
+  
+  // Sayfa yüklendiğinde veriyi getir
+  useEffect(() => {
+    if (transferNumber) {
+      fetchTransferData();
+    }
+  }, [transferNumber]);
+  
+  // Sevk detaylarını getiren fonksiyon
+  const fetchTransferData = async () => {
+    if (!transferNumber) return;
+    
+    setLoading(true);
+    try {
+      // Ana sevk bilgilerini getir
+      const data = await warehouseTransferApi.getWarehouseTransferByNumber(transferNumber);
+      if (data) {
+        setTransfer(data);
+        
+        // Sevk satır detaylarını getir
+        const items = await warehouseTransferApi.getWarehouseTransferItems(transferNumber);
+        setTransferItems(items);
+      } else {
+        enqueueSnackbar('Sevk kaydı bulunamadı', { variant: 'error' });
+        navigate('/inventory/warehouse-transfers');
+      }
+    } catch (error) {
+      console.error('Error fetching transfer data:', error);
+      enqueueSnackbar('Sevk detayları yüklenirken bir hata oluştu', { variant: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // İşlem onay dialogunu açma fonksiyonu
+  const openConfirmDialog = (action: 'approve' | 'cancel' | 'lock' | 'unlock') => {
+    setActionType(action);
+    setConfirmDialogOpen(true);
+  };
+  
+  // Onaylama, iptal etme, kilitleme ve kilit açma işlemleri
+  const handleAction = async () => {
+    if (!transferNumber || !actionType) return;
+    
+    setLoading(true);
+    try {
+      let success = false;
+      let message = '';
+      
+      switch (actionType) {
+        case 'approve':
+          success = await warehouseTransferApi.approveWarehouseTransfer(transferNumber);
+          message = 'Sevk başarıyla onaylandı';
+          break;
+        case 'cancel':
+          success = await warehouseTransferApi.cancelWarehouseTransfer(transferNumber);
+          message = 'Sevk başarıyla iptal edildi';
+          break;
+        case 'lock':
+          success = await warehouseTransferApi.lockWarehouseTransfer(transferNumber);
+          message = 'Sevk başarıyla kilitlendi';
+          break;
+        case 'unlock':
+          success = await warehouseTransferApi.unlockWarehouseTransfer(transferNumber);
+          message = 'Sevk kilidi başarıyla açıldı';
+          break;
+      }
+      
+      if (success) {
+        enqueueSnackbar(message, { variant: 'success' });
+        fetchTransferData(); // Verileri yenile
+      } else {
+        enqueueSnackbar('İşlem başarısız oldu', { variant: 'error' });
+      }
+    } catch (error) {
+      console.error(`Error performing ${actionType} action:`, error);
+      enqueueSnackbar('İşlem sırasında bir hata oluştu', { variant: 'error' });
+    } finally {
+      setLoading(false);
+      setConfirmDialogOpen(false);
+      setActionType(null);
+    }
+  };
+  
+  // Onay dialogu içeriği
+  const getDialogContent = () => {
+    if (!actionType || !transferNumber) return '';
+    
+    switch (actionType) {
+      case 'approve':
+        return `"${transferNumber}" numaralı sevki onaylamak istediğinize emin misiniz?`;
+      case 'cancel':
+        return `"${transferNumber}" numaralı sevki iptal etmek istediğinize emin misiniz?`;
+      case 'lock':
+        return `"${transferNumber}" numaralı sevki kilitlemek istediğinize emin misiniz?`;
+      case 'unlock':
+        return `"${transferNumber}" numaralı sevkin kilidini açmak istediğinize emin misiniz?`;
+      default:
+        return '';
+    }
+  };
+  
+  // Listeye dön fonksiyonu
+  const handleBack = () => {
+    navigate('/inventory/warehouse-transfers');
+  };
+  
+  // Yazdırma fonksiyonu
+  const handlePrint = () => {
+    window.print();
+  };
+  
+  if (loading && !transfer) {
+    return (
+      <Container maxWidth="xl">
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+  
+  if (!transfer) {
+    return (
+      <Container maxWidth="xl">
+        <Box sx={{ mt: 3, mb: 4 }}>
+          <Typography variant="h5" color="error" gutterBottom>
+            Sevk bulunamadı
+          </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBackIcon />}
+            onClick={handleBack}
+            sx={{ mt: 2 }}
+          >
+            Listeye Dön
+          </Button>
+        </Box>
+      </Container>
+    );
+  }
+  
+  return (
+    <Container maxWidth="xl" className="print-container">
+      <Box sx={{ mt: 3, mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <IconButton onClick={handleBack} sx={{ mr: 1 }} className="no-print">
+              <ArrowBackIcon />
+            </IconButton>
+            <Typography variant="h4" component="h1">
+              Sevk Detayları
+            </Typography>
+          </Box>
+          
+          <Box className="no-print">
+            <Tooltip title="Yazdır">
+              <IconButton onClick={handlePrint} sx={{ mr: 1 }}>
+                <PrintIcon />
+              </IconButton>
+            </Tooltip>
+            
+            {!transfer.isCompleted && (
+              <>
+                <Button
+                  variant="contained"
+                  color="success"
+                  startIcon={<CheckIcon />}
+                  onClick={() => openConfirmDialog('approve')}
+                  sx={{ mr: 1 }}
+                >
+                  Onayla
+                </Button>
+                
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<CloseIcon />}
+                  onClick={() => openConfirmDialog('cancel')}
+                  sx={{ mr: 1 }}
+                >
+                  İptal Et
+                </Button>
+                
+                {transfer.isLocked ? (
+                  <Button
+                    variant="outlined"
+                    startIcon={<LockOpenIcon />}
+                    onClick={() => openConfirmDialog('unlock')}
+                  >
+                    Kilidi Aç
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outlined"
+                    startIcon={<LockIcon />}
+                    onClick={() => openConfirmDialog('lock')}
+                  >
+                    Kilitle
+                  </Button>
+                )}
+              </>
+            )}
+          </Box>
+        </Box>
+
+        <Grid container spacing={3}>
+          <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Sevk Bilgileri
+                </Typography>
+
+                <Grid container spacing={2}>
+                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+                    <Typography variant="subtitle2" color="textSecondary">
+                      Sevk Numarası
+                    </Typography>
+                    <Typography variant="body1">
+                      {transfer.transferNumber}
+                    </Typography>
+                  </Grid>
+
+                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+                    <Typography variant="subtitle2" color="textSecondary">
+                      İşlem Tarihi
+                    </Typography>
+                    <Typography variant="body1">
+                      {formatDate(transfer.operationDate)}
+                    </Typography>
+                  </Grid>
+
+                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+                    <Typography variant="subtitle2" color="textSecondary">
+                      Durum
+                    </Typography>
+                    <Box>
+                      {transfer.isCompleted ? (
+                        <Chip label="Onaylandı" color="success" size="small" />
+                      ) : transfer.isLocked ? (
+                        <Chip label={`Kilitli (${transfer.lockedByUser})`} color="warning" size="small" />
+                      ) : (
+                        <Chip label="Bekliyor" color="default" size="small" />
+                      )}
+                    </Box>
+                  </Grid>
+
+                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+                    <Typography variant="subtitle2" color="textSecondary">
+                      Toplam Miktar
+                    </Typography>
+                    <Typography variant="body1">
+                      {transfer.totalQty}
+                    </Typography>
+                  </Grid>
+
+                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+                    <Typography variant="subtitle2" color="textSecondary">
+                      Kaynak Depo
+                    </Typography>
+                    <Typography variant="body1">
+                      {transfer.sourceWarehouseCode} - {transfer.sourceWarehouseName}
+                    </Typography>
+                  </Grid>
+
+                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+                    <Typography variant="subtitle2" color="textSecondary">
+                      Hedef Depo
+                    </Typography>
+                    <Typography variant="body1">
+                      {transfer.targetWarehouseCode} - {transfer.targetWarehouseName}
+                    </Typography>
+                  </Grid>
+
+                  {transfer.description && (
+                    <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+                      <Typography variant="subtitle2" color="textSecondary">
+                        Açıklama
+                      </Typography>
+                      <Typography variant="body1">
+                        {transfer.description}
+                      </Typography>
+                    </Grid>
+                  )}
+
+                  {transfer.isLocked && (
+                    <>
+                      <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+                        <Typography variant="subtitle2" color="textSecondary">
+                          Kilitleyen Kullanıcı
+                        </Typography>
+                        <Typography variant="body1">
+                          {transfer.lockedByUser}
+                        </Typography>
+                      </Grid>
+
+                      <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+                        <Typography variant="subtitle2" color="textSecondary">
+                          Kilit Tarihi
+                        </Typography>
+                        <Typography variant="body1">
+                          {transfer.lockDate ? formatDateTime(transfer.lockDate) : '-'}
+                        </Typography>
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Sevk Kalemleri
+                </Typography>
+
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Sıra</TableCell>
+                        <TableCell>Ürün Kodu</TableCell>
+                        <TableCell>Ürün Adı</TableCell>
+                        <TableCell>Renk</TableCell>
+                        <TableCell>Beden</TableCell>
+                        <TableCell>Miktar</TableCell>
+                        <TableCell>Birim</TableCell>
+                        <TableCell>Barkod</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {transferItems.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell>{index + 1}</TableCell>
+                          <TableCell>{item.itemCode}</TableCell>
+                          <TableCell>{item.itemName}</TableCell>
+                          <TableCell>{item.colorName || '-'}</TableCell>
+                          <TableCell>{item.itemDim1Name || '-'}</TableCell>
+                          <TableCell>{item.quantity}</TableCell>
+                          <TableCell>{item.unitCode || '-'}</TableCell>
+                          <TableCell>{item.barcode || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Box>
+      
+      {/* Onay Dialog */}
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+        className="no-print"
+      >
+        <DialogTitle>
+          {actionType === 'approve' && 'Sevk Onaylama'}
+          {actionType === 'cancel' && 'Sevk İptal Etme'}
+          {actionType === 'lock' && 'Sevk Kilitleme'}
+          {actionType === 'unlock' && 'Sevk Kilit Açma'}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {getDialogContent()}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialogOpen(false)} color="inherit">
+            Vazgeç
+          </Button>
+          <Button 
+            onClick={handleAction} 
+            color={actionType === 'cancel' ? 'error' : 'primary'} 
+            variant="contained"
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 'Onayla'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Yazdırma için CSS */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+          
+          .print-container {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+        }
+      `}} />
+    </Container>
+  );
+};
+
+export default WarehouseTransferDetailPage;
