@@ -9,6 +9,8 @@
     <meta name="theme-color" content="#1677ff" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="ERP Mobile" />
+    <!-- Mixed content'e izin ver -->
+    <meta http-equiv="Content-Security-Policy" content="connect-src 'self' http: https: ws: wss:;" />
     <meta
       name="description"
       content="ERP Mobile Application"
@@ -28,30 +30,7 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: {
-                50: '#f0f9ff',
-                100: '#e0f2fe',
-                200: '#bae6fd',
-                300: '#7dd3fc',
-                400: '#38bdf8',
-                500: '#0ea5e9',
-                600: '#0284c7',
-                700: '#0369a1',
-                800: '#075985',
-                900: '#0c4a6e',
-                950: '#082f49',
-              },
-            },
-          },
-        },
-      }
-    </script>
+    <!-- Tailwind CSS artık CDN yerine projenin kendi yapılandırması ile kullanılıyor -->
     <title>ERP Mobile</title>
   </head>
   <body>

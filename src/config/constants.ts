@@ -14,6 +14,7 @@ if (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.trim() !== ''
       'PRODUCTION BUILD CRITICAL ERROR: REACT_APP_API_URL ortam değişkeni tanımsız veya boş! ' +
       'Lütfen .env.production dosyasında doğru şekilde ayarlandığından ve build scriptinin (örn: env-cmd ile) bunu yüklediğinden emin olun.'
     );
+    // Doğru API URL'ini kullan
     resolvedApiBaseUrl = 'http://b2b.edikravat.tr';
   } else {
     // Geliştirme ortamında localhost'a fallback yap
@@ -56,10 +57,10 @@ console.log(`FRONTEND_URL set to: ${FRONTEND_URL} (NODE_ENV: ${process.env.NODE_
 export const API_ENDPOINTS = {
   // Auth
   AUTH: {
-    LOGIN: '/api/v1/Auth/login',
-    REGISTER: '/api/v1/Auth/register',
-    LOGOUT: '/api/v1/Auth/logout',
-    CURRENT_USER: '/api/v1/Auth/current-user',
+    LOGIN: '/api/v1/auth/login',
+    REGISTER: '/api/v1/auth/register',
+    LOGOUT: '/api/v1/auth/logout',
+    CURRENT_USER: '/api/v1/auth/current-user',
   },
   // Customer
   CUSTOMER: {

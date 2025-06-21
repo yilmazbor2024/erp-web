@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Select, Space, Button, message } from 'antd';
+import { Card, Typography, Select, Space, Button, message, Grid, Row, Col } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import InvoiceForm from '../../components/invoice/InvoiceForm';
@@ -22,6 +22,9 @@ type InvoiceCreateParams = {
 const InvoiceCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { type } = useParams<InvoiceCreateParams>();
+  const { useBreakpoint } = Grid;
+  const screens = useBreakpoint();
+  const isMobile = !screens.md; // md breakpoint'inden küçükse mobil olarak kabul et
   
   // URL'den gelen fatura tipini belirle, varsayılan olarak toptan satış
   const getInvoiceType = (): InvoiceType => {
@@ -58,13 +61,37 @@ const InvoiceCreatePage: React.FC = () => {
   return (
     <Card>
       <Space direction="vertical" style={{ width: '100%' }} size="large">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Button icon={<ArrowLeftOutlined />} onClick={goBackToList}>
-            Listeye Dön
-          </Button>
-          <Title level={4}>{invoiceTypeDescriptions[invoiceType]} Oluştur</Title>
-          <div style={{ width: 100 }}></div> {/* Boşluk için */}
-        </div>
+        {isMobile ? (
+          // Mobil görünüm - Tek başlık ortada, geri butonu sol üstte
+          <>
+            <div style={{ textAlign: 'center', position: 'relative', marginBottom: 16 }}>
+              <div style={{ position: 'absolute', left: 0, top: 0 }}>
+                <Button 
+                  type="text" 
+                  icon={<ArrowLeftOutlined />} 
+                  onClick={goBackToList}
+                  style={{ padding: '4px 8px' }}
+                />
+              </div>
+              <Title level={4} style={{ margin: 0, padding: '8px 0' }}>
+                Fatura Oluşturma Formu
+              </Title>
+            </div>
+          </>
+        ) : (
+          // Masaüstü görünüm
+          <Row justify="space-between" align="middle">
+            <Col span={4}>
+              <Button icon={<ArrowLeftOutlined />} onClick={goBackToList}>
+                Listeye Dön
+              </Button>
+            </Col>
+            <Col span={16} style={{ textAlign: 'center' }}>
+              <Title level={4}>{invoiceTypeDescriptions[invoiceType]} Oluştur</Title>
+            </Col>
+            <Col span={4}></Col>
+          </Row>
+        )}
         
         <InvoiceForm type={invoiceType} onSuccess={handleCreateSuccess} />
       </Space>

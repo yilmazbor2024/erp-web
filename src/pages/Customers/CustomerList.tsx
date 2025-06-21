@@ -28,7 +28,8 @@ import {
   Phone as PhoneIcon,
   Mail as MailIcon,
   Add as AddIcon,
-  SentimentVeryDissatisfied as SadIcon
+  SentimentVeryDissatisfied as SadIcon,
+  Share as ShareIcon
 } from '@mui/icons-material';
 import { useCustomerList } from '../../hooks/useCustomerList';
 import { Customer } from '../../types/customer';
@@ -43,9 +44,15 @@ const CustomerList: React.FC<CustomerListProps> = ({ isMobile = false }) => {
   const { isAuthenticated } = useAuth();
   const [page, setPage] = React.useState(1);
   const [searchTerm, setSearchTerm] = React.useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = React.useState('');
   const [inputValue, setInputValue] = React.useState('');
-  const { data, isLoading, error, refetch } = useCustomerList({ page, searchTerm: debouncedSearchTerm });
+  
+  // Arama parametrelerini memoize et
+  const searchParams = React.useMemo(() => ({
+    page,
+    searchTerm: searchTerm || undefined // Eğer searchTerm boşsa undefined olarak gönder
+  }), [page, searchTerm]);
+  
+  const { data, isLoading, error, refetch } = useCustomerList(searchParams);
   const navigate = useNavigate();
 
   // Sayfa yüklendiğinde verileri yeniden çek
@@ -54,24 +61,11 @@ const CustomerList: React.FC<CustomerListProps> = ({ isMobile = false }) => {
     refetch();
   }, [refetch]);
 
-  // Arama terimini debounce et (en az 3 karakter ve 500ms bekleme süresi)
+  // Sayfa değiştiğinde arama terimini sıfırla
   React.useEffect(() => {
-    if (inputValue.length >= 3) {
-      const handler = setTimeout(() => {
-        console.log('CustomerList: Search term debounced:', inputValue);
-        setDebouncedSearchTerm(inputValue);
-      }, 500);
-      
-      return () => {
-        clearTimeout(handler);
-      };
-    } else if (inputValue.length === 0 && searchTerm !== '') {
-      // Arama kutusu temizlendiğinde tüm listeyi göster
-      console.log('CustomerList: Search term cleared');
-      setDebouncedSearchTerm('');
-      setSearchTerm('');
-    }
-  }, [inputValue, searchTerm]);
+    setInputValue('');
+    setSearchTerm('');
+  }, [page]);
 
   if (!isAuthenticated) {
     return (
@@ -146,12 +140,23 @@ const CustomerList: React.FC<CustomerListProps> = ({ isMobile = false }) => {
   };
 
   const handleSearchSubmit = () => {
-    setDebouncedSearchTerm(inputValue);
+    if (inputValue.length === 0) {
+      // Arama kutusu boşsa tüm listeyi göster
+      setSearchTerm('');
+    } else if (inputValue.length >= 3) {
+      // En az 3 karakter varsa aramayı başlat
+      console.log('CustomerList: Search submitted:', inputValue);
+      setSearchTerm(inputValue);
+    }
+    // 3 karakterden azsa hiçbir şey yapma
   };
 
   const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
+      event.preventDefault();
       handleSearchSubmit();
+      // Enter tuşuna basıldığında input alanından focus'u kaldır
+      (event.target as HTMLElement).blur();
     }
   };
 
@@ -170,10 +175,42 @@ const CustomerList: React.FC<CustomerListProps> = ({ isMobile = false }) => {
   const renderMobileView = () => {
     return (
       <Box sx={{ p: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        {/* Başlık en üstte ortada */}
+        <Typography 
+          variant="h5" 
+          component="h1" 
+          sx={{ textAlign: 'center', mb: 3, fontWeight: 'bold', pt: 1 }}
+        >
+          Müşteriler
+        </Typography>
+        
+        {/* Butonlar tek satırda */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3, gap: 2 }}>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<AddIcon />}
+            onClick={handleAddCustomer}
+            sx={{ flex: 1 }}
+          >
+            Yeni Müşteri
+          </Button>
+          <Button 
+            variant="outlined" 
+            color="primary" 
+            startIcon={<ShareIcon />}
+            sx={{ flex: 1 }}
+          >
+            Link Ver
+          </Button>
+        </Box>
+        
+        {/* Arama alanı */}
+        <Box sx={{ mb: 2 }}>
           <TextField
             size="small"
-            placeholder="Müşteri Ara..."
+            fullWidth
+            placeholder="Müşteri Ara (min. 2 karakter)..."
             value={inputValue}
             onChange={handleSearchChange}
             onKeyPress={handleKeyPress}
@@ -185,22 +222,14 @@ const CustomerList: React.FC<CustomerListProps> = ({ isMobile = false }) => {
                 <IconButton 
                   size="small" 
                   onClick={handleSearchSubmit}
-                  disabled={inputValue.length < 3 && inputValue.length > 0}
+                  disabled={inputValue.length > 0 && inputValue.length < 2}
+                  color={inputValue.length >= 2 ? "primary" : "default"}
                 >
                   <SearchIcon />
                 </IconButton>
               )
             }}
-            sx={{ flexGrow: 1, mr: 1 }}
           />
-          <Button 
-            variant="contained" 
-            color="primary" 
-            startIcon={<AddIcon />}
-            onClick={handleAddCustomer}
-          >
-            Yeni
-          </Button>
         </Box>
 
         <Box sx={{ mb: 2 }}>
@@ -208,7 +237,11 @@ const CustomerList: React.FC<CustomerListProps> = ({ isMobile = false }) => {
             <Card key={customer.customerCode} sx={{ mb: 2 }}>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <Typography variant="h6" component="div">
+                  <Typography 
+                    variant="body1" 
+                    component="div" 
+                    sx={{ fontSize: '0.95rem', fontWeight: 'medium' }}
+                  >
                     {customer.customerName}
                   </Typography>
                   <Box>
@@ -274,7 +307,7 @@ const CustomerList: React.FC<CustomerListProps> = ({ isMobile = false }) => {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <TextField
             size="small"
-            placeholder="Müşteri Ara..."
+            placeholder="Müşteri Ara (min. 2 karakter)..."
             value={inputValue}
             onChange={handleSearchChange}
             onKeyPress={handleKeyPress}
@@ -286,7 +319,8 @@ const CustomerList: React.FC<CustomerListProps> = ({ isMobile = false }) => {
                 <IconButton 
                   size="small" 
                   onClick={handleSearchSubmit}
-                  disabled={inputValue.length < 3 && inputValue.length > 0}
+                  disabled={inputValue.length > 0 && inputValue.length < 2}
+                  color={inputValue.length >= 2 ? "primary" : "default"}
                 >
                   <SearchIcon />
                 </IconButton>

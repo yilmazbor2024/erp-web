@@ -6,22 +6,29 @@ const instance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Mixed content sorununu çözmek için withCredentials ekledik
+  withCredentials: false,
 });
 
 // Request interceptor
 instance.interceptors.request.use(
   (config) => {
+    // Login ve register endpoint'leri için token kontrolünü atla
+    const url = config.url || '';
+    if (url.includes('/login') || url.includes('/register')) {
+      console.log(`🔓 Axios: ${url} için token kontrolü atlanıyor (auth endpoint)`);
+      return config;
+    }
+    
     // Üç farklı token anahtarını kontrol et (customerToken'ı da ekledik)
     const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || localStorage.getItem('customerToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       // İstek detaylarını daha açıklayıcı şekilde logla
       const method = config.method?.toUpperCase() || 'UNKNOWN';
-      const url = config.url || 'UNKNOWN_URL';
       console.log(`🔐 Axios [${method}] ${url}: Token eklendi (${token.substring(0, 10)}...)`);
     } else {
       const method = config.method?.toUpperCase() || 'UNKNOWN';
-      const url = config.url || 'UNKNOWN_URL';
       console.warn(`⚠️ Axios [${method}] ${url}: Token bulunamadı!`);
     }
     return config;

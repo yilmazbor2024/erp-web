@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { trTR } from '@mui/material/locale';
 import CssBaseline from '@mui/material/CssBaseline';
-import { QueryClient, QueryClientProvider } from 'react-query';
+// App.tsx dosyasında QueryClientProvider'a gerek yok, index.tsx'te zaten tanımlanmış
 // Remove DateAdapter imports for now
 // import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 // import { LocalizationProvider } from '@mui/x-date-pickers';
@@ -103,23 +103,12 @@ const theme = createTheme({
   },
 }, trTR);
 
-// Create a client for React Query
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1
-    },
-  },
-});
-
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <AuthProvider>
-          <CssBaseline />
-          <Router>
+    <ThemeProvider theme={theme}>
+      <AuthProvider>
+        <CssBaseline />
+        <Router>
             <SessionTimeoutManager />
             <SessionTimeoutAlert />
             <Routes>
@@ -269,7 +258,6 @@ function App() {
           </Router>
         </AuthProvider>
       </ThemeProvider>
-    </QueryClientProvider>
   );
 }
 

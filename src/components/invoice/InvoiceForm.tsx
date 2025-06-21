@@ -2005,6 +2005,7 @@ const openBarcodeModal = () => {
   // Bileşen render
   return (
   <Card
+    className="invoice-page-container"
     title={invoiceTypeDescriptions[selectedInvoiceType] || 'Fatura Oluştur'}
     extra={
       <Button type="default" onClick={() => navigate('/invoice')}>
@@ -2234,7 +2235,7 @@ const openBarcodeModal = () => {
                   taxTypes={taxTypes}
                   loadingTaxTypes={loadingTaxTypes}
                 />
-                <div style={{ marginTop: '20px', textAlign: 'right' }}>
+                <div className="invoice-footer-buttons" style={{ marginTop: '20px', textAlign: 'right' }}>
                   <Button 
                     type="primary" 
                     onClick={() => {
@@ -2318,7 +2319,7 @@ const openBarcodeModal = () => {
                 />
                 
                 {/* TOPLAM sekmesine kaydet butonu eklendi */}
-                <Row justify="end" style={{ marginTop: '20px' }}>
+                <Row justify="end" className="invoice-footer-buttons" style={{ marginTop: '20px' }}>
                   <Col>
                     <Button 
                       type="primary" 
@@ -2458,6 +2459,7 @@ const openBarcodeModal = () => {
 
   </Card>
   );
+  // Not: invoice-page-container sınıfı mobil görünümde scroll sorununu çözmek için eklendi
 };
 
 export default InvoiceForm;

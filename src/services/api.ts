@@ -945,11 +945,11 @@ export const currencyApi = {
 
 export const authApi = {
   login: async (credentials: any) => {
-    const response = await axiosInstance.post('/api/v1/Auth/login', credentials);
+    const response = await axiosInstance.post('/api/v1/auth/login', credentials);
     return response.data; // Genellikle { token: '...', user: {...} } gibi bir yapı döner
   },
   logout: async () => {
-    return await axiosInstance.post('/api/v1/Auth/logout');
+    return await axiosInstance.post('/api/v1/auth/logout');
   },
   getCurrentUser: async () => {
     console.log('👤 API: getCurrentUser çağrıldı');
@@ -958,16 +958,16 @@ export const authApi = {
     return response.data;
   },
   changePassword: async (data: any) => {
-    return await axiosInstance.post('/api/v1/Auth/change-password', data);
+    return await axiosInstance.post('/api/v1/auth/change-password', data);
   },
   forgotPassword: async (data: any) => {
-    return await axiosInstance.post('/api/v1/Auth/forgot-password', data);
+    return await axiosInstance.post('/api/v1/auth/forgot-password', data);
   },
   resetPassword: async (data: any) => {
-    return await axiosInstance.post('/api/v1/Auth/reset-password', data);
+    return await axiosInstance.post('/api/v1/auth/reset-password', data);
   },
   getUserLoginLogs: async () => { // Örnek bir endpoint, sizinkine göre ayarlayın
-    const response = await axiosInstance.get('/api/v1/Auth/login-logs'); 
+    const response = await axiosInstance.get('/api/v1/auth/login-logs'); 
     return response.data;
   }
 };

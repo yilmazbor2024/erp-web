@@ -784,15 +784,15 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   }, [form, normalizePaymentType]);
   
   return (
-    <>
+    <div className="invoice-header-section">
       
       <Row gutter={[24, 16]} style={{ marginBottom: '24px' }}>
         <Col span={24}>
           <Title level={5} style={{ marginBottom: '12px' }}>Fatura Bilgileri</Title>
         </Col>
 
-        {/* Fatura Türü Seçenekleri - Yan yana ve kompakt */}
-        <Col xs={24} sm={12} md={6} lg={4}>
+        {/* Fatura Türü gizlendi */}
+        {/* <Col xs={24} sm={12} md={6} lg={4}>
           <Form.Item
             name="isReturn"
             valuePropName="checked"
@@ -807,29 +807,13 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               size="small"
             />
           </Form.Item>
-        </Col>
+        </Col> */}
         
-        <Col xs={24} sm={12} md={6} lg={4}>
-          <Form.Item
-            name="isEInvoice"
-            valuePropName="checked"
-            label="Belge Türü"
-            style={{ marginBottom: '12px' }}
-          >
-            <Switch 
-              checkedChildren="E-Fatura" 
-              unCheckedChildren="Normal" 
-              checked={isEInvoice}
-              onChange={(checked) => setIsEInvoice(checked)}
-              size="small"
-            />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} sm={12} md={6} lg={6}>
+        {/* Vergi Türü ve Belge Türü yan yana */}
+        <Col xs={24} sm={12} md={12} lg={12}>
           <Form.Item
             name="taxTypeCode"
-            label="Vergi Tipi"
+            label="Vergi Türü"
             rules={[{ required: true, message: 'Lütfen vergi tipi seçin!' }]}
             style={{ marginBottom: '12px' }}
           >
@@ -868,7 +852,25 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           </Form.Item>
         </Col>
         
-        <Col xs={24} sm={12} md={6} lg={6}>
+        <Col xs={24} sm={12} md={12} lg={12}>
+          <Form.Item
+            name="isEInvoice"
+            valuePropName="checked"
+            label="Belge Türü"
+            style={{ marginBottom: '12px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end' }}
+          >
+            <Switch 
+              checkedChildren="E-Fatura" 
+              unCheckedChildren="Normal" 
+              checked={isEInvoice}
+              onChange={(checked) => setIsEInvoice(checked)}
+              size="small"
+            />
+          </Form.Item>
+        </Col>
+
+        {/* Vergi Tipi ve Fatura Tarihi yan yana */}
+        <Col xs={24} sm={12} md={12} lg={12}>
           <Form.Item
             name="invoiceDate"
             label="Fatura Tarihi"
@@ -1677,7 +1679,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
 
 
       {/* Switch bileşenleri Fatura Bilgileri bölümüne taşındı */}
-    </>
+    </div>
   );
 };
 
