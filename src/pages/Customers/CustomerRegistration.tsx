@@ -722,18 +722,24 @@ const CustomerRegistration = () => {
       // CustomerCreate.tsx ile aynı formatta veri hazırla
       const customerData: any = {
         customerCode: "", // Boş gönder, backend otomatik oluşturacak
+        customerDescription: formData.customerName,
         customerName: formData.firstName,
+        customerLastName: formData.lastName,
         customerTypeCode: formData.customerType,
         countryCode: 'TR',
-        stateCode: formData.region || 'TR.DA',
-        cityCode: formData.city || 'TR.34',
-        districtCode: formData.district || '',
+        stateCode: formData.stateCode || formData.region || 'TR.DA',
+        cityCode: formData.cityCode || formData.city || 'TR.34',
+        districtCode: formData.districtCode || formData.district || '',
         address: formData.address || '',
         contactName: '',
         officeCode: "M", // Varsayılan ofis kodu (test ettiğimiz ve çalıştığını bildiğimiz kod)
         isIndividualAcc: formData.customerType === 'individual',
         companyCode: 1,
-        createdUserName: 'system'
+        taxNumber: formData.taxNumber || '',
+        taxOffice: formData.taxOffice || '',
+        createdUserName: 'system',
+        // TC Kimlik numarasını ana müşteri verisine ekle
+        identityNum: formData.identityNumber || ''
       };
       
       // Adres bilgilerini doğrudan müşteri oluşturma içinde gönder
@@ -744,12 +750,14 @@ const CustomerRegistration = () => {
           addressTypeCode: '2', // 2: İş adresi
           address: formData.address || '',
           countryCode: 'TR',
-          stateCode: formData.region || 'TR.DA',
-          cityCode: formData.city || 'TR.34',
-          districtCode: formData.district || '',
+          stateCode: formData.stateCode || formData.region || 'TR.DA',
+          cityCode: formData.cityCode || formData.city || 'TR.34',
+          districtCode: formData.districtCode || formData.district || '',
           taxOffice: '',
-          taxOfficeCode: '',
-          taxNumber: '',
+          // TC Kimlik numarasını adres verilerine de ekle
+          identityNum: formData.identityNumber || '',
+          taxOfficeCode: formData.taxOffice || '',
+          taxNumber: formData.taxNumber || '',
           isBlocked: false,
           createdUserName: 'system',
           lastUpdatedUserName: 'system'
@@ -784,13 +792,15 @@ const CustomerRegistration = () => {
       }
       
       // Bağlantılı kişi bilgilerini ekle - QR kod akışında tek seferde gönderilecek
-      if (formData.firstName && formData.lastName) {
+      if (formData.phone || formData.email) {
         customerData.contacts = [
           {
             customerCode: '',
             firstName: formData.firstName,
             lastName: formData.lastName,
             contactTypeCode: '1', // 1: Yetkili
+            phone: formData.phone,
+            email: formData.email,
             isDefault: true,
             createdUserName: 'system',
             lastUpdatedUserName: 'system'

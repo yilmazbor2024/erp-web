@@ -6,6 +6,7 @@ export interface Customer {
   customerName: string;
   taxNumber?: string;
   taxOffice?: string;
+  identityNum?: string;
   customerTypeCode?: string;
   customerTypeDesc?: string;
   isBlocked?: boolean;
@@ -159,69 +160,27 @@ export const customerService = {
       // Token'ı hem query parameter olarak hem de Authorization header'ında gönder
       const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
       
-      // Müşteri verisi içinde adres ve iletişim bilgilerini kontrol et ve ekle
-      const customerRequest: any = {
-        ...customerData,
-        // Adres bilgilerini ekle (eğer customerData içinde yoksa)
-        addresses: customerData.addresses || [],
-        // İletişim bilgilerini ekle (eğer customerData içinde yoksa)
-        communications: customerData.communications || [],
-        // Bağlantılı kişileri ekle (eğer customerData içinde yoksa)
-        contacts: customerData.contacts || []
-      };
+      // Müşteri verisi içinde adres, iletişim ve bağlantılı kişi bilgilerini ayır
+      const addresses = customerData.addresses || [];
+      const communications = customerData.communications || [];
+      const contacts = customerData.contacts || [];
       
-      // Telefon bilgisi varsa ve communications dizisinde yoksa ekle
-      if (customerData.phone && !customerRequest.communications.some((c: any) => c.communicationTypeCode === "1")) {
-        customerRequest.communications.push({
-          customerCode: "", // Backend tarafında set edilecek
-          communicationTypeCode: "1", // Telefon
-          communication: customerData.phone,
-          isDefault: true,
-          createdUserName: "system",
-          lastUpdatedUserName: "system"
-        });
-      }
-
-      // Email bilgisi varsa ve communications dizisinde yoksa ekle
-      if (customerData.email && !customerRequest.communications.some((c: any) => c.communicationTypeCode === "3")) {
-        customerRequest.communications.push({
-          customerCode: "", // Backend tarafında set edilecek
-          communicationTypeCode: "3", // Email
-          communication: customerData.email,
-          isDefault: true,
-          createdUserName: "system",
-          lastUpdatedUserName: "system"
-        });
-      }
+      // TC Kimlik numarasını kaydet (sonraki adımlarda kullanmak için)
+      const identityNum = customerData.identityNum || customerData.identityNumber || "";
       
-      // Adres bilgisi varsa ve addresses dizisinde yoksa ekle
-      if (customerData.address && customerRequest.addresses.length === 0) {
-        customerRequest.addresses.push({
-          customerCode: "", // Backend tarafında set edilecek
-          addressTypeCode: "2", // İş adresi
-          address: customerData.address,
-          countryCode: customerData.countryCode || "TR",
-          stateCode: customerData.stateCode || "",
-          cityCode: customerData.cityCode || "",
-          districtCode: customerData.districtCode || "",
-          isDefault: true,
-          createdUserName: "system",
-          lastUpdatedUserName: "system"
-        });
-      }
+      // Adres, iletişim ve bağlantılı kişi bilgilerini müşteri verisinden çıkar
+      // Çünkü önce sadece temel müşteri bilgilerini göndereceğiz
+      const customerRequest = { ...customerData };
+      delete customerRequest.addresses;
+      delete customerRequest.communications;
+      delete customerRequest.contacts;
       
-      // API URL'ini oluştur - Register endpoint'ini kullan
-    // Backend'de token ile müşteri kaydı için doğru endpoint
-    const apiUrl = `${API_BASE_URL}/api/v1/Customer/Register?token=${encodeURIComponent(cleanToken)}`;
-      
-      console.log('API URL:', apiUrl);
+      console.log('API URL:', `${API_BASE_URL}/api/v1/Customer/Register?token=${encodeURIComponent(cleanToken)}`);
       console.log('Gönderilecek müşteri verisi:', customerRequest);
-      console.log('Adresler:', customerRequest.addresses);
-      console.log('İletişim bilgileri:', customerRequest.communications);
       
-      // Axios ile API çağrısı yap - token'ı hem query param hem de header olarak gönder
+      // 1. ADIM: Temel müşteri bilgilerini gönder ve müşteri kodunu al
       const response = await axios.post(
-        apiUrl,
+        `${API_BASE_URL}/api/v1/Customer/Register?token=${encodeURIComponent(cleanToken)}`,
         customerRequest,
         {
           headers: {
@@ -231,7 +190,7 @@ export const customerService = {
         }
       );
       
-      console.log('API yanıtı:', response.data);
+      console.log('Müşteri oluşturma API yanıtı:', response.data);
       
       // API yanıtını düzenle ve müşteri kodunu doğru şekilde al
       let customerCode = '';
@@ -242,23 +201,49 @@ export const customerService = {
         customerCode = response.data.data.customerCode;
       } else if (response.data && typeof response.data.data === 'string') {
         customerCode = response.data.data;
+      } else if (response.data && response.data.data && typeof response.data.data.data === 'string') {
+        customerCode = response.data.data.data;
       }
       
       console.log('Alınan müşteri kodu:', customerCode);
       
-      // Müşteri kodu alındıysa adres, iletişim ve contact bilgilerini ayrı API çağrıları ile gönder
-      // Aynı token'i kullanarak gönderim yapacağız
-      if (customerCode && customerRequest.addresses && customerRequest.addresses.length > 0) {
+      // Müşteri kodu alınamadıysa hata fırlat
+      if (!customerCode) {
+        throw new Error('Müşteri kodu alınamadı. API yanıtı: ' + JSON.stringify(response.data));
+      }
+      
+      // Sonuçları takip etmek için değişkenler
+      let adresEklendiMi = true;
+      let iletisimEklendiMi = true;
+      let contactEklendiMi = true;
+      const hatalar = [];
+      
+      // 2. ADIM: Adres bilgilerini ekle
+      if (customerData.addresses && customerData.addresses.length > 0) {
         try {
-          // Adres bilgilerini gönder - token ile
-          console.log(`Adres bilgileri gönderiliyor: ${customerCode} için (token ile)`);
-          for (const address of customerRequest.addresses) {
+          console.log('Adres bilgileri gönderiliyor:', customerCode, 'için (token ile)');
+          
+          for (const address of customerData.addresses) {
+            // Adres isteği için customerCode'u güncelle
+            const addressRequest: any = {
+              customerCode: customerCode,
+              addressTypeCode: address.addressTypeCode || "2",
+              address: address.address || "",
+              countryCode: address.countryCode || "TR",
+              stateCode: address.stateCode || "",
+              cityCode: address.cityCode || "",
+              districtCode: customerData.districtCode || address.districtCode || "", // Önce ana müşteri verisinden al, yoksa adres nesnesinden al
+              isDefault: address.isDefault || true,
+              createdUserName: "system",
+              lastUpdatedUserName: "system",
+              identityNum: customerData.identityNum || identityNum || "" // Önce ana müşteri verisinden al, yoksa değişkenden al
+            };
+            
+            console.log('Gönderilecek adres verisi:', addressRequest);
+            
             const addressResponse = await axios.post(
               `${API_BASE_URL}/api/v1/Customer/Register/address?token=${encodeURIComponent(cleanToken)}`,
-              {
-                customerCode: customerCode,
-                address: address
-              },
+              addressRequest,
               {
                 headers: {
                   'Content-Type': 'application/json',
@@ -268,41 +253,33 @@ export const customerService = {
             );
             console.log('Adres ekleme yanıtı:', addressResponse.data);
           }
-        } catch (error) {
-          console.error('Adres eklenirken hata oluştu:', error);
-          // Hata durumunda normal endpoint'i deneyelim
-          try {
-            console.log(`Adres bilgileri normal endpoint ile deneniyor: ${customerCode} için`);
-            for (const address of customerRequest.addresses) {
-              const addressResponse = await axios.post(
-                `${API_BASE_URL}/api/v1/Customer/${customerCode}/addresses`,
-                address,
-                {
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': bearerToken
-                  }
-                }
-              );
-              console.log('Adres ekleme yanıtı (normal endpoint):', addressResponse.data);
-            }
-          } catch (secondError) {
-            console.error('Adres eklenirken ikinci hata oluştu:', secondError);
-          }
+        } catch (adresHata) {
+          console.error('Adres eklenirken hata:', adresHata);
+          adresEklendiMi = false;
+          hatalar.push('adres');
         }
       }
       
-      // İletişim bilgilerini gönder
-      if (customerCode && customerRequest.communications && customerRequest.communications.length > 0) {
+      // 3. ADIM: İletişim bilgilerini ekle
+      if (communications && communications.length > 0) {
         try {
           console.log(`İletişim bilgileri gönderiliyor: ${customerCode} için (token ile)`);
-          for (const communication of customerRequest.communications) {
+          for (const comm of communications) {
+            // CustomerCommunicationCreateRequest formatına uygun olarak gönder
+            const commRequest = {
+              customerCode: customerCode, // API'den alınan müşteri kodunu kullan
+              communicationTypeCode: comm.communicationTypeCode || "",
+              communication: comm.communication || "",
+              isDefault: comm.isDefault || true,
+              createdUserName: "system",
+              lastUpdatedUserName: "system"
+            };
+            
+            console.log('Gönderilecek iletişim verisi:', commRequest);
+            
             const commResponse = await axios.post(
               `${API_BASE_URL}/api/v1/Customer/Register/communication?token=${encodeURIComponent(cleanToken)}`,
-              {
-                customerCode: customerCode,
-                communication: communication
-              },
+              commRequest,
               {
                 headers: {
                   'Content-Type': 'application/json',
@@ -310,107 +287,73 @@ export const customerService = {
                 }
               }
             );
-            console.log('İletişim ekleme yanıtı:', commResponse.data);
+            console.log('İletişim bilgisi ekleme yanıtı:', commResponse.data);
           }
-        } catch (error) {
-          console.error('İletişim bilgisi eklenirken hata oluştu:', error);
-          // Hata durumunda normal endpoint'i deneyelim
-          try {
-            console.log(`İletişim bilgileri normal endpoint ile deneniyor: ${customerCode} için`);
-            for (const communication of customerRequest.communications) {
-              const commResponse = await axios.post(
-                `${API_BASE_URL}/api/v1/CustomerCommunication/${customerCode}/communications`,
-                communication,
-                {
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': bearerToken
-                  }
-                }
-              );
-              console.log('İletişim ekleme yanıtı (normal endpoint):', commResponse.data);
-            }
-          } catch (secondError) {
-            console.error('İletişim bilgisi eklenirken ikinci hata oluştu:', secondError);
-          }
+        } catch (iletisimHata) {
+          console.error('İletişim bilgisi eklenirken hata:', iletisimHata);
+          iletisimEklendiMi = false;
+          hatalar.push('iletişim');
         }
       }
       
-      // Contact bilgilerini gönder
-      if (customerCode && customerRequest.contacts && customerRequest.contacts.length > 0) {
-        try {
-          console.log(`Contact bilgileri gönderiliyor: ${customerCode} için (token ile)`);
-          for (const contact of customerRequest.contacts) {
-            const contactResponse = await axios.post(
-              `${API_BASE_URL}/api/v1/Customer/Register/contact?token=${encodeURIComponent(cleanToken)}`,
-              {
-                customerCode: customerCode,
-                contact: contact
-              },
-              {
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': bearerToken
-                }
-              }
-            );
-            console.log('Contact ekleme yanıtı:', contactResponse.data);
-          }
-        } catch (error) {
-          console.error('Contact eklenirken hata oluştu:', error);
-          // Hata durumunda normal endpoint'i deneyelim
-          try {
-            console.log(`Contact bilgileri normal endpoint ile deneniyor: ${customerCode} için`);
-            for (const contact of customerRequest.contacts) {
-              const contactResponse = await axios.post(
-                `${API_BASE_URL}/api/v1/CustomerContact/${customerCode}/contacts`,
-                contact,
-                {
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': bearerToken
-                  }
-                }
-              );
-              console.log('Contact ekleme yanıtı (normal endpoint):', contactResponse.data);
-            }
-          } catch (secondError) {
-            console.error('Contact eklenirken ikinci hata oluştu:', secondError);
-          }
-        }
+      // 4. ADIM: Bağlantılı kişi bilgilerini ekle (Bu endpoint şu anda yok, ileride eklenebilir)
+       if (contacts && contacts.length > 0) {
+         try {
+           console.log(`Bağlantılı kişi bilgileri gönderiliyor: ${customerCode} için (token ile)`);
+           for (const contact of contacts) {
+              //İleride eklenecek endpoint için hazırlık
+           }
+         } catch (contactHata) {
+           console.error('Bağlantılı kişi eklenirken hata:', contactHata);
+           contactEklendiMi = false;
+           hatalar.push('bağlantılı kişi');
+         }
+       }
+      
+      // Sonuç mesajını oluştur
+      let resultMessage = 'Müşteri başarıyla oluşturuldu';
+      if (hatalar.length > 0) {
+        resultMessage += ', ancak ' + hatalar.join(' ve ') + ' bilgileri eklenemedi';
+      } else {
+        resultMessage += ' ve tüm bilgiler kaydedildi';
       }
       
-      // Yanıtı düzenle ve döndür
-      const result = {
+      // Yanıtı döndür
+      return {
         success: true,
-        message: 'Müşteri başarıyla oluşturuldu',
+        message: resultMessage,
         data: {
           customerCode: customerCode,
           customerName: customerData.customerName || '',
-          ...response.data
+          adresEklendiMi,
+          iletisimEklendiMi,
+          contactEklendiMi
         },
         token: token
       };
+    } catch (error) {
+      console.error('Müşteri oluşturma hatası:', error);
       
-      return result;
-    } catch (error: any) {
-      console.error('Token ile müşteri oluşturma hatası:', error);
-      
-      // Hata detaylarını logla
-      if (error.response) {
-        console.error('Hata detayı:', {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data
-        });
-      } else {
-        console.error('Hata mesajı:', error.message);
+      // Axios hata detaylarını logla
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          console.error('API error response:', {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            data: error.response.data
+          });
+        } else if (error.request) {
+          console.error('API request made but no response received:', error.request);
+        } else {
+          console.error('Error setting up API request:', error.message);
+        }
       }
       
+      // Hata yanıtını döndür
       return {
         success: false,
-        error: error,
-        message: error.response?.data?.message || error.message || 'Müşteri oluşturma işlemi başarısız oldu.'
+        message: error instanceof Error ? error.message : 'Bilinmeyen hata',
+        data: null
       };
     }
   },
