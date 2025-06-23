@@ -236,7 +236,10 @@ export const customerService = {
               isDefault: address.isDefault || true,
               createdUserName: "system",
               lastUpdatedUserName: "system",
-              identityNum: customerData.identityNum || identityNum || "" // Önce ana müşteri verisinden al, yoksa değişkenden al
+              identityNum: customerData.identityNum || identityNum || "", // Önce ana müşteri verisinden al, yoksa değişkenden al
+              // Vergi bilgilerini ekle
+              taxNumber: address.taxNumber || customerData.taxNumber || "", // Önce adres nesnesinden al, yoksa ana müşteri verisinden al
+              taxOfficeCode: address.taxOfficeCode || customerData.taxOfficeCode || "" // Önce adres nesnesinden al, yoksa ana müşteri verisinden al
             };
             
             console.log('Gönderilecek adres verisi:', addressRequest);

@@ -722,10 +722,10 @@ const CustomerRegistration = () => {
       // CustomerCreate.tsx ile aynı formatta veri hazırla
       const customerData: any = {
         customerCode: "", // Boş gönder, backend otomatik oluşturacak
-        customerDescription: formData.customerName,
-        customerName: formData.firstName,
-        customerLastName: formData.lastName,
-        customerTypeCode: formData.customerType,
+        customerDescription: "", // Backend'de açıklama alanı cdCurrAccDesc tablosuna kaydediliyor
+        customerName: formData.isIndividual ? formData.firstName : formData.customerName, // Bireysel müşteri için ad, kurumsal için firma adı
+        customerLastName: formData.isIndividual ? formData.lastName : "", // Bireysel müşteri için soyad
+        customerTypeCode: formData.isIndividual ? "individual" : "corporate", // Müşteri tipi kodu
         countryCode: 'TR',
         stateCode: formData.stateCode || formData.region || 'TR.DA',
         cityCode: formData.cityCode || formData.city || 'TR.34',
@@ -733,10 +733,11 @@ const CustomerRegistration = () => {
         address: formData.address || '',
         contactName: '',
         officeCode: "M", // Varsayılan ofis kodu (test ettiğimiz ve çalıştığını bildiğimiz kod)
-        isIndividualAcc: formData.customerType === 'individual',
+        isIndividualAcc: formData.isIndividual,
         companyCode: 1,
-        taxNumber: formData.taxNumber || '',
-        taxOffice: formData.taxOffice || '',
+        // Ana müşteri verileri için vergi bilgilerini düzenle
+        taxNumber: !formData.isIndividual ? formData.taxNumber || '' : '',
+        taxOfficeCode: !formData.isIndividual ? formData.taxOffice || '' : '', // Vergi dairesi kodu - backend'de TaxOfficeCode olarak bekleniyor
         createdUserName: 'system',
         // TC Kimlik numarasını ana müşteri verisine ekle
         identityNum: formData.identityNumber || ''
@@ -753,11 +754,11 @@ const CustomerRegistration = () => {
           stateCode: formData.stateCode || formData.region || 'TR.DA',
           cityCode: formData.cityCode || formData.city || 'TR.34',
           districtCode: formData.districtCode || formData.district || '',
-          taxOffice: '',
-          // TC Kimlik numarasını adres verilerine de ekle
-          identityNum: formData.identityNumber || '',
-          taxOfficeCode: formData.taxOffice || '',
-          taxNumber: formData.taxNumber || '',
+          taxOffice: formData.taxOffice || '', // Vergi dairesi adı (eski format)
+          // Müşteri tipine göre kimlik veya vergi numarası ekle
+          identityNum: formData.isIndividual ? formData.identityNumber || '' : '',
+          taxNumber: !formData.isIndividual ? formData.taxNumber || '' : '',
+          taxOfficeCode: !formData.isIndividual ? formData.taxOffice || '' : '', // Vergi dairesi kodu - backend'de TaxOfficeCode olarak bekleniyor
           isBlocked: false,
           createdUserName: 'system',
           lastUpdatedUserName: 'system'
@@ -1253,6 +1254,7 @@ const CustomerRegistration = () => {
           {formData.country === 'TR' && (
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
               {formData.isIndividual ? (
+                // Bireysel müşteri için TC Kimlik alanı göster
                 <TextField
                   fullWidth
                   label={t('customerRegistration.form.identityNumber.label')}
@@ -1263,6 +1265,7 @@ const CustomerRegistration = () => {
                   helperText={t('customerRegistration.form.identityNumber.helper')}
                 />
               ) : (
+                // Kurumsal müşteri için vergi numarası ve vergi dairesi alanlarını göster
                 <>
                   <TextField
                     fullWidth
@@ -1289,7 +1292,7 @@ const CustomerRegistration = () => {
                       ) : taxOfficesDataFromHook && taxOfficesDataFromHook.length > 0 ? (
                         taxOfficesDataFromHook.map((office: any) => (
                           <MenuItem key={office.taxOfficeCode} value={office.taxOfficeCode}>
-                            {office.taxOfficeDescription || office.taxOfficeName}
+                            {office.taxOfficeDescription || office.taxOfficeCode}
                           </MenuItem>
                         ))
                       ) : (
