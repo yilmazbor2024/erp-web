@@ -287,6 +287,24 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           console.log('Varsayılan teslimat adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
         }
         
+        // Kullanıcının daha önce seçtiği vade günü değerini kontrol et ve koru
+        const currentFormValues = form.getFieldsValue(true);
+        
+        // Form'dan doğrudan dueDays değerini al
+        let currentDueDays = currentFormValues.dueDays;
+        
+        // Eğer dueDays değeri 0 ise, form.getFieldValue ile tekrar kontrol et
+        // Bazen form.getFieldsValue form.getFieldValue'dan farklı değerler döndürebilir
+        if (!currentDueDays) {
+          currentDueDays = form.getFieldValue('dueDays');
+          console.log('Form.getFieldValue ile alınan vade günü:', currentDueDays);
+        }
+        
+        const currentPaymentType = currentFormValues.paymentType;
+        console.log('Form değerleri:', currentFormValues);
+        console.log('Mevcut vade günü değeri:', currentDueDays, 'Tipi:', typeof currentDueDays);
+        console.log('Mevcut ödeme tipi:', currentPaymentType, 'Tipi:', typeof currentPaymentType);
+        
         if (Object.keys(formUpdate).length > 0) {
           console.log('Form alanları güncelleniyor:', formUpdate);
           form.setFieldsValue(formUpdate);
@@ -300,6 +318,51 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
             if (!currentValues.billingPostalAddressID || !currentValues.shippingPostalAddressID) {
               console.log('Adres alanları boş, tekrar ayarlanıyor...');
               form.setFieldsValue(formUpdate);
+            }
+            
+            // Kullanıcının daha önce seçtiği vade günü ve ödeme tipi değerlerini geri yükle
+            if (currentDueDays !== undefined && currentDueDays !== null && currentDueDays > 0) {
+              console.log('Önceki vade günü değeri geri yükleniyor:', currentDueDays);
+              form.setFieldsValue({ dueDays: currentDueDays });
+              
+              // Vade günü 0'dan büyükse ödeme tipini Vadeli olarak ayarla
+              if (!currentPaymentType || currentPaymentType === 'Peşin') {
+                console.log('Vade günü > 0 olduğu için ödeme tipi Vadeli olarak ayarlanıyor');
+                form.setFieldsValue({ paymentType: 'Vadeli' });
+              }
+            } else {
+              // InvoiceForm'dan gelen vade günü değerini kontrol etmek için
+              // Form'un diğer alanlarını kontrol et
+              const formValues = form.getFieldsValue(['paymentType']);
+              if (formValues.paymentType === 'Vadeli') {
+                // Ödeme tipi Vadeli ise, vade günü muhtemelen > 0 olmalı
+                console.log('Ödeme tipi Vadeli, vade günü kontrol ediliyor...');
+                const dueDaysFromField = form.getFieldValue('dueDays');
+                
+                // InvoiceForm tarafından kaydedilen son bilinen vade günü değerini kontrol et
+                const lastKnownDueDays = typeof window !== 'undefined' ? (window as any).lastKnownDueDays : null;
+                console.log('InvoiceForm tarafından kaydedilen son vade günü:', lastKnownDueDays);
+                
+                if (lastKnownDueDays && lastKnownDueDays > 0) {
+                  // InvoiceForm'dan gelen değeri kullan
+                  console.log('InvoiceForm tarafından kaydedilen vade günü kullanılıyor:', lastKnownDueDays);
+                  form.setFieldsValue({ dueDays: lastKnownDueDays });
+                } else if (dueDaysFromField > 0) {
+                  console.log('Alan kontrolünden vade günü bulundu:', dueDaysFromField);
+                  form.setFieldsValue({ dueDays: dueDaysFromField });
+                } else {
+                  // Varsayılan vade günü ayarla
+                  console.log('Vadeli ödeme tipi için varsayılan vade günü (30) ayarlanıyor');
+                  form.setFieldsValue({ dueDays: 30 });
+                }
+              } else {
+                console.log('Vade günü değeri boş veya 0, geri yükleme yapılmıyor');
+              }
+            }
+            
+            if (currentPaymentType) {
+              console.log('Önceki ödeme tipi geri yükleniyor:', currentPaymentType);
+              form.setFieldsValue({ paymentType: currentPaymentType });
             }
           }, 200);
         }
@@ -612,7 +675,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       const dueDate = dayjs(invoiceDate).add(value, 'day');
       form.setFieldsValue({
         dueDate: dueDate,
-        paymentType: 'vadeli' // Vade gün 0'dan farklı ise ödeme tipini vadeli yap
+        paymentType: 'Vadeli' // Vade gün 0'dan farklı ise ödeme tipini vadeli yap
       });
     } else {
       // Vade gün 0 veya null ise vade tarihi fatura tarihine eşit olsun
@@ -759,9 +822,9 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         // Eğer mevcut bir tarih varsa onu koru, yoksa bugünün tarihini kullan
         invoiceDate: currentInvoiceDate || today,
         paymentType: normalizedPaymentType,
-        dueDays: 30, // Varsayılan vade günü 30 gün olarak ayarlandı
+        dueDays: 0, // Varsayılan vade günü 30 gün olarak ayarlandı
         // Vade tarihi, fatura tarihinden 30 gün sonra olacak şekilde ayarlandı
-        dueDate: currentInvoiceDate ? dayjs(currentInvoiceDate).add(30, 'day') : dayjs(today).add(30, 'day')
+        dueDate: currentInvoiceDate ? dayjs(currentInvoiceDate).add(0, 'day') : dayjs(today).add(0, 'day')
       });
       
       // Güncellenen değerleri logla - tarih değerlerini okunabilir formatta göster

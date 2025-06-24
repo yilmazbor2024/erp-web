@@ -448,9 +448,21 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   const handleCurrencyChange = async (currencyCode: string) => {
     console.log('------ PARA BİRİMİ DEĞİŞİKLİĞİ BAŞLADI ------');
     console.log('Para birimi değişti:', currencyCode);
-    
-    // Önemli: Mevcut fatura tarihini sakla
+
+    // Mevcut değerleri sakla
     const currentInvoiceDate = form.getFieldValue('invoiceDate');
+    const currentDueDays = form.getFieldValue('dueDays');
+    const currentPaymentType = form.getFieldValue('paymentType');
+    
+    // Vade günü değerini global olarak sakla (InvoiceHeader.tsx'in erişebilmesi için)
+    if (typeof window !== 'undefined') {
+      // TypeScript için window nesnesini genişlet
+      (window as any).lastKnownDueDays = currentDueDays;
+    }
+    
+    console.log('Mevcut vade günü değeri:', currentDueDays);
+    console.log('Mevcut ödeme tipi:', currentPaymentType);
+    
     // Tarih değerini global state'e de kaydedelim
     setLastInvoiceDate(currentInvoiceDate);
     console.log('handleCurrencyChange: Mevcut tarih saklandı:', currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
@@ -514,6 +526,17 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
         console.log('Para birimi değişti - Tarih hala yanlış, son kez düzeltiliyor:', 
                   currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
         form.setFieldsValue({ invoiceDate: currentInvoiceDate });
+      }
+      
+      // Vade günü ve ödeme tipi değerlerini geri yükle
+      if (currentDueDays !== undefined && currentDueDays !== null) {
+        console.log('Para birimi değişti - Vade günü değeri geri yükleniyor:', currentDueDays);
+        form.setFieldsValue({ dueDays: currentDueDays });
+      }
+      
+      if (currentPaymentType) {
+        console.log('Para birimi değişti - Ödeme tipi geri yükleniyor:', currentPaymentType);
+        form.setFieldsValue({ paymentType: currentPaymentType });
       }
       
       console.log('------ PARA BİRİMİ DEĞİŞİKLİĞİ TAMAMLANDI ------');
@@ -1697,7 +1720,20 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     const isVadeli = !isPesin;
     
     // Vade gün sayısı ve vade tarihi
-    const dueDays = form.getFieldValue('dueDays') || 0;
+    // Önce form değerlerinden dueDays'i al
+    let dueDays = form.getFieldValue('dueDays');
+    
+    // Eğer dueDays undefined, null veya 0 ise, global değeri kontrol et
+    if (!dueDays && typeof window !== 'undefined' && (window as any).lastKnownDueDays) {
+      dueDays = (window as any).lastKnownDueDays;
+      console.log(`Global değişkenden vade günü alındı: ${dueDays}`);
+    }
+    
+    // Hala yoksa 0 olarak ayarla
+    if (!dueDays) dueDays = 0;
+    
+    console.log(`Kullanılacak vade günü değeri: ${dueDays}, Tipi: ${typeof dueDays}`);
+    
     let dueDate = null;
     
     // Vade tarihi hesapla (sadece vadeli ödemede)
@@ -1729,7 +1765,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       // Ödeme tipine göre alanları ayarla
       FormType: 0,                         // FormType her zaman 0 olmalı
       IsCreditSale: isVadeli,               // Vadeli ise true, Peşin ise false
-      PaymentTerm: isVadeli ? dueDays : 0,  // Vadeli ise dueDays, Peşin ise 0
+      PaymentTerm: isVadeli ? Number(dueDays) : 0,  // Vadeli ise dueDays, Peşin ise 0
       IsCompleted: true,                    // Her zaman true olmalı
       TotalAmount: totalAmount,
       DiscountAmount: discountAmount,
@@ -2425,6 +2461,7 @@ const openBarcodeModal = () => {
       getProductPrice={getProductPriceAndAddVariant}
       inventoryStock={inventoryStock}
       loadingInventory={loadingInventory}
+      currencyCode={currentCurrencyCode || 'TRY'}
       taxTypeMode={taxTypeMode as any}
       removeScannedItem={(index) => {
         const updatedItems = [...scannedItems];
@@ -2451,6 +2488,23 @@ const openBarcodeModal = () => {
       addAllToInvoice={() => {
         // Seçili para birimini al
         const currencyCode = form.getFieldValue('docCurrencyCode');
+        
+        // Kontrol: Tüm satırların miktar ve birim fiyat değerleri var mı?
+        const invalidItems = scannedItems.filter(item => {
+          return !item.quantity || item.quantity <= 0 || !item.variant.salesPrice1 || item.variant.salesPrice1 <= 0;
+        });
+        
+        if (invalidItems.length > 0) {
+          // Hata mesajı göster
+          message.error('Tüm satırların miktar ve birim fiyat değerleri olmalıdır. Lütfen kontrol ediniz.');
+          return; // İşlemi durdur
+        }
+        
+        // Form para birimi kontrolü
+        if (!currencyCode) {
+          message.error('Fatura para birimi seçilmelidir.');
+          return;
+        }
         
         // Taranan ürünleri fatura satırlarına ekle
         const newDetails = scannedItems.map(item => {
