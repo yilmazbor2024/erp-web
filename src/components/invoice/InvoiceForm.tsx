@@ -1415,7 +1415,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   // Vergi tipi değiştiğinde çağrılacak fonksiyon
   const handleTaxTypeChange = (taxMode: string) => {
     console.log('Vergi tipi modu değişti:', taxMode);
-    setTaxTypeMode(taxMode);
+    // taxTypeMode string tipinde olduğu için tip dönüşümü yapıyoruz
+    setTaxTypeMode(taxMode as any);
     
     // Eğer "vergisiz" seçildiyse tüm fatura satırlarındaki KDV oranını 0 yap
     if (taxMode === 'vergisiz') {
@@ -1690,6 +1691,21 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
     
     console.log('Formatlanan fatura detayları:', formattedDetails);
     
+    // Ödeme tipini belirle (Peşin=1, Vadeli=2)
+    const paymentType = values.paymentType;
+    const isPesin = paymentType === 'Peşin' || paymentType === 1 || String(paymentType) === '1';
+    const isVadeli = !isPesin;
+    
+    // Vade gün sayısı ve vade tarihi
+    const dueDays = form.getFieldValue('dueDays') || 0;
+    let dueDate = null;
+    
+    // Vade tarihi hesapla (sadece vadeli ödemede)
+    if (isVadeli && dueDays > 0 && values.invoiceDate) {
+      dueDate = dayjs(values.invoiceDate).add(dueDays, 'day').format('YYYY-MM-DD');
+      console.log(`Vade tarihi hesaplandı: ${dueDate} (Fatura tarihi + ${dueDays} gün)`);
+    }
+    
     // API isteği hazırla - doğrudan PascalCase alanlarla oluştur
     const requestData: any = {
       InvoiceNumber: values.invoiceNumber || 'Otomatik oluşturulacak',
@@ -1710,6 +1726,11 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       Notes: values.notes || '',
       ProcessCode: invoiceTypeCode, // İşlem kodu fatura tipi ile aynı
       TaxTypeCode: values.taxTypeCode || '0', // Vergi tipi kodunu ekle (varsayılan olarak 0=Standart)
+      // Ödeme tipine göre alanları ayarla
+      FormType: 0,                         // FormType her zaman 0 olmalı
+      IsCreditSale: isVadeli,               // Vadeli ise true, Peşin ise false
+      PaymentTerm: isVadeli ? dueDays : 0,  // Vadeli ise dueDays, Peşin ise 0
+      IsCompleted: true,                    // Her zaman true olmalı
       TotalAmount: totalAmount,
       DiscountAmount: discountAmount,
       SubtotalAmount: subtotalAmount,
@@ -1718,7 +1739,22 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
       TryEquivalentTotal: values.tryEquivalentTotal,
       ShippingPostalAddressID: values.shippingPostalAddressID, // Teslimat adresi ID'si
       BillingPostalAddressID: values.billingPostalAddressID,   // Fatura adresi ID'si
-      Details: formattedDetails // Formatlanan detayları kullan
+      Details: formattedDetails, // Formatlanan detayları kullan
+      
+      // Ödeme tipine göre alanlar yukarıda ayarlandı
+    };
+    
+    // Vade tarihi sadece vadeli ödemede gönderilir
+    if (isVadeli && dueDate) {
+      requestData.AverageDueDate = dueDate;
+    }
+    
+    // InvoiceHeaderExtension bilgilerini ekle
+    requestData.InvoiceHeaderExtension = {
+      PaymentMeansCode: isPesin ? 'CASH' : 'CREDIT',  // Peşin için CASH, Vadeli için CREDIT
+      PaymentChannelCode: isPesin ? '10' : '20',     // Peşin için 10, Vadeli için 20
+      IsIndividual: false,
+      DocumentDate: values.invoiceDate ? values.invoiceDate.format('YYYY-MM-DD') : ''
     };
     
     // Sevkiyat yöntemi seçildiyse ekle, boşsa gönderme
@@ -2389,8 +2425,7 @@ const openBarcodeModal = () => {
       getProductPrice={getProductPriceAndAddVariant}
       inventoryStock={inventoryStock}
       loadingInventory={loadingInventory}
-      currencyCode={currentCurrencyCode}
-      taxTypeMode={taxTypeMode}
+      taxTypeMode={taxTypeMode as any}
       removeScannedItem={(index) => {
         const updatedItems = [...scannedItems];
         updatedItems.splice(index, 1);
