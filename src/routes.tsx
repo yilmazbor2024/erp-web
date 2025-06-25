@@ -4,6 +4,7 @@ import { Route, Routes, Navigate, useLocation, Outlet } from 'react-router-dom';
 import Layout from './components/Layout/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import CustomerRegistration from './pages/Customers/CustomerRegistration';
 import HomePage from './pages/HomePage';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/Customers/CustomerDetail';
@@ -17,6 +18,8 @@ import Profile from './pages/Profile';
 import UsersPage from './pages/Users/index';
 import RolesPage from './pages/Roles/index';
 import SettingsPage from './pages/SettingsPage';
+import DatabaseList from './pages/settings/DatabaseList';
+import UserDatabaseList from './pages/settings/UserDatabaseList';
 import WholesaleInvoices from './pages/Invoices/WholesaleInvoices';
 import CreateWholesaleInvoice from './pages/Invoices/CreateWholesaleInvoice';
 import InvoiceListPage from './pages/invoice/InvoiceListPage';
@@ -68,6 +71,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/customer-registration" element={<CustomerRegistration />} />
         
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<HomePage />} />
@@ -106,6 +110,11 @@ const AppRoutes: React.FC = () => {
           
           {/* Finans Sayfaları */}
           <Route path="finance/exchange-rates" element={<ExchangeRatesPage />} />
+          
+          {/* Ayarlar Sayfaları */}
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings/databases" element={<DatabaseList />} />
+          <Route path="settings/user-databases" element={<UserDatabaseList />} />
         </Route>
         
         <Route path="*" element={<Navigate to="/" />} />

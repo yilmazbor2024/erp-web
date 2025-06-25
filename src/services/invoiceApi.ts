@@ -248,7 +248,7 @@ export interface CreateInvoiceRequest {
   processCode?: string; // İşlem kodu (WS, BP, EP)
   transTypeCode?: string; // İşlem tipi kodu (1: Giriş, 2: Çıkış, 3: Transfer)
   description?: string; // Açıklama
-  paymentTerm?: number; // Ödeme vadesi (gün)
+  PaymentTerm?: number; // Ödeme vadesi (gün)
   series?: string; // Seri
   seriesNumber?: string; // Seri numarası
   eInvoiceNumber?: string; // E-Fatura numarası
@@ -380,6 +380,7 @@ const invoiceApi = {
         isReturn: invoice.isReturn || false, // Varsayılan iade değil
         invoiceReturnTypeCode: invoice.invoiceReturnTypeCode || INVOICE_RETURN_TYPES.NO_RETURN, // 0 (İade değil)
         isEInvoice: invoice.isEInvoice || false, // Varsayılan e-fatura değil
+        PaymentTerm: invoice.PaymentTerm || 0, // Ödeme vadesi gün sayısı
         // Veritabanı eşleşmesi için gerekli dönüşümler
         details: invoice.details.map(detail => ({
           ...detail,

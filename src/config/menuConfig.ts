@@ -214,13 +214,8 @@ export const mainMenuItems: MenuItem[] = [
       {
         id: 'warehouse-transfer',
         title: 'Depo ve Depolar Arası Transfer',
-        path: '/inventory/transfer'
+        path: '/inventory/warehouse-transfers'
       },
-      {
-        id: 'shipping',
-        title: 'Sevkiyat',
-        path: '/inventory/shipping'
-      }
     ]
   },
   {
@@ -409,12 +404,6 @@ export const mobileCardMenu: MenuItem[] = [
         title: 'Depo ve Depolar Arası Transfer',
         path: '/inventory/warehouse-transfers',
         icon: 'SwapOutlined'
-      },
-      {
-        id: 'shipping',
-        title: 'Sevkiyat',
-        path: '/inventory/shipping',
-        icon: 'ArchiveBoxIcon'
       }
     ]
   },
@@ -462,7 +451,25 @@ export const mobileCardMenu: MenuItem[] = [
         id: 'user-management',
         title: 'Kullanıcı İşlemleri',
         path: '/settings/users',
-        icon: 'CogIcon'
+        icon: 'UserOutlined'
+      },
+      {
+        id: 'database-management',
+        title: 'Veritabanı Yönetimi',
+        path: '/settings/databases',
+        icon: 'DatabaseOutlined'
+      },
+      {
+        id: 'user-database-management',
+        title: 'Kullanıcı Veritabanı Yetkileri',
+        path: '/settings/user-databases',
+        icon: 'DatabaseOutlined'
+      },
+      {
+        id: 'general-settings',
+        title: 'Genel Ayarlar',
+        path: '/settings',
+        icon: 'SettingOutlined'
       }
     ]
   }

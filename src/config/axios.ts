@@ -31,6 +31,14 @@ instance.interceptors.request.use(
       const method = config.method?.toUpperCase() || 'UNKNOWN';
       console.warn(`⚠️ Axios [${method}] ${url}: Token bulunamadı!`);
     }
+    
+    // Seçilen veritabanı ID'sini header olarak ekle
+    const selectedDatabaseId = localStorage.getItem('selectedDatabaseId');
+    if (selectedDatabaseId && !url.includes('/login') && !url.includes('/register') && !url.includes('/UserDatabase/current-user')) {
+      config.headers['X-Database-Id'] = selectedDatabaseId;
+      console.log(`💾 Axios [${config.method?.toUpperCase() || 'UNKNOWN'}] ${url}: Veritabanı ID eklendi (${selectedDatabaseId})`);
+    }
+    
     return config;
   },
   (error) => {

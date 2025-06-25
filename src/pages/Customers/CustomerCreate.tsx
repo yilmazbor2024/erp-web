@@ -912,7 +912,7 @@ const CustomerCreate = () => {
                     ) : taxOfficesDataFromHook && taxOfficesDataFromHook.length > 0 ? (
                       taxOfficesDataFromHook.map((office: any) => (
                         <MenuItem key={office.taxOfficeCode} value={office.taxOfficeCode}>
-                          {office.taxOfficeDescription}
+                          {office.taxOfficeDescription || office.taxOfficeCode}
                         </MenuItem>
                       ))
                     ) : (

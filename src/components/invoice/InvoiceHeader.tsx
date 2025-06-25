@@ -643,8 +643,12 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   // Ödeme tipi değerini dönüştüren yardımcı fonksiyon
   const normalizePaymentType = (value: string | number) => {
     // Sayısal değerleri dönüştür
-    if (value === 1 || value === '1') return 'Peşin';
+    if (value === 1 || value === '1' || value === 0 || value === '0') return 'Peşin';
     if (value === 2 || value === '2') return 'Vadeli';
+    
+    // API'den gelen değerleri kontrol et
+    if (value === 'false' || value === 'False') return 'Peşin';
+    if (value === 'true' || value === 'True') return 'Vadeli';
     
     // Zaten string ise doğrudan dön
     return value as string;
@@ -806,11 +810,27 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       const currentPaymentType = form.getFieldValue('paymentType');
       console.log('Ödeme tipi ham değer:', currentPaymentType, 'Türü:', typeof currentPaymentType);
       
+      // API'den gelen verileri kontrol et
+      const formType = form.getFieldValue('formType');
+      const paymentTerm = form.getFieldValue('paymentTerm');
+      console.log('FormType:', formType, 'PaymentTerm:', paymentTerm);
+      
       // Ödeme tipini normalize et
-      let normalizedPaymentType = 'Vadeli'; // Varsayılan değer 'Vadeli' olarak değiştirildi
-      if (currentPaymentType) {
+      let normalizedPaymentType;
+      
+      // FormType veya PaymentTerm varsa, bunları kullan (API'den gelen veriler için)
+      if (formType === 0 || formType === '0' || paymentTerm === 0 || paymentTerm === '0') {
+        normalizedPaymentType = 'Peşin';
+      } else if (formType === 1 || formType === '1' || paymentTerm > 0) {
+        normalizedPaymentType = 'Vadeli';
+      } else if (currentPaymentType) {
+        // Form değerinden normalize et
         normalizedPaymentType = normalizePaymentType(currentPaymentType);
+      } else {
+        // Varsayılan değer
+        normalizedPaymentType = 'Peşin';
       }
+      
       console.log('Normalize edilmiş ödeme tipi:', normalizedPaymentType);
       
       // Önemli: Mevcut fatura tarihini kontrol et

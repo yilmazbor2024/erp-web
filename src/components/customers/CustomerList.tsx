@@ -128,11 +128,17 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
         expiryMinutes = response.data.expiryMinutes;
       }
       
-      // Eğer tempLink undefined ise, varsayılan bir değer ata
-      if (!tempLink) {
-        // FRONTEND_URL kullanarak ortama göre doğru URL oluştur
-        // Üretim ortamında olup olmadığımızı kontrol et
-        console.log(`Geçici link oluşturuluyor. FRONTEND_URL: ${FRONTEND_URL}, NODE_ENV: ${process.env.NODE_ENV}`);
+      // API'den gelen linki kontrol et ve düzelt
+      if (tempLink) {
+        // API'den gelen linkte localhost varsa, gerçek domain ile değiştir
+        if (tempLink.includes('localhost')) {
+          console.log('API yanıtında localhost tespit edildi, gerçek domain ile değiştiriliyor');
+          tempLink = tempLink.replace(/http:\/\/localhost:\d+/g, FRONTEND_URL);
+          console.log(`Düzeltilmiş link: ${tempLink}`);
+        }
+      } else {
+        // Eğer API'den link gelmezse, FRONTEND_URL kullanarak oluştur
+        console.log(`API'den link gelmedi. FRONTEND_URL: ${FRONTEND_URL}, NODE_ENV: ${process.env.NODE_ENV}`);
         
         // Token oluştur
         const randomToken = Math.random().toString(36).substring(2, 15);

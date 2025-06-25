@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { trTR } from '@mui/material/locale';
@@ -71,12 +71,18 @@ import ProductDetail from './pages/Products/ProductDetail';
 import ProductForm from './pages/Products/ProductForm';
 import ProductPriceList from './pages/Products/ProductPriceList';
 
+// Database Management pages
+import DatabaseList from './pages/settings/DatabaseList';
+import UserDatabaseList from './pages/settings/UserDatabaseList';
+
 // Material pages
 import MaterialList from './pages/Materials/MaterialList';
 
  
 // Inventory pages
 import InventoryStockPage from './pages/inventory/InventoryStockPage';
+import WarehouseTransferListPage from './pages/inventory/WarehouseTransferListPage';
+import WarehouseTransferDetailPage from './pages/inventory/WarehouseTransferDetailPage';
 
 // Exchange Rate pages
 import ExchangeRatesPage from './pages/finance/ExchangeRatesPage';
@@ -230,6 +236,8 @@ function App() {
                   <Route path="management" element={<Navigate to="/dashboard" replace />} />
                   <Route path="warehouse" element={<Navigate to="/dashboard" replace />} />
                   <Route path="branch" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="warehouse-transfers" element={<AuthGuard><WarehouseTransferListPage /></AuthGuard>} />
+                  <Route path="warehouse-transfers/:transferNumber" element={<AuthGuard><WarehouseTransferDetailPage /></AuthGuard>} />
                 </Route>
                 
                 {/* Finance Routes */}
@@ -250,6 +258,8 @@ function App() {
                   <Route path="permissions" element={<Navigate to="/dashboard" replace />} />
                   <Route path="roles" element={<Navigate to="/dashboard" replace />} />
                   <Route path="logs" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="databases" element={<AuthGuard><DatabaseList /></AuthGuard>} />
+                  <Route path="user-databases" element={<AuthGuard><UserDatabaseList /></AuthGuard>} />
                 </Route>
               </Route>
               

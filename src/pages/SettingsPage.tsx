@@ -1,11 +1,46 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, Tabs, Typography, Form, Input, Button, Switch, Divider, message } from 'antd';
 import { API_BASE_URL } from '../config/constants';
+import DatabaseList from './settings/DatabaseList';
+import UserDatabaseList from './settings/UserDatabaseList';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const { Title } = Typography;
 const { TabPane } = Tabs;
 
 const SettingsPage: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<string>('general');
+  
+  useEffect(() => {
+    // URL'e göre aktif sekmeyi belirle
+    if (location.pathname.includes('/settings/databases')) {
+      setActiveTab('databases');
+    } else if (location.pathname.includes('/settings/user-databases')) {
+      setActiveTab('user-databases');
+    } else {
+      setActiveTab('general');
+    }
+  }, [location.pathname]);
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    
+    // Tab değiştiğinde URL'i güncelle
+    switch (key) {
+      case 'databases':
+        navigate('/settings/databases');
+        break;
+      case 'user-databases':
+        navigate('/settings/user-databases');
+        break;
+      default:
+        navigate('/settings');
+        break;
+    }
+  };
+
   const handleSaveGeneralSettings = (values: any) => {
     console.log('General settings saved:', values);
     message.success('Genel ayarlar kaydedildi');
@@ -22,7 +57,7 @@ const SettingsPage: React.FC = () => {
       <Divider />
       
       <Card>
-        <Tabs defaultActiveKey="general">
+        <Tabs activeKey={activeTab} onChange={handleTabChange}>
           <TabPane tab="Genel Ayarlar" key="general">
             <Form
               layout="vertical"
@@ -144,6 +179,14 @@ const SettingsPage: React.FC = () => {
                 </Button>
               </Form.Item>
             </Form>
+          </TabPane>
+          
+          <TabPane tab="Veritabanı Yönetimi" key="databases">
+            <DatabaseList />
+          </TabPane>
+          
+          <TabPane tab="Kullanıcı Veritabanı Yetkileri" key="user-databases">
+            <UserDatabaseList />
           </TabPane>
         </Tabs>
       </Card>

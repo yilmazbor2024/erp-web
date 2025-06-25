@@ -30,10 +30,22 @@ export const useTaxOffices = (token?: string | null, enabled: boolean = true) =>
         if (token) {
           // Token varsa token ile vergi dairelerini getir
           console.log('useTaxOffices: Token ile vergi daireleri getiriliyor');
-          data = await customerApi.getTaxOfficesWithToken(token);
+          try {
+            data = await customerApi.getTaxOfficesWithToken(token);
+            console.log('useTaxOffices: API yanıtı:', data);
+          } catch (apiError) {
+            console.error('useTaxOffices: API çağrısı hatası:', apiError);
+            throw apiError;
+          }
         } else {
           // Token yoksa normal şekilde getir (login gerektirir)
-          data = await customerApi.getTaxOffices();
+          try {
+            data = await customerApi.getTaxOffices();
+            console.log('useTaxOffices: API yanıtı:', data);
+          } catch (apiError) {
+            console.error('useTaxOffices: API çağrısı hatası:', apiError);
+            throw apiError;
+          }
         }
         
         console.log('useTaxOffices: Veri alındı, kayıt sayısı:', data?.length || 0);
@@ -43,6 +55,7 @@ export const useTaxOffices = (token?: string | null, enabled: boolean = true) =>
         } else {
           console.warn('useTaxOffices: Veri bulunamadı veya boş dizi döndü');
         }
+        
         return data || [];
       } catch (error) {
         console.error('useTaxOffices: Hata oluştu:', error);

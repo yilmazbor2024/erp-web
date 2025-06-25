@@ -273,16 +273,14 @@ const Sidebar: React.FC = () => {
       <div className="py-4">
         {filteredMenuItems.map((item) => {
           const color = menuColors[item.id as keyof typeof menuColors] || '#1677ff';
-          const normalizedPath = item.path?.startsWith('/') ? item.path.substring(1) : item.path;
-          const isActive = normalizedPath === location.pathname || 
+          // location.pathname her zaman başında / ile gelir
+          const isActive = item.path === location.pathname || 
             (item.children && item.children.some(child => {
-              const normalizedChildPath = child.path?.startsWith('/') ? child.path.substring(1) : child.path;
-              const childActive = normalizedChildPath === location.pathname;
+              const childActive = child.path === location.pathname;
               
               // Check if any grandchild is active
               const grandchildActive = child.children && child.children.some(grandchild => {
-                const normalizedGrandchildPath = grandchild.path?.startsWith('/') ? grandchild.path.substring(1) : grandchild.path;
-                return normalizedGrandchildPath === location.pathname;
+                return grandchild.path === location.pathname;
               });
               
               return childActive || grandchildActive;
@@ -314,8 +312,7 @@ const Sidebar: React.FC = () => {
                     ${isOpen ? 'max-h-[800px]' : 'max-h-0'}
                   `}>
                     {item.children.map((child) => {
-                      const childNormalizedPath = child.path?.startsWith('/') ? child.path.substring(1) : child.path;
-                      const childIsActive = location.pathname === childNormalizedPath;
+                      const childIsActive = location.pathname === child.path;
                       const childHasChildren = child.children && child.children.length > 0;
                       const childIsOpen = openSubmenus.includes(child.id || '');
                       
@@ -344,11 +341,11 @@ const Sidebar: React.FC = () => {
                             {child.children?.map((grandchild) => (
                               <Link
                                 key={`${item.id}-${child.id}-${grandchild.id || grandchild.path}`}
-                                to={grandchild.path ? (grandchild.path.startsWith('/') ? grandchild.path.substring(1) : grandchild.path) : ''}
+                                to={grandchild.path || ''}
                                 className={`
                                   flex items-center pl-16 pr-3 py-2 mt-1 rounded-lg
                                   transition-all duration-200 hover:bg-gray-50
-                                  ${location.pathname === (grandchild.path?.startsWith('/') ? grandchild.path.substring(1) : grandchild.path) ? 'bg-gray-50' : ''}
+                                  ${location.pathname === grandchild.path ? 'bg-gray-50' : ''}
                                   ${exactMatchId === grandchild.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
                                 `}
                                 style={{ color }}
@@ -364,11 +361,11 @@ const Sidebar: React.FC = () => {
                       ) : (
                         <Link
                           key={`${item.id}-${child.id || child.path}`}
-                          to={child.path ? (child.path.startsWith('/') ? child.path.substring(1) : child.path) : ''}
+                          to={child.path || ''}
                           className={`
                             flex items-center pl-9 pr-3 py-2 mt-1 rounded-lg
                             transition-all duration-200 hover:bg-gray-50
-                            ${location.pathname === childNormalizedPath ? 'bg-gray-50' : ''}
+                            ${location.pathname === child.path ? 'bg-gray-50' : ''}
                             ${exactMatchId === child.id ? 'ring-2 ring-blue-500 bg-blue-50' : ''}
                           `}
                           style={{ color }}
@@ -385,7 +382,7 @@ const Sidebar: React.FC = () => {
               ) : (
                 <Link
                   key={item.id || item.path}
-                  to={item.path ? (item.path.startsWith('/') ? item.path.substring(1) : item.path) : ''}
+                  to={item.path || ''}
                   className={`
                     flex items-center p-3 rounded-lg
                     transition-all duration-200 hover:bg-gray-50
