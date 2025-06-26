@@ -176,7 +176,7 @@ const WarehouseTransferListPage: React.FC = () => {
   // Depo adını kodu ile bulma fonksiyonu
   const getWarehouseName = (code: string): string => {
     const warehouse = warehouses.find(w => w.warehouseCode === code);
-    return warehouse ? warehouse.warehouseName : code;
+    return warehouse ? warehouse.warehouseDescription : code;
   };
   
   // Detay sayfasına yönlendirme fonksiyonu
@@ -208,38 +208,60 @@ const WarehouseTransferListPage: React.FC = () => {
   };
   
   return (
-    <Container maxWidth="xl">
-      <Box sx={{ mt: 3, mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Depolar Arası Sevk Listesi
-        </Typography>
+    <Container maxWidth="xl" sx={{ paddingLeft: '4px', paddingRight: '4px' }}>
+      <Box sx={{ padding: '8px 4px' }}>
+        <Box sx={{ textAlign: 'center', mb: 2 }}>
+          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+            Depolar Arası Sevk
+          </Typography>
+        </Box>
         
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={handleCreateNew}
-          >
-            Yeni Sevk Oluştur
-          </Button>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box sx={{ display: 'flex', flex: 1, mr: 1 }}>
+            <TextField
+              placeholder="Ara..."
+              size="small"
+              fullWidth
+              onChange={(e) => {
+                const searchText = e.target.value;
+                // Basit arama - tüm transferleri filtrele
+                if (searchText) {
+                  const filtered = transfers.filter(t => 
+                    t.transferNumber.toLowerCase().includes(searchText.toLowerCase()) ||
+                    t.sourceWarehouseName.toLowerCase().includes(searchText.toLowerCase()) ||
+                    t.targetWarehouseName.toLowerCase().includes(searchText.toLowerCase())
+                  );
+                  setTransfers(filtered);
+                } else {
+                  // Arama boşsa tüm verileri yeniden yükle
+                  fetchData();
+                }
+              }}
+              InputProps={{
+                startAdornment: <SearchIcon fontSize="small" sx={{ color: 'text.secondary', mr: 1 }} />
+              }}
+            />
+          </Box>
           
-          <Box>
-            <Button
-              variant="outlined"
-              startIcon={<FilterAltIcon />}
-              onClick={() => setFilterOpen(true)}
-              sx={{ mr: 1 }}
-            >
-              Filtrele
-            </Button>
-            
+          <Box sx={{ display: 'flex' }}>
             <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
               onClick={fetchData}
+              size="small"
+              sx={{ mr: 1 }}
             >
               Yenile
+            </Button>
+            
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddIcon />}
+              onClick={() => navigate('/inventory/warehouse-transfers/new')}
+              size="small"
+            >
+              Yeni
             </Button>
           </Box>
         </Box>
@@ -249,109 +271,118 @@ const WarehouseTransferListPage: React.FC = () => {
             <CircularProgress />
           </Box>
         ) : (
-          <TableContainer component={Paper}>
-            <Table>
+          <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+            <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Sevk No</TableCell>
-                  <TableCell>Tarih</TableCell>
-                  <TableCell>Kaynak Depo</TableCell>
-                  <TableCell>Hedef Depo</TableCell>
-                  <TableCell>Miktar</TableCell>
-                  <TableCell>Durum</TableCell>
-                  <TableCell>Açıklama</TableCell>
-                  <TableCell align="center">İşlemler</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Sevk Bilgileri</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Miktar / Durum</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {transfers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} align="center">
+                    <TableCell colSpan={2} align="center">
                       Kayıt bulunamadı
                     </TableCell>
                   </TableRow>
                 ) : (
                   transfers.map((transfer) => (
-                    <TableRow key={transfer.transferNumber}>
-                      <TableCell>{transfer.transferNumber}</TableCell>
+                    <TableRow key={transfer.transferNumber} 
+                      sx={{
+                        '&:hover': {
+                          backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                        },
+                      }}
+                      onClick={() => handleViewDetails(transfer.transferNumber)}
+                    >
+                      {/* 1. Kolon: Sevk No, Tarih, Kaynak ve Hedef Depo */}
                       <TableCell>
-                        {formatDate(transfer.operationDate)}
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            {transfer.transferNumber} - {formatDate(transfer.operationDate)}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 0.5 }}>
+                            {transfer.sourceWarehouseCode} → {transfer.targetWarehouseCode}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {transfer.sourceWarehouseName.substring(0, 15)}{transfer.sourceWarehouseName.length > 15 ? '...' : ''} → {transfer.targetWarehouseName.substring(0, 15)}{transfer.targetWarehouseName.length > 15 ? '...' : ''}
+                          </Typography>
+                        </Box>
                       </TableCell>
+                      
+                      {/* 2. Kolon: Miktar ve Durum */}
                       <TableCell>
-                        {transfer.sourceWarehouseCode} - {transfer.sourceWarehouseName}
-                      </TableCell>
-                      <TableCell>
-                        {transfer.targetWarehouseCode} - {transfer.targetWarehouseName}
-                      </TableCell>
-                      <TableCell>{transfer.totalQty}</TableCell>
-                      <TableCell>
-                        {transfer.isCompleted ? (
-                          <Chip label="Onaylandı" color="success" size="small" />
-                        ) : transfer.isLocked ? (
-                          <Chip 
-                            label={`Kilitli (${transfer.lockedByUser})`} 
-                            color="warning" 
-                            size="small" 
-                          />
-                        ) : (
-                          <Chip label="Bekliyor" color="default" size="small" />
-                        )}
-                      </TableCell>
-                      <TableCell>{transfer.description}</TableCell>
-                      <TableCell align="center">
-                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                          <Tooltip title="Detay Görüntüle">
-                            <IconButton 
-                              size="small"
-                              onClick={() => handleViewDetails(transfer.transferNumber)}
-                            >
-                              <VisibilityIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          {/* Miktar */}
+                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            {transfer.totalQty} AD
+                          </Typography>
                           
-                          {!transfer.isCompleted && (
-                            <>
-                              <Tooltip title="Onayla">
+                          {/* Durum */}
+                          {transfer.isCompleted ? (
+                            <Chip label="Onaylandı" color="success" size="small" sx={{ maxWidth: '100%' }} />
+                          ) : transfer.isLocked ? (
+                            <Chip 
+                              label={`Kilitli`} 
+                              color="warning" 
+                              size="small" 
+                              sx={{ maxWidth: '100%' }}
+                            />
+                          ) : (
+                            <Chip label="Bekliyor" color="default" size="small" sx={{ maxWidth: '100%' }} />
+                          )}
+                          
+                          {/* İşlemler */}
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            {!transfer.isCompleted && (
+                              <>
                                 <IconButton 
                                   size="small" 
                                   color="success"
-                                  onClick={() => openConfirmDialog(transfer.transferNumber, 'approve')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openConfirmDialog(transfer.transferNumber, 'approve');
+                                  }}
                                 >
                                   <CheckIcon fontSize="small" />
                                 </IconButton>
-                              </Tooltip>
-                              
-                              <Tooltip title="İptal Et">
+                                
                                 <IconButton 
                                   size="small" 
                                   color="error"
-                                  onClick={() => openConfirmDialog(transfer.transferNumber, 'cancel')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openConfirmDialog(transfer.transferNumber, 'cancel');
+                                  }}
                                 >
                                   <CloseIcon fontSize="small" />
                                 </IconButton>
-                              </Tooltip>
-                              
-                              {transfer.isLocked ? (
-                                <Tooltip title="Kilidi Aç">
+                                
+                                {!transfer.isLocked ? (
                                   <IconButton 
                                     size="small"
-                                    onClick={() => openConfirmDialog(transfer.transferNumber, 'unlock')}
-                                  >
-                                    <LockOpenIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              ) : (
-                                <Tooltip title="Kilitle">
-                                  <IconButton 
-                                    size="small"
-                                    onClick={() => openConfirmDialog(transfer.transferNumber, 'lock')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openConfirmDialog(transfer.transferNumber, 'lock');
+                                    }}
                                   >
                                     <LockIcon fontSize="small" />
                                   </IconButton>
-                                </Tooltip>
-                              )}
-                            </>
-                          )}
+                                ) : (
+                                  <IconButton 
+                                    size="small"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openConfirmDialog(transfer.transferNumber, 'unlock');
+                                    }}
+                                  >
+                                    <LockOpenIcon fontSize="small" />
+                                  </IconButton>
+                                )}
+                              </>
+                            )}
+                          </Box>
                         </Box>
                       </TableCell>
                     </TableRow>
@@ -387,7 +418,7 @@ const WarehouseTransferListPage: React.FC = () => {
                   </MenuItem>
                   {warehouses.map((warehouse) => (
                     <MenuItem key={warehouse.warehouseCode} value={warehouse.warehouseCode}>
-                      {warehouse.warehouseCode} - {warehouse.warehouseName}
+                      {warehouse.warehouseCode} - {warehouse.warehouseDescription}
                     </MenuItem>
                   ))}
                 </Select>
@@ -408,7 +439,7 @@ const WarehouseTransferListPage: React.FC = () => {
                   </MenuItem>
                   {warehouses.map((warehouse) => (
                     <MenuItem key={warehouse.warehouseCode} value={warehouse.warehouseCode}>
-                      {warehouse.warehouseCode} - {warehouse.warehouseName}
+                      {warehouse.warehouseCode} - {warehouse.warehouseDescription}
                     </MenuItem>
                   ))}
                 </Select>

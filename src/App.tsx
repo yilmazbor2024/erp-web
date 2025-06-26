@@ -83,6 +83,7 @@ import MaterialList from './pages/Materials/MaterialList';
 import InventoryStockPage from './pages/inventory/InventoryStockPage';
 import WarehouseTransferListPage from './pages/inventory/WarehouseTransferListPage';
 import WarehouseTransferDetailPage from './pages/inventory/WarehouseTransferDetailPage';
+import WarehouseTransferFormPage from './pages/inventory/WarehouseTransferFormPage';
 
 // Exchange Rate pages
 import ExchangeRatesPage from './pages/finance/ExchangeRatesPage';
@@ -237,6 +238,8 @@ function App() {
                   <Route path="warehouse" element={<Navigate to="/dashboard" replace />} />
                   <Route path="branch" element={<Navigate to="/dashboard" replace />} />
                   <Route path="warehouse-transfers" element={<AuthGuard><WarehouseTransferListPage /></AuthGuard>} />
+                  <Route path="warehouse-transfers/new" element={<AuthGuard><WarehouseTransferFormPage /></AuthGuard>} />
+                  <Route path="warehouse-transfers/edit/:transferNumber" element={<AuthGuard><WarehouseTransferFormPage /></AuthGuard>} />
                   <Route path="warehouse-transfers/:transferNumber" element={<AuthGuard><WarehouseTransferDetailPage /></AuthGuard>} />
                 </Route>
                 

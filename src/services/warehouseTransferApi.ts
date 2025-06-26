@@ -38,6 +38,8 @@ export interface WarehouseTransferRequest {
   sourceWarehouseCode: string;
   targetWarehouseCode: string;
   description?: string;
+  operationDate?: string; // İşlem tarihi
+  shipmentMethodCode: string; // Sevkiyat yöntemi kodu (zorunlu)
   items: WarehouseTransferItemRequest[];
 }
 
@@ -49,6 +51,7 @@ export interface WarehouseTransferItemRequest {
   quantity: number;
   unitCode: string;
   lineDescription?: string;
+  barcode?: string; // Barkod (API tarafından zorunlu)
 }
 
 // Depolar arası sevk filtreleme parametreleri
@@ -62,9 +65,16 @@ export interface WarehouseTransferFilterParams {
 // Depo yanıt tipi
 export interface WarehouseResponse {
   warehouseCode: string;
-  warehouseName: string;
+  warehouseDescription: string; // API'den gelen gerçek alan adı
   companyCode: string;
+  officeCode: string;
+  officeDescription: string;
+  warehouseOwnerCode: string;
+  warehouseOwnerDescription: string;
+  warehouseTypeCode: string;
+  warehouseTypeDescription: string;
   isBlocked: boolean;
+  // Diğer alanlar
 }
 
 const warehouseTransferApi = {
@@ -145,6 +155,26 @@ const warehouseTransferApi = {
   // Yeni bir depolar arası sevk kaydı oluşturan fonksiyon
   createWarehouseTransfer: async (request: WarehouseTransferRequest): Promise<string | null> => {
     try {
+      // İstek verilerini detaylı görüntüle
+      console.log('API isteği detayları:', JSON.stringify(request, null, 2));
+      
+      // Önemli alanları kontrol et
+      console.log('Kaynak depo:', request.sourceWarehouseCode);
+      console.log('Hedef depo:', request.targetWarehouseCode);
+      console.log('İşlem tarihi:', request.operationDate);
+      console.log('Ürün sayısı:', request.items.length);
+      
+      // Ürün detaylarını kontrol et
+      request.items.forEach((item, index) => {
+        console.log(`Ürün ${index + 1}:`, {
+          itemCode: item.itemCode,
+          colorCode: item.colorCode,
+          itemDim1Code: item.itemDim1Code,
+          quantity: item.quantity,
+          unitCode: item.unitCode
+        });
+      });
+      
       const response = await axiosInstance.post<ApiResponse<string>>('/api/WarehouseTransfer', request);
       
       if (response.data.success && response.data.data) {
@@ -153,8 +183,40 @@ const warehouseTransferApi = {
         console.warn('API: WarehouseTransfer create endpoint returned success=false or no data', response.data);
         return null;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('API: Error creating warehouse transfer', error);
+      
+      // Hata detaylarını görüntüle
+      if (error.response) {
+        console.error('Hata detayları:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data
+        });
+        
+        // Validasyon hatalarını görüntüle
+        if (error.response.data.validationErrors) {
+          console.log('Validasyon hataları:', error.response.data.validationErrors);
+          
+          // Her bir validasyon hatasını detaylı göster
+          error.response.data.validationErrors.forEach((validationError: any, index: number) => {
+            console.log(`Validasyon hatası ${index + 1}:`, {
+              property: validationError.property,
+              message: validationError.message,
+              value: validationError.value
+            });
+          });
+        }
+        
+        // API mesajını görüntüle
+        if (error.response.data.message) {
+          console.log('API mesajı:', error.response.data.message);
+        }
+        
+        // Tüm yanıtı görüntüle
+        console.log('API yanıtı (tüm):', error.response.data);
+      }
+      
       return null;
     }
   },
@@ -269,6 +331,19 @@ const warehouseTransferApi = {
       console.log('📡 API: getWarehouses response', { status: response.status, data: response.data });
       
       if (response.data.success && response.data.data) {
+        // API'den gelen depo verilerini detaylı kontrol et
+        console.log('📦 Depo verileri:', JSON.stringify(response.data.data, null, 2));
+        
+        // Her bir depo için kontrol yap
+        const warehouses = response.data.data;
+        warehouses.forEach((warehouse, index) => {
+          console.log(`Depo ${index + 1}:`, {
+            warehouseCode: warehouse.warehouseCode,
+            warehouseDescription: warehouse.warehouseDescription,
+            hasName: !!warehouse.warehouseDescription
+          });
+        });
+        
         return response.data.data;
       } else {
         console.warn('API: WarehouseTransfer/warehouses endpoint returned success=false or no data', response.data);

@@ -793,12 +793,11 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
             </table>
           </Collapse.Panel>
         </Collapse>
-        </div>
         
         {/* Ödeme Özeti - Yatay format - Sabit pozisyonda */}
-        <div style={{ position: 'sticky', top: 0, zIndex: 10, marginTop: '10px', marginBottom: '15px', backgroundColor: '#fff', paddingLeft: '5px', paddingRight: '5px' }}>
+        <div style={{ position: 'sticky', top: 0, zIndex: 10, marginTop: '10px', marginBottom: '15px', backgroundColor: '#fff' }}>
           <div style={{ backgroundColor: '#fafafa', padding: '5px', borderRadius: '4px', border: '1px solid #f0f0f0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '5px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
               {/* Genel Toplam */}
               <div style={{ flex: 1, textAlign: 'center', padding: '8px', backgroundColor: '#fff', border: '1px solid #f0f0f0', borderRadius: '4px' }}>
                 <div style={{ fontSize: '10px', color: '#666', marginBottom: '2px' }}>Genel Toplam</div>
@@ -1051,7 +1050,6 @@ const CashPaymentForm: React.FC<CashPaymentFormProps> = ({
             onCancel={() => setShowAdvanceWarning(false)}
             okText="Evet, Avans Olarak Kaydet"
             cancelText="Hayır, İptal"
-            styles={{ body: { padding: '20px 5px' } }}
           >
             <p>
               Ödenen tutar fatura tutarından <Text strong style={{ color: 'red' }}>{advanceAmount.toFixed(2)} {currencyCode}</Text> fazladır.
