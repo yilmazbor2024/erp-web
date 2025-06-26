@@ -32,7 +32,9 @@ import {
   Close as CloseIcon,
   Lock as LockIcon,
   LockOpen as LockOpenIcon,
-  Print as PrintIcon
+  Print as PrintIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import warehouseTransferApi, { 
   WarehouseTransferResponse,
@@ -195,216 +197,322 @@ const WarehouseTransferDetailPage: React.FC = () => {
   }
   
   return (
-    <Container maxWidth="xl" className="print-container">
-      <Box sx={{ mt: 3, mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton onClick={handleBack} sx={{ mr: 1 }} className="no-print">
-              <ArrowBackIcon />
+    <Container maxWidth="xl" className="print-container" sx={{ px: { xs: 1, sm: 2 } }}>
+      {/* Başlık - En üstte */}
+      <Box sx={{ mt: 2, mb: 2, textAlign: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <IconButton onClick={handleBack} className="no-print" size="small">
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography variant="h5" component="h1" sx={{ flex: 1, textAlign: 'center' }}>
+            Sevk Detayları
+          </Typography>
+          <Tooltip title="Yazdır">
+            <IconButton onClick={handlePrint} className="no-print" size="small">
+              <PrintIcon />
             </IconButton>
-            <Typography variant="h4" component="h1">
-              Sevk Detayları
-            </Typography>
-          </Box>
-          
-          <Box className="no-print">
-            <Tooltip title="Yazdır">
-              <IconButton onClick={handlePrint} sx={{ mr: 1 }}>
-                <PrintIcon />
-              </IconButton>
-            </Tooltip>
+          </Tooltip>
+        </Box>
+        
+        {/* 3 Ana buton yan yana */}
+        {!transfer.isCompleted && (
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            mt: 1, 
+            mb: 2,
+            '& .MuiButton-root': {
+              flex: 1,
+              mx: 0.5,
+              py: 1,
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+            }
+          }} className="no-print">
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<CheckIcon />}
+              onClick={() => openConfirmDialog('approve')}
+            >
+              ONAYLA
+            </Button>
             
-            {!transfer.isCompleted && (
-              <>
-                <Button
-                  variant="contained"
-                  color="success"
-                  startIcon={<CheckIcon />}
-                  onClick={() => openConfirmDialog('approve')}
-                  sx={{ mr: 1 }}
-                >
-                  Onayla
-                </Button>
-                
-                <Button
-                  variant="contained"
-                  color="error"
-                  startIcon={<CloseIcon />}
-                  onClick={() => openConfirmDialog('cancel')}
-                  sx={{ mr: 1 }}
-                >
-                  İptal Et
-                </Button>
-                
-                {transfer.isLocked ? (
-                  <Button
-                    variant="outlined"
-                    startIcon={<LockOpenIcon />}
-                    onClick={() => openConfirmDialog('unlock')}
-                  >
-                    Kilidi Aç
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outlined"
-                    startIcon={<LockIcon />}
-                    onClick={() => openConfirmDialog('lock')}
-                  >
-                    Kilitle
-                  </Button>
-                )}
-              </>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<CloseIcon />}
+              onClick={() => openConfirmDialog('cancel')}
+            >
+              İPTAL ET
+            </Button>
+            
+            {transfer.isLocked ? (
+              <Button
+                variant="outlined"
+                startIcon={<LockOpenIcon />}
+                onClick={() => openConfirmDialog('unlock')}
+              >
+                KİLİTLE
+              </Button>
+            ) : (
+              <Button
+                variant="outlined"
+                startIcon={<LockIcon />}
+                onClick={() => openConfirmDialog('lock')}
+              >
+                KİLİTLE
+              </Button>
             )}
           </Box>
-        </Box>
+        )}
 
-        <Grid container spacing={3}>
-          <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Sevk Bilgileri
-                </Typography>
+        {/* Sevk Bilgileri - Mobil için optimize edilmiş */}
+        <Card sx={{ mb: 2 }}>
+          <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+            <Typography variant="h6" gutterBottom sx={{ borderBottom: '1px solid #eee', pb: 1, mb: 2 }}>
+              Sevk Bilgileri
+            </Typography>
 
-                <Grid container spacing={2}>
-                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-                    <Typography variant="subtitle2" color="textSecondary">
-                      Sevk Numarası
-                    </Typography>
-                    <Typography variant="body1">
-                      {transfer.transferNumber}
-                    </Typography>
-                  </Grid>
+            <Box sx={{ 
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 2
+            }}>
+              {/* 1. Kolon: Sevk No ve İşlem Tarihi */}
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center',
+                gap: 2
+              }}>
+                <Box sx={{ textAlign: 'center', width: '100%' }}>
+                  <Typography variant="subtitle2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+                    Sevk Numarası
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>
+                    {transfer.transferNumber}
+                  </Typography>
+                </Box>
 
-                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-                    <Typography variant="subtitle2" color="textSecondary">
-                      İşlem Tarihi
-                    </Typography>
-                    <Typography variant="body1">
-                      {formatDate(transfer.operationDate)}
-                    </Typography>
-                  </Grid>
+                <Box sx={{ textAlign: 'center', width: '100%' }}>
+                  <Typography variant="subtitle2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+                    İşlem Tarihi
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: '0.9rem' }}>
+                    {formatDate(transfer.operationDate)}
+                  </Typography>
+                </Box>
+              </Box>
+              
+              {/* 2. Kolon: Kaynak Depo ve Hedef Depo */}
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center',
+                gap: 2
+              }}>
+                <Box sx={{ textAlign: 'center', width: '100%' }}>
+                  <Typography variant="subtitle2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+                    Kaynak Depo
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: '0.9rem' }}>
+                    {transfer.sourceWarehouseCode} - {transfer.sourceWarehouseName}
+                  </Typography>
+                </Box>
 
-                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-                    <Typography variant="subtitle2" color="textSecondary">
-                      Durum
+                <Box sx={{ textAlign: 'center', width: '100%' }}>
+                  <Typography variant="subtitle2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+                    Hedef Depo
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: '0.9rem' }}>
+                    {transfer.targetWarehouseCode} - {transfer.targetWarehouseName}
+                  </Typography>
+                </Box>
+              </Box>
+              
+              {/* 3. Kolon: Miktar, Durum ve Açıklama */}
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center',
+                gap: 2
+              }}>
+                <Box sx={{ textAlign: 'center', width: '100%' }}>
+                  <Typography variant="subtitle2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+                    Toplam Miktar
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontSize: '0.9rem' }}>
+                    {transfer.totalQty}
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ textAlign: 'center', width: '100%' }}>
+                  <Typography variant="subtitle2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+                    Durum
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                    {transfer.isCompleted ? (
+                      <Chip label="Onaylandı" color="success" size="small" sx={{ height: '24px', fontSize: '0.8rem' }} />
+                    ) : transfer.isLocked ? (
+                      <Chip label={`Kilitli`} color="warning" size="small" sx={{ height: '24px', fontSize: '0.8rem' }} />
+                    ) : (
+                      <Chip label="Bekliyor" color="default" size="small" sx={{ height: '24px', fontSize: '0.8rem' }} />
+                    )}
+                  </Box>
+                </Box>
+                
+
+              </Box>
+
+              {transfer.isLocked && (
+                <>
+                  <Box className="info-item">
+                    <Typography variant="subtitle2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+                      Kilitleyen Kullanıcı
                     </Typography>
-                    <Box>
-                      {transfer.isCompleted ? (
-                        <Chip label="Onaylandı" color="success" size="small" />
-                      ) : transfer.isLocked ? (
-                        <Chip label={`Kilitli (${transfer.lockedByUser})`} color="warning" size="small" />
-                      ) : (
-                        <Chip label="Bekliyor" color="default" size="small" />
-                      )}
+                    <Typography variant="body1" sx={{ fontSize: '0.9rem' }}>
+                      {transfer.lockedByUser}
+                    </Typography>
+                  </Box>
+
+                  <Box className="info-item">
+                    <Typography variant="subtitle2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+                      Kilit Tarihi
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontSize: '0.9rem' }}>
+                      {transfer.lockDate ? formatDateTime(transfer.lockDate) : '-'}
+                    </Typography>
+                  </Box>
+                </>
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Sevk Kalemleri - Mobil için optimize edilmiş */}
+        <Card sx={{ mb: 2 }}>
+          <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+            <Typography variant="h6" gutterBottom sx={{ borderBottom: '1px solid #eee', pb: 1, mb: 2 }}>
+              Sevk Kalemleri
+            </Typography>
+
+            {/* Mobil için optimize edilmiş sevk kalemleri listesi */}
+            {transferItems.length === 0 ? (
+              <Typography variant="body2" sx={{ fontStyle: 'italic', textAlign: 'center', py: 2 }}>
+                Sevk kalemi bulunamadı
+              </Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {transferItems.map((item, index) => (
+                  <Card key={index} variant="outlined" sx={{ 
+                    borderRadius: 1,
+                    boxShadow: 'none',
+                    border: '1px solid #eee',
+                    overflow: 'visible'
+                  }}>
+                    {/* Başlık - Ürün Adı ve Sıra */}
+                    <Box sx={{ 
+                      p: 1.5, 
+                      pb: 0.5,
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      borderBottom: '1px solid #f5f5f5'
+                    }}>
+                      <Chip 
+                        label={`#${index + 1}`} 
+                        size="small" 
+                        color="primary" 
+                        variant="outlined"
+                        sx={{ mr: 1, height: '20px', fontSize: '0.7rem', minWidth: '30px' }} 
+                      />
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                        {item.itemName}
+                      </Typography>
                     </Box>
-                  </Grid>
-
-                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-                    <Typography variant="subtitle2" color="textSecondary">
-                      Toplam Miktar
-                    </Typography>
-                    <Typography variant="body1">
-                      {transfer.totalQty}
-                    </Typography>
-                  </Grid>
-
-                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-                    <Typography variant="subtitle2" color="textSecondary">
-                      Kaynak Depo
-                    </Typography>
-                    <Typography variant="body1">
-                      {transfer.sourceWarehouseCode} - {transfer.sourceWarehouseName}
-                    </Typography>
-                  </Grid>
-
-                  <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-                    <Typography variant="subtitle2" color="textSecondary">
-                      Hedef Depo
-                    </Typography>
-                    <Typography variant="body1">
-                      {transfer.targetWarehouseCode} - {transfer.targetWarehouseName}
-                    </Typography>
-                  </Grid>
-
-                  {transfer.description && (
-                    <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-                      <Typography variant="subtitle2" color="textSecondary">
-                        Açıklama
-                      </Typography>
-                      <Typography variant="body1">
-                        {transfer.description}
-                      </Typography>
-                    </Grid>
-                  )}
-
-                  {transfer.isLocked && (
-                    <>
-                      <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-                        <Typography variant="subtitle2" color="textSecondary">
-                          Kilitleyen Kullanıcı
-                        </Typography>
-                        <Typography variant="body1">
-                          {transfer.lockedByUser}
-                        </Typography>
-                      </Grid>
-
-                      <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-                        <Typography variant="subtitle2" color="textSecondary">
-                          Kilit Tarihi
-                        </Typography>
-                        <Typography variant="body1">
-                          {transfer.lockDate ? formatDateTime(transfer.lockDate) : '-'}
-                        </Typography>
-                      </Grid>
-                    </>
-                  )}
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid sx={{ gridColumn: { xs: 'span 12', sm: 'span 6', md: 'span 4' } }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Sevk Kalemleri
-                </Typography>
-
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Sıra</TableCell>
-                        <TableCell>Ürün Kodu</TableCell>
-                        <TableCell>Ürün Adı</TableCell>
-                        <TableCell>Renk</TableCell>
-                        <TableCell>Beden</TableCell>
-                        <TableCell>Miktar</TableCell>
-                        <TableCell>Birim</TableCell>
-                        <TableCell>Barkod</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {transferItems.map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>{item.itemCode}</TableCell>
-                          <TableCell>{item.itemName}</TableCell>
-                          <TableCell>{item.colorName || '-'}</TableCell>
-                          <TableCell>{item.itemDim1Name || '-'}</TableCell>
-                          <TableCell>{item.quantity}</TableCell>
-                          <TableCell>{item.unitCode || '-'}</TableCell>
-                          <TableCell>{item.barcode || '-'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+                    
+                    {/* Ürün Detayları */}
+                    <Box sx={{ 
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' },
+                    }}>
+                      {/* 1. Kolon: Ürün kodu, açıklama, renk, beden, barkod */}
+                      <Box sx={{ p: 1.5, pt: 1 }}>
+                        <Box sx={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: '1fr 1fr', 
+                          gap: 1,
+                          fontSize: '0.8rem'
+                        }}>
+                          <Box>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              Ürün Kodu
+                            </Typography>
+                            <Typography variant="body2">{item.itemCode}</Typography>
+                          </Box>
+                          
+                          <Box>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              Barkod
+                            </Typography>
+                            <Typography variant="body2">{item.barcode || '-'}</Typography>
+                          </Box>
+                          
+                          <Box>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              Renk
+                            </Typography>
+                            <Typography variant="body2">{item.colorName || '-'}</Typography>
+                          </Box>
+                          
+                          <Box>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              Beden
+                            </Typography>
+                            <Typography variant="body2">{item.itemDim1Name || '-'}</Typography>
+                          </Box>
+                        </Box>
+                      </Box>
+                      
+                      {/* 2. Kolon: Miktar ve işlemler */}
+                      <Box sx={{ 
+                        p: 1.5, 
+                        pt: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        borderLeft: { xs: 'none', sm: '1px solid #f5f5f5' },
+                        borderTop: { xs: '1px solid #f5f5f5', sm: 'none' }
+                      }}>
+                        <Box sx={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <Box>
+                            <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                              {item.quantity} {item.unitCode || 'AD'}
+                            </Typography>
+                          </Box>
+                          
+                          {!transfer.isCompleted && (
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                              <IconButton size="small" color="primary">
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton size="small" color="error">
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+                    </Box>
+                  </Card>
+                ))}
+              </Box>
+            )}
+          </CardContent>
+        </Card>
       </Box>
       
       {/* Onay Dialog */}
