@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FRONTEND_URL } from '../../config/constants';
 import { 
   Box,
@@ -19,13 +19,13 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Button,
-  Pagination,
   Snackbar,
   Alert,
+  Button,
   InputAdornment,
   useMediaQuery,
   useTheme,
+  CircularProgress,
   Grid
 } from '@mui/material';
 import { 
@@ -58,16 +58,28 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [inputValue, setInputValue] = useState('');
-  const { data, isLoading, error } = useCustomerList({ page, searchTerm });
+  const [offset, setOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const { data, isLoading, error } = useCustomerList({ 
+    page, 
+    searchTerm, 
+    offset, 
+    pageSize: 20,
+    useLazyLoading: true 
+  });
   const navigate = useNavigate();
   
-  // QR kod modalı için state'ler
-  const [qrDialogOpen, setQrDialogOpen] = useState(false);
-  const [tempLink, setTempLink] = useState('');
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  // QR kod modalı  // QR Kod Dialog
+  const [qrDialogOpen, setQrDialogOpen] = useState<boolean>(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+  const [tempLink, setTempLink] = useState<string>('');
   const [expiryTime, setExpiryTime] = useState<Date | null>(null);
-  const [selectedCustomerCode, setSelectedCustomerCode] = useState('');
-  const [remainingTime, setRemainingTime] = useState('00:00');
+  const [remainingTime, setRemainingTime] = useState<string>('00:00');
+  const [selectedCustomerCode, setSelectedCustomerCode] = useState<string>('');
+  
+  // Modal görünürlüğünü kontrol etmek için ref
+  const qrDialogRef = useRef<HTMLDivElement>(null);
   const [notification, setNotification] = useState<{open: boolean, message: string, type: 'success' | 'error'}>({open: false, message: '', type: 'success'});
 
   // Kalan süreyi hesaplama
@@ -101,6 +113,57 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
       if (timer) clearInterval(timer);
     };
   }, [qrDialogOpen, expiryTime]);
+  
+  // Infinity scroll için scroll olayını dinleme
+  const handleScroll = useCallback(() => {
+    // (1) Sayfanın en altına ne kadar yakın olduğumuzu hesapla
+    const scrollPosition = window.innerHeight + window.pageYOffset;
+    // (2) Eşik değerini belirle (sayfa sonundan 300px önce)
+    const scrollThreshold = document.documentElement.offsetHeight - 300; // Daha erken yüklemeye başla
+    
+    // (3) Konsola log yaz
+    console.log('Scroll Position:', scrollPosition, 'Threshold:', scrollThreshold, 'Difference:', scrollThreshold - scrollPosition);
+    
+    // (4) Eşik değerine ulaşıldı mı kontrol et
+    if (scrollPosition >= scrollThreshold) {
+      // (5) Daha fazla veri yüklenebilir mi kontrol et
+      // hasNextPage yerine her zaman daha fazla veri yüklemeyi dene
+      if (!loadingMore) {
+        // (6) Konsola log yaz
+        console.log('Loading more data, current offset:', offset, 'allCustomers.length:', allCustomers.length);
+        // (7) Yükleme durumunu güncelle
+        setLoadingMore(true);
+        // (8) Offset değerini artır
+        setOffset(prev => prev + 20);
+      }
+    }
+  }, [loadingMore, offset, allCustomers.length]);
+  
+  // Scroll olayını dinleme
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, [handleScroll]);
+  
+  // Yeni veriler yüklenince müşteri listesini güncelleme
+  useEffect(() => {
+    if (data?.customers) {
+      console.log('Data loaded, customers count:', data.customers.length);
+      
+      if (offset === 0) {
+        // İlk yükleme veya arama değiştiğinde listeyi sıfırla
+        console.log('Resetting customer list');
+        setAllCustomers(data.customers);
+      } else {
+        // Yeni müşterileri mevcut listeye ekle
+        console.log('Appending customers to existing list');
+        setAllCustomers(prev => [...prev, ...data.customers]);
+      }
+      setLoadingMore(false);
+    }
+  }, [data, offset]);
 
   if (isLoading) return <div>Yükleniyor...</div>;
   if (error) return (
@@ -117,14 +180,10 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
   };
 
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Sadece input değerini güncelle, arama yapma
     const value = event.target.value;
     setInputValue(value);
-    
-    // Sadece 3 veya daha fazla karakter girildiğinde veya hiç karakter yoksa arama yap
-    if (value.length === 0 || value.length >= 3) {
-      setSearchTerm(value);
-      setPage(1);
-    }
+    // Otomatik arama kaldırıldı - sadece Enter veya buton ile arama yapılacak
   };
 
   const handleViewCustomer = (customerCode: string) => {
@@ -141,12 +200,13 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
   };
 
   const handleCreateTempLink = (customerCode: string) => {
+    console.log('Link Ver butonuna tıklandı');
+    
     setSelectedCustomerCode(customerCode);
     
     // localStorage'dan token al
     const token = localStorage.getItem('token');
     
-    // customerCode boş ise, yeni bir geçici müşteri kaydı için link oluştur
     // customerCode dolu ise, mevcut müşteri için link oluştur
     axiosInstance.post(
       '/api/v1/Customer/create-temp-link',
@@ -157,50 +217,47 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
       console.log('API yanıtı:', response.data);
       
       // API yanıt yapısını kontrol et ve doğru şekilde işle
-      let tempLink, expiryMinutes;
+      let tempLinkValue = '';
+      let expiryMinutesValue = 10; // Varsayılan 10 dakika
       
       if (response.data && response.data.data) {
         // Eğer yanıt data.data içinde geliyorsa
-        tempLink = response.data.data.tempLink;
-        expiryMinutes = response.data.data.expiryMinutes;
+        tempLinkValue = response.data.data.tempLink;
+        expiryMinutesValue = response.data.data.expiryMinutes || 10;
       } else if (response.data) {
         // Eğer yanıt doğrudan data içinde geliyorsa
-        tempLink = response.data.tempLink;
-        expiryMinutes = response.data.expiryMinutes;
+        tempLinkValue = response.data.tempLink;
+        expiryMinutesValue = response.data.expiryMinutes || 10;
       }
       
       // Eğer tempLink undefined ise, varsayılan bir değer ata
-      if (!tempLink) {
+      if (!tempLinkValue) {
         // FRONTEND_URL kullanarak ortama göre doğru URL oluştur
-        // Üretim ortamında olup olmadığımızı kontrol et
-        console.log(`Geçici link oluşturuluyor. FRONTEND_URL: ${FRONTEND_URL}, NODE_ENV: ${process.env.NODE_ENV}`);
+        console.log(`Geçici link oluşturuluyor. FRONTEND_URL: ${FRONTEND_URL}`);
         
         // Token oluştur
         const randomToken = Math.random().toString(36).substring(2, 15);
         
         // URL oluştur
-        tempLink = `${FRONTEND_URL}/customer-registration?token=${randomToken}`;
+        tempLinkValue = `${FRONTEND_URL}/customer-registration?token=${randomToken}`;
         
-        console.log(`Oluşturulan geçici link: ${tempLink}`);
+        console.log(`Oluşturulan geçici link: ${tempLinkValue}`);
       }
       
-      // Eğer expiryMinutes undefined ise, varsayılan bir değer ata
-      if (!expiryMinutes) {
-        expiryMinutes = 10; // Varsayılan 10 dakika
-      }
-      
-      setTempLink(tempLink);
+      setTempLink(tempLinkValue);
       
       // QR kodu frontend'de oluştur
-      const qrCode = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(tempLink)}`;
+      const qrCode = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(tempLinkValue)}`;
       setQrCodeUrl(qrCode);
       
       // Şu anki zamana expiryMinutes ekleyerek son geçerlilik tarihini hesapla
       const expiry = new Date();
-      expiry.setMinutes(expiry.getMinutes() + expiryMinutes);
+      expiry.setMinutes(expiry.getMinutes() + expiryMinutesValue);
       setExpiryTime(expiry);
       
+      console.log('QR dialog açılıyor...');
       setQrDialogOpen(true);
+      console.log('QR dialog durumu:', qrDialogOpen);
     })
     .catch(error => {
       console.error('Geçici link oluşturma hatası:', error);
@@ -267,62 +324,79 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
     navigate(`/customers/${customerCode}/emails`);
   };
 
-  const renderPagination = () => {
-    const totalPages = data ? Math.ceil(data.totalCount / 10) : 0;
-    
-    return (
-      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-        <Pagination 
-          count={totalPages} 
-          page={page} 
-          onChange={handlePageChange} 
-          color="primary"
-          size={isMobile ? "small" : "medium"}
-        />
-      </Box>
-    );
+  // Yükleniyor göstergesi
+  const renderLoadingIndicator = () => {
+    if (loadingMore) {
+      return (
+        <Box sx={{ mt: 2, mb: 2, display: 'flex', justifyContent: 'center' }}>
+          <CircularProgress size={24} />
+        </Box>
+      );
+    }
+    return null;
   };
 
   // Mobil görünüm için özel render fonksiyonu
   const renderMobileView = () => {
     return (
       <Box sx={{ p: 1 }}>
-        {/* Arama alanı */}
-        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-          <TextField
-            fullWidth
-            placeholder="Müşteri Ara (min 3 karakter)..."
-            variant="outlined"
-            size="small"
-            value={inputValue}
-            onChange={handleSearch}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton 
-                    onClick={() => {
-                      if (inputValue.length === 0 || inputValue.length >= 3) {
+        {/* Sabit başlık ve arama alanı */}
+        <Box sx={{ 
+          position: 'sticky', 
+          top: 0, 
+          backgroundColor: 'white', 
+          zIndex: 10,
+          pb: 1,
+          borderBottom: '1px solid rgba(0,0,0,0.1)',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+        }}>
+          <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', pt: 1, px: 1 }}>
+            <TextField
+              fullWidth
+              placeholder="Müşteri Ara..."
+              variant="outlined"
+              size="small"
+              value={inputValue}
+              onChange={handleSearch}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  console.log('Mobil görünümde Enter tuşuna basıldı, arama yapılıyor...');
+                  // Karakter sınırı olmadan arama yap
+                  setSearchTerm(inputValue);
+                  setPage(1);
+                  setOffset(0); // Arama yapıldığında offset'i sıfırla
+                  setAllCustomers([]); // Listeyi temizle
+                }
+              }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton 
+                      onClick={() => {
+                        // Karakter sınırı olmadan arama yap
                         setSearchTerm(inputValue);
                         setPage(1);
-                      }
-                    }}
-                    disabled={inputValue.length > 0 && inputValue.length < 3}
-                  >
-                    <SearchIcon />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-            sx={{ mb: 0 }}
-          />
+                        setOffset(0); // Arama yapıldığında offset'i sıfırla
+                        setAllCustomers([]); // Listeyi temizle
+                      }}
+                    >
+                      <SearchIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 0 }}
+            />
+          </Box>
         </Box>
         
         {/* Müşteri listesi */}
-        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', mt: 1 }}>
           {/* Müşteri listesi başlıyor */}
           
-          {/* Müşteri satırları */}
-          {data?.customers?.map((customer) => (
+          {/* Müşteri kart listesi */}
+          {allCustomers.map((customer, index) => (
             <Box 
               key={customer.customerCode} 
               sx={{ 
@@ -340,23 +414,22 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
                 py: 1,
                 px: 1.5,
               }}>
-                {/* Müşteri Kodu */}
+                {/* Sıra No ve Müşteri Kodu */}
                 <Box sx={{ 
                   display: 'flex', 
                   alignItems: 'center', 
-                  width: '100%',
-                  overflow: 'hidden'
+                  gap: 1,
+                  maxWidth: '70%'
                 }}>
-                  <Typography 
-                    variant="body2" 
-                    sx={{ 
-                      fontWeight: 'bold',
-                      fontSize: '0.85rem',
-                      color: 'primary.main',
-                      mr: 1.5,
-                      flexShrink: 0
-                    }}
-                  >
+                  <Typography variant="body2" sx={{ 
+                    fontWeight: 'medium', 
+                    fontSize: '0.85rem', 
+                    color: 'text.secondary',
+                    mr: 0.5
+                  }}>
+                    {index + 1}.
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
                     {customer.customerCode}
                   </Typography>
                   
@@ -445,7 +518,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
                 </Box>
               </Box>
               
-              {/* Alt satır: Ülke, Şehir ve İşlemler */}
+              {/* Alt satır: Konum ve İşlemler */}
               <Box sx={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
@@ -455,13 +528,11 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
                 borderTop: '1px solid rgba(0,0,0,0.03)',
                 backgroundColor: 'rgba(0,0,0,0.01)'
               }}>
-                {/* Ülke ve Şehir bilgileri */}
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                  <Typography variant="body2" sx={{ fontSize: '0.88rem', color: 'text.secondary' }}>
-                    {customer.country || 'Türkiye'}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontSize: '0.88rem', color: 'text.secondary' }}>
-                    {customer.city || 'İstanbul'}
+                {/* Ülke, şehir ve ilçe bilgileri */}
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                  <PlaceIcon sx={{ fontSize: '0.9rem', color: 'text.secondary', opacity: 0.7 }} />
+                  <Typography variant="body2" sx={{ fontSize: '0.88rem', color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {customer.countryDescription || 'Türkiye'}{customer.cityDescription ? `, ${customer.cityDescription}` : ''}{customer.districtDescription ? `, ${customer.districtDescription}` : ''}
                   </Typography>
                 </Box>
                 
@@ -506,7 +577,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
         </Box>
         
         {/* Sayfalama */}
-        {renderPagination()}
+        {renderLoadingIndicator()}
       </Box>
     );
   };
@@ -524,26 +595,25 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
         </Typography>
         
         {/* Butonlar tek satırda */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2, gap: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 2 }}>
           <Button 
             variant="contained" 
             color="primary" 
             startIcon={<AddIcon />}
             onClick={handleAddCustomer}
-            sx={{ flex: 1, py: 1 }}
             size="small"
           >
-            Yeni Müşteri
+            YENİ MÜŞTERİ
           </Button>
           <Button 
-            variant="outlined" 
-            color="primary" 
-            startIcon={<ShareIcon />}
+            variant="contained" 
+            color="success" 
+            startIcon={<QrCodeIcon />}
             onClick={() => handleCreateTempLink('')}
             sx={{ flex: 1, py: 1 }}
             size="small"
           >
-            Link Ver
+            LİNK VER
           </Button>
         </Box>
         
@@ -591,31 +661,29 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
           onChange={(e) => {
             setInputValue(e.target.value);
           }}
-          onKeyPress={(e) => {
+          onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
-              if (inputValue.length === 0 || inputValue.length >= 3) {
-                setSearchTerm(inputValue);
-                setPage(1);
-              }
+              console.log('Enter tuşuna basıldı, arama yapılıyor...');
+              // Karakter sınırı olmadan arama yap
+              setSearchTerm(inputValue);
+              setPage(1);
+              setOffset(0); // Aramada offset'i sıfırla
+              setAllCustomers([]); // Müşteri listesini temizle
             }
           }}
           InputProps={{
             endAdornment: (
               <IconButton 
                 onClick={() => {
-                  if (inputValue.length === 0 || inputValue.length >= 3) {
-                    setSearchTerm(inputValue);
-                    setPage(1);
-                  }
+                  // Karakter sınırı olmadan arama yap
+                  setSearchTerm(inputValue);
+                  setPage(1);
+                  setOffset(0); // Aramada offset'i sıfırla
+                  setAllCustomers([]); // Müşteri listesini temizle
                 }}
-                disabled={inputValue.length > 0 && inputValue.length < 3}
               >
-                <SearchIcon 
-                  sx={{ 
-                    color: inputValue.length > 0 && inputValue.length < 3 ? 'action.disabled' : 'inherit'
-                  }} 
-                />
+                <SearchIcon />
               </IconButton>
             )
           }}
@@ -626,6 +694,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell width="60px" align="center">#</TableCell>
               <TableCell>Müşteri Kodu</TableCell>
               <TableCell>Müşteri Adı</TableCell>
               <TableCell>Şehir</TableCell>
@@ -638,8 +707,17 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
             </TableRow>
           </TableHead>
           <TableBody>
-            {data.customers.map((customer) => (
+            {allCustomers.map((customer, index) => (
               <TableRow key={customer.customerCode}>
+                <TableCell align="center">
+                  <Typography variant="body2" sx={{ 
+                    fontWeight: 'medium', 
+                    fontSize: '0.85rem', 
+                    color: 'text.secondary'
+                  }}>
+                    {index + 1}.
+                  </Typography>
+                </TableCell>
                 <TableCell>{customer.customerCode}</TableCell>
                 <TableCell>
                   {customer.customerName}
@@ -704,21 +782,65 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
           </TableBody>
         </Table>
       </TableContainer>
-      {renderPagination()}
+      {renderLoadingIndicator()}
       
       {/* QR Kod ve Link Gösterme Modalı */}
-      <Dialog open={qrDialogOpen} onClose={handleCloseQrDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Geçici Müşteri Kayıt Linki</DialogTitle>
+      {qrDialogOpen && (
+        <Dialog 
+          open={true} 
+          onClose={handleCloseQrDialog} 
+          maxWidth="sm" 
+          fullWidth
+          fullScreen={isMobile}
+          sx={{
+            '& .MuiDialog-paper': {
+              margin: isMobile ? 0 : 'auto',
+              width: isMobile ? '100%' : undefined,
+              height: isMobile ? '100%' : undefined,
+              borderRadius: isMobile ? 0 : undefined,
+              overflowY: 'auto'
+            }
+          }}
+          ref={qrDialogRef}
+        >
+        <DialogTitle sx={{ textAlign: isMobile ? 'center' : 'left', pt: isMobile ? 3 : 2 }}>
+          Geçici Müşteri Kayıt Linki
+        </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 2 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            mt: isMobile ? 3 : 2,
+            px: isMobile ? 1 : 0
+          }}>
             {qrCodeUrl && (
-              <img src={qrCodeUrl} alt="QR Kod" style={{ width: '200px', height: '200px', marginBottom: '16px' }} />
+              <Box sx={{ 
+                display: 'flex',
+                justifyContent: 'center',
+                width: '100%',
+                mb: 2
+              }}>
+                <img 
+                  src={qrCodeUrl} 
+                  alt="QR Kod" 
+                  style={{ 
+                    width: isMobile ? '180px' : '200px', 
+                    height: isMobile ? '180px' : '200px', 
+                    marginBottom: '16px' 
+                  }} 
+                />
+              </Box>
             )}
-            <Typography variant="body1" gutterBottom>
+            <Typography 
+              variant={isMobile ? "body2" : "body1"} 
+              gutterBottom
+              sx={{ textAlign: 'center' }}
+            >
               Bu link ile müşteri kendi bilgilerini doldurabilir:
             </Typography>
             <Box sx={{ 
-              p: 2, 
+              p: isMobile ? 1.5 : 2, 
               bgcolor: 'background.paper', 
               borderRadius: 1, 
               width: '100%',
@@ -738,7 +860,8 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
                   sx={{ 
                     wordBreak: 'break-all',
                     flexGrow: 1,
-                    mr: 1
+                    mr: 1,
+                    fontSize: isMobile ? '0.8rem' : '0.875rem'
                   }}
                 >
                   {tempLink}
@@ -752,20 +875,41 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
                 fullWidth 
                 onClick={copyToClipboard}
                 startIcon={<ContentCopyIcon />}
+                size={isMobile ? "small" : "medium"}
                 sx={{ mt: 1 }}
               >
                 Linki Kopyala ve Paylaş
               </Button>
             </Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography 
+              variant="body2" 
+              color="text.secondary"
+              sx={{ 
+                textAlign: 'center',
+                fontWeight: 'medium'
+              }}
+            >
               Link geçerlilik süresi: <b>{formatRemainingTime()}</b>
             </Typography>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseQrDialog}>Kapat</Button>
+        <DialogActions sx={{ pb: isMobile ? 3 : 2, justifyContent: 'center' }}>
+          <Button 
+            onClick={handleCloseQrDialog} 
+            variant={isMobile ? "contained" : "text"}
+            color="primary"
+            size={isMobile ? "large" : "medium"}
+            fullWidth={isMobile}
+            sx={{ 
+              minWidth: isMobile ? '80%' : 'auto',
+              borderRadius: isMobile ? 2 : 'default'
+            }}
+          >
+            Kapat
+          </Button>
         </DialogActions>
       </Dialog>
+      )}
       
       {/* Bildirimler */}
       <Snackbar

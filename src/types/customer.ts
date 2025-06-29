@@ -36,6 +36,7 @@ export interface Customer {
   customerName: string;
   customerTypeCode: number;
   customerTypeDescription?: string;
+  countryDescription?: string;
   cityDescription?: string;
   districtDescription?: string;
   isActive: boolean;
