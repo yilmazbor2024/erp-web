@@ -319,26 +319,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
         
         {/* Müşteri listesi */}
         <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-          {/* Başlık satırı */}
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            borderBottom: '1px solid rgba(0,0,0,0.1)',
-            py: 1.2,
-            px: 1.5,
-            backgroundColor: '#f5f5f5'
-          }}>
-            <Box sx={{ width: '30%' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>
-                Müşteri Kodu
-              </Typography>
-            </Box>
-            <Box sx={{ width: '70%' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>
-                Müşteri Adı
-              </Typography>
-            </Box>
-          </Box>
+          {/* Müşteri listesi başlıyor */}
           
           {/* Müşteri satırları */}
           {data?.customers?.map((customer) => (
@@ -464,82 +445,62 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
                 </Box>
               </Box>
               
-              {/* Alt satır: İşlemler */}
+              {/* Alt satır: Ülke, Şehir ve İşlemler */}
               <Box sx={{ 
                 display: 'flex', 
-                justifyContent: 'flex-end', 
-                gap: 0.5,
+                justifyContent: 'space-between', 
+                alignItems: 'center',
                 py: 0.5,
                 px: 1.5,
                 borderTop: '1px solid rgba(0,0,0,0.03)',
                 backgroundColor: 'rgba(0,0,0,0.01)'
               }}>
-                <Tooltip title="Görüntüle">
-                  <IconButton 
-                    size="small" 
-                    color="primary" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleViewCustomer(customer.customerCode);
-                    }}
-                    sx={{ padding: '4px' }}
-                  >
-                    <VisibilityIcon sx={{ fontSize: '1rem' }} />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Düzenle">
-                  <IconButton 
-                    size="small" 
-                    color="primary" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEditCustomer(customer.customerCode);
-                    }}
-                    sx={{ padding: '4px' }}
-                  >
-                    <EditIcon sx={{ fontSize: '1rem' }} />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Konum">
-                  <IconButton 
-                    size="small" 
-                    color="secondary" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAddressesClick(customer.customerCode);
-                    }}
-                    sx={{ padding: '4px' }}
-                  >
-                    <PlaceIcon sx={{ fontSize: '1rem' }} />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Ara">
-                  <IconButton 
-                    size="small" 
-                    color="success" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleContactsClick(customer.customerCode);
-                    }}
-                    sx={{ padding: '4px' }}
-                  >
-                    <PhoneIcon sx={{ fontSize: '1rem' }} />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="E-posta">
-                  <IconButton 
-                    size="small" 
-                    color="warning" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEmailsClick(customer.customerCode);
-                    }}
-                    sx={{ padding: '4px' }}
-                  >
-                    <MailIcon sx={{ fontSize: '1rem' }} />
-                  </IconButton>
-                </Tooltip>
+                {/* Ülke ve Şehir bilgileri */}
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <Typography variant="body2" sx={{ fontSize: '0.88rem', color: 'text.secondary' }}>
+                    {customer.country || 'Türkiye'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontSize: '0.88rem', color: 'text.secondary' }}>
+                    {customer.city || 'İstanbul'}
+                  </Typography>
+                </Box>
+                
+                {/* İşlem butonları */}
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Tooltip title="Detay">
+                    <IconButton 
+                      size="small" 
+                      color="primary" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewCustomer(customer.customerCode);
+                      }}
+                      sx={{ padding: '4px' }}
+                    >
+                      <VisibilityIcon sx={{ fontSize: '1.1rem' }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Düzenle">
+                    <IconButton 
+                      size="small" 
+                      color="secondary" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditCustomer(customer.customerCode);
+                      }}
+                      sx={{ padding: '4px' }}
+                    >
+                      <EditIcon sx={{ fontSize: '1.1rem' }} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
               </Box>
+              {/* Turuncu kesikli çizgi */}
+              <Box sx={{ 
+                borderBottom: '2px dashed orange',
+                width: '100%',
+                mt: 0.5
+              }} />
             </Box>
           ))}
         </Box>
