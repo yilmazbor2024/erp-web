@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FRONTEND_URL } from '../../config/constants';
 import { 
+  Box,
   Table, 
   TableBody, 
   TableCell, 
@@ -13,16 +14,19 @@ import {
   Typography,
   TextField,
   IconButton,
-  Pagination,
-  Box,
-  Button,
   Tooltip,
-  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  Snackbar
+  Button,
+  Pagination,
+  Snackbar,
+  Alert,
+  InputAdornment,
+  useMediaQuery,
+  useTheme,
+  Grid
 } from '@mui/material';
 import { 
   Edit as EditIcon, 
@@ -43,13 +47,17 @@ import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../config/axios';
 
 interface CustomerListProps {
-  isMobile: boolean;
+  isMobile?: boolean;
 }
 
-export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
-  const [page, setPage] = React.useState(1);
-  const [searchTerm, setSearchTerm] = React.useState('');
-  const [inputValue, setInputValue] = React.useState('');
+export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobile = false }) => {
+  const theme = useTheme();
+  const isMobileDevice = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = propIsMobile || isMobileDevice;
+  
+  const [page, setPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [inputValue, setInputValue] = useState('');
   const { data, isLoading, error } = useCustomerList({ page, searchTerm });
   const navigate = useNavigate();
   
@@ -59,7 +67,40 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [expiryTime, setExpiryTime] = useState<Date | null>(null);
   const [selectedCustomerCode, setSelectedCustomerCode] = useState('');
+  const [remainingTime, setRemainingTime] = useState('00:00');
   const [notification, setNotification] = useState<{open: boolean, message: string, type: 'success' | 'error'}>({open: false, message: '', type: 'success'});
+
+  // Kalan süreyi hesaplama
+  const formatRemainingTime = () => {
+    if (!expiryTime) return '00:00';
+    
+    const now = new Date();
+    const diffMs = expiryTime.getTime() - now.getTime();
+    
+    if (diffMs <= 0) return '00:00';
+    
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffSecs = Math.floor((diffMs % 60000) / 1000);
+    
+    return `${diffMins < 10 ? '0' + diffMins : diffMins}:${diffSecs < 10 ? '0' + diffSecs : diffSecs}`;
+  };
+
+  // Sayaç için useEffect
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+
+    if (qrDialogOpen && expiryTime) {
+      setRemainingTime(formatRemainingTime());
+      
+      timer = setInterval(() => {
+        setRemainingTime(formatRemainingTime());
+      }, 1000);
+    }
+
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [qrDialogOpen, expiryTime]);
 
   if (isLoading) return <div>Yükleniyor...</div>;
   if (error) return (
@@ -128,17 +169,11 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
         expiryMinutes = response.data.expiryMinutes;
       }
       
-      // API'den gelen linki kontrol et ve düzelt
-      if (tempLink) {
-        // API'den gelen linkte localhost varsa, gerçek domain ile değiştir
-        if (tempLink.includes('localhost')) {
-          console.log('API yanıtında localhost tespit edildi, gerçek domain ile değiştiriliyor');
-          tempLink = tempLink.replace(/http:\/\/localhost:\d+/g, FRONTEND_URL);
-          console.log(`Düzeltilmiş link: ${tempLink}`);
-        }
-      } else {
-        // Eğer API'den link gelmezse, FRONTEND_URL kullanarak oluştur
-        console.log(`API'den link gelmedi. FRONTEND_URL: ${FRONTEND_URL}, NODE_ENV: ${process.env.NODE_ENV}`);
+      // Eğer tempLink undefined ise, varsayılan bir değer ata
+      if (!tempLink) {
+        // FRONTEND_URL kullanarak ortama göre doğru URL oluştur
+        // Üretim ortamında olup olmadığımızı kontrol et
+        console.log(`Geçici link oluşturuluyor. FRONTEND_URL: ${FRONTEND_URL}, NODE_ENV: ${process.env.NODE_ENV}`);
         
         // Token oluştur
         const randomToken = Math.random().toString(36).substring(2, 15);
@@ -181,20 +216,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
     setQrDialogOpen(false);
   };
 
-  // Kalan süreyi hesaplama
-  const formatRemainingTime = () => {
-    if (!expiryTime) return '00:00';
-    
-    const now = new Date();
-    const diffMs = expiryTime.getTime() - now.getTime();
-    
-    if (diffMs <= 0) return '00:00';
-    
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffSecs = Math.floor((diffMs % 60000) / 1000);
-    
-    return `${diffMins < 10 ? '0' + diffMins : diffMins}:${diffSecs < 10 ? '0' + diffSecs : diffSecs}`;
-  };
+
 
   // Linki panoya kopyalama
   const copyToClipboard = () => {
@@ -261,112 +283,149 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
     );
   };
 
-  if (isMobile) {
+  // Mobil görünüm için özel render fonksiyonu
+  const renderMobileView = () => {
     return (
-      <Box sx={{ px: '5px', py: 2 }}>
-        {/* Başlık en üstte ortada */}
-        <Typography 
-          variant="h5" 
-          component="h1" 
-          sx={{ textAlign: 'center', mb: 3, fontWeight: 'bold', pt: 1 }}
-        >
-          Müşteriler
-        </Typography>
-        
-        {/* Butonlar tek satırda */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2, gap: 2 }}>
-          <Button 
-            variant="contained" 
-            color="primary" 
-            startIcon={<AddIcon />}
-            onClick={handleAddCustomer}
-            sx={{ flex: 1 }}
-          >
-            Yeni Müşteri
-          </Button>
-          <Button 
-            variant="outlined" 
-            color="primary" 
-            startIcon={<ShareIcon />}
-            onClick={() => setQrDialogOpen(true)}
-            sx={{ flex: 1 }}
-          >
-            Link Ver
-          </Button>
+      <Box sx={{ p: 1 }}>
+        {/* Arama alanı */}
+        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+          <TextField
+            fullWidth
+            placeholder="Müşteri Ara (min 3 karakter)..."
+            variant="outlined"
+            size="small"
+            value={inputValue}
+            onChange={handleSearch}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton 
+                    onClick={() => {
+                      if (inputValue.length === 0 || inputValue.length >= 3) {
+                        setSearchTerm(inputValue);
+                        setPage(1);
+                      }
+                    }}
+                    disabled={inputValue.length > 0 && inputValue.length < 3}
+                  >
+                    <SearchIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 0 }}
+          />
         </Box>
         
-        {/* Arama alanı */}
-        <TextField
-          fullWidth
-          variant="outlined"
-          placeholder="Müşteri Ara (min 3 karakter)..."
-          value={inputValue}
-          onChange={handleSearch}
-          InputProps={{
-            endAdornment: <SearchIcon 
+        {/* Müşteri listesi */}
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Başlık satırı */}
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            borderBottom: '1px solid rgba(0,0,0,0.1)',
+            py: 1.2,
+            px: 1.5,
+            backgroundColor: '#f5f5f5'
+          }}>
+            <Box sx={{ width: '30%' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>
+                Müşteri Kodu
+              </Typography>
+            </Box>
+            <Box sx={{ width: '70%' }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontSize: '0.8rem' }}>
+                Müşteri Adı
+              </Typography>
+            </Box>
+          </Box>
+          
+          {/* Müşteri satırları */}
+          {data?.customers?.map((customer) => (
+            <Box 
+              key={customer.customerCode} 
               sx={{ 
-                color: inputValue.length > 0 && inputValue.length < 3 ? 'action.disabled' : 'inherit',
-                cursor: inputValue.length > 0 && inputValue.length < 3 ? 'not-allowed' : 'pointer'
-              }} 
-            />
-          }}
-          sx={{ mb: 2 }}
-        />
-        
-        <Box sx={{ display: 'grid', gap: 1.2, mx: 0 }}>
-          {data.customers.map((customer) => (
-            <Card key={customer.customerCode} sx={{ mx: 0 }}>
-              <CardContent sx={{ px: 1.2, py: 1.2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.8 }}>
+                borderBottom: '1px solid rgba(0,0,0,0.05)',
+                '&:active': { backgroundColor: 'rgba(0,0,0,0.03)' },
+                transition: 'background-color 0.1s'
+              }}
+              onClick={() => handleViewCustomer(customer.customerCode)}
+            >
+              {/* Üst satır: Müşteri kodu ve adı */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                py: 1,
+                px: 1.5,
+              }}>
+                {/* Müşteri Kodu */}
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  width: '100%',
+                  overflow: 'hidden'
+                }}>
                   <Typography 
-                    variant="body1" 
-                    component="div" 
+                    variant="body2" 
                     sx={{ 
-                      fontSize: '0.95rem', 
-                      fontWeight: 'medium',
-                      flexGrow: 1,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {customer.customerName}
-                    {customer.isBlocked && <span style={{ color: 'red', marginLeft: 8 }}>Bloke</span>}
-                  </Typography>
-                  <Typography 
-                    sx={{ 
-                      color: 'primary.main', 
+                      fontWeight: 'bold',
                       fontSize: '0.85rem',
-                      ml: 1,
-                      fontWeight: 'medium'
+                      color: 'primary.main',
+                      mr: 1.5,
+                      flexShrink: 0
                     }}
                   >
                     {customer.customerCode}
                   </Typography>
+                  
+                  {/* Müşteri Adı */}
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      fontWeight: '500',
+                      fontSize: '0.85rem',
+                      color: 'text.primary',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      flexGrow: 1
+                    }}
+                  >
+                    {customer.customerName}
+                    {customer.isBlocked && 
+                      <span style={{ 
+                        color: 'white', 
+                        backgroundColor: '#f44336', 
+                        fontSize: '0.7rem', 
+                        padding: '1px 4px', 
+                        borderRadius: '4px',
+                        marginLeft: '6px',
+                        verticalAlign: 'middle'
+                      }}>
+                        BLOKE
+                      </span>
+                    }
+                  </Typography>
                 </Box>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    fontSize: '0.855rem',
-                    color: 'text.secondary',
-                    mb: 0.8
-                  }}
-                >
-                  {customer.cityDescription} / {customer.districtDescription}
-                </Typography>
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  mt: 0.8, 
-                  pt: 0.8, 
-                  borderTop: '1px solid #eee',
-                  fontSize: '0.85rem'
-                }}>
+              </Box>
+              
+              {/* Orta satır: Borç, Alacak, Bakiye */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                py: 0.5,
+                px: 1.5,
+                borderTop: '1px solid rgba(0,0,0,0.03)',
+                backgroundColor: 'rgba(0,0,0,0.01)'
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Box>
-                    <Typography variant="caption" display="block" color="textSecondary">
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
                       Borç
                     </Typography>
-                    <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'medium' }}>
+                    <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'medium', fontSize: '0.8rem' }}>
                       {customer.debit !== undefined 
                         ? `${customer.debit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
                         : '0.00 TL'}
@@ -374,10 +433,10 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
                   </Box>
                   
                   <Box>
-                    <Typography variant="caption" display="block" color="textSecondary">
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
                       Alacak
                     </Typography>
-                    <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'medium' }}>
+                    <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'medium', fontSize: '0.8rem' }}>
                       {customer.credit !== undefined 
                         ? `${customer.credit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
                         : '0.00 TL'}
@@ -385,11 +444,12 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
                   </Box>
                   
                   <Box>
-                    <Typography variant="caption" display="block" color="textSecondary">
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
                       Bakiye
                     </Typography>
                     <Typography variant="body2" sx={{ 
                       fontWeight: 'bold',
+                      fontSize: '0.8rem',
                       color: customer.balance && customer.balance < 0 ? 'error.main' : 'success.main'
                     }}>
                       {customer.balance !== undefined 
@@ -398,30 +458,139 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile }) => {
                     </Typography>
                   </Box>
                 </Box>
-                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1, mx: '5px' }}>
-                  <Tooltip title="Detay Görüntüle">
-                    <IconButton size="small" color="primary" onClick={() => handleViewCustomer(customer.customerCode)}>
-                      <VisibilityIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Düzenle">
-                    <IconButton size="small" color="primary" onClick={() => handleEditCustomer(customer.customerCode)}>
-                      <EditIcon />
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              </CardContent>
-            </Card>
+              </Box>
+              
+              {/* Alt satır: İşlemler */}
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                gap: 0.5,
+                py: 0.5,
+                px: 1.5,
+                borderTop: '1px solid rgba(0,0,0,0.03)',
+                backgroundColor: 'rgba(0,0,0,0.01)'
+              }}>
+                <Tooltip title="Görüntüle">
+                  <IconButton 
+                    size="small" 
+                    color="primary" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewCustomer(customer.customerCode);
+                    }}
+                    sx={{ padding: '4px' }}
+                  >
+                    <VisibilityIcon sx={{ fontSize: '1rem' }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Düzenle">
+                  <IconButton 
+                    size="small" 
+                    color="primary" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditCustomer(customer.customerCode);
+                    }}
+                    sx={{ padding: '4px' }}
+                  >
+                    <EditIcon sx={{ fontSize: '1rem' }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Konum">
+                  <IconButton 
+                    size="small" 
+                    color="secondary" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddressesClick(customer.customerCode);
+                    }}
+                    sx={{ padding: '4px' }}
+                  >
+                    <PlaceIcon sx={{ fontSize: '1rem' }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Ara">
+                  <IconButton 
+                    size="small" 
+                    color="success" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleContactsClick(customer.customerCode);
+                    }}
+                    sx={{ padding: '4px' }}
+                  >
+                    <PhoneIcon sx={{ fontSize: '1rem' }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="E-posta">
+                  <IconButton 
+                    size="small" 
+                    color="warning" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEmailsClick(customer.customerCode);
+                    }}
+                    sx={{ padding: '4px' }}
+                  >
+                    <MailIcon sx={{ fontSize: '1rem' }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Box>
           ))}
         </Box>
+        
+        {/* Sayfalama */}
         {renderPagination()}
+      </Box>
+    );
+  };
+
+  if (isMobile) {
+    return (
+      <Box sx={{ px: '5px', py: 2 }}>
+        {/* Başlık en üstte ortada */}
+        <Typography 
+          variant="h5" 
+          component="h1" 
+          sx={{ textAlign: 'center', mb: 2, fontWeight: 'bold', pt: 1 }}
+        >
+          Müşteriler
+        </Typography>
+        
+        {/* Butonlar tek satırda */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2, gap: 1 }}>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<AddIcon />}
+            onClick={handleAddCustomer}
+            sx={{ flex: 1, py: 1 }}
+            size="small"
+          >
+            Yeni Müşteri
+          </Button>
+          <Button 
+            variant="outlined" 
+            color="primary" 
+            startIcon={<ShareIcon />}
+            onClick={() => handleCreateTempLink('')}
+            sx={{ flex: 1, py: 1 }}
+            size="small"
+          >
+            Link Ver
+          </Button>
+        </Box>
+        
+        {renderMobileView()}
       </Box>
     );
   }
 
+
   // Bildirim kapatma
   const handleCloseNotification = () => {
-    setNotification({...notification, open: false});
+    setNotification(prev => ({ ...prev, open: false }));
   };
   
   return (

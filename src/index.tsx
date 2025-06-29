@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Önce i18n yapılandırmasını import et (App'den önce olmalı)
 import './i18n/i18n';
 import './index.css';
-import './styles/mobile-fixes.css'; // Mobil görünüm düzeltmeleri
 import App from './App';  
 import reportWebVitals from './reportWebVitals';
 
