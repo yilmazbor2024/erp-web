@@ -413,43 +413,47 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
               {/* Orta satır: Borç, Alacak, Bakiye */}
               <Box sx={{ 
                 display: 'flex', 
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                py: 0.5,
+                width: '100%',
+                py: 0.8,
                 px: 1.5,
                 borderTop: '1px solid rgba(0,0,0,0.03)',
                 backgroundColor: 'rgba(0,0,0,0.01)'
               }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  width: '100%', 
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <Box sx={{ flex: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.77rem', display: 'block' }}>
                       Borç
                     </Typography>
-                    <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'medium', fontSize: '0.8rem' }}>
+                    <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 'medium', fontSize: '0.88rem' }}>
                       {customer.debit !== undefined 
                         ? `${customer.debit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
                         : '0.00 TL'}
                     </Typography>
                   </Box>
                   
-                  <Box>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+                  <Box sx={{ flex: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.77rem', display: 'block' }}>
                       Alacak
                     </Typography>
-                    <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'medium', fontSize: '0.8rem' }}>
+                    <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 'medium', fontSize: '0.88rem' }}>
                       {customer.credit !== undefined 
                         ? `${customer.credit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} TL`
                         : '0.00 TL'}
                     </Typography>
                   </Box>
                   
-                  <Box>
-                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.7rem' }}>
+                  <Box sx={{ flex: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.77rem', display: 'block' }}>
                       Bakiye
                     </Typography>
                     <Typography variant="body2" sx={{ 
                       fontWeight: 'bold',
-                      fontSize: '0.8rem',
+                      fontSize: '0.88rem',
                       color: customer.balance && customer.balance < 0 ? 'error.main' : 'success.main'
                     }}>
                       {customer.balance !== undefined 
