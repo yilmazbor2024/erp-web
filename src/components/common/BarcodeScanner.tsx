@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import jsQR from 'jsqr';
 
-// @ts-ignore - Quagga için tip tanımlamaları yok, bu yüzden hata görmezden geliniyor
+// @ts-ignore - Quagga için tip tanımlamaları yok
 import Quagga from 'quagga';
 
 interface BarcodeScannerProps {
@@ -11,30 +11,31 @@ interface BarcodeScannerProps {
   height?: string;
   clearInput?: boolean;
   initialScanMode?: 'barcode' | 'qr';
+  inputRef?: React.RefObject<HTMLInputElement>;
 }
 
 const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ 
   onScan, 
   isScanning, 
   onScanComplete = () => {},
-  height = '150x',
-  clearInput = true, // Varsayılan olarak input alanını temizle
-  initialScanMode = 'barcode'
+  height = '150px',
+  clearInput = true,
+  initialScanMode = 'barcode',
+  inputRef
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const quaggaContainerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const successAudioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  // Son algılanan barkodu ve zamanını saklamak için ref
+  const quaggaInitializedRef = useRef<boolean>(false);
   const lastDetectedRef = useRef<{barcode: string, timestamp: number}>({barcode: '', timestamp: 0});
   
   const [hasCamera, setHasCamera] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [scanMode, setScanMode] = useState<'qr' | 'barcode'>(initialScanMode); // Dışarıdan gelen başlangıç modunu kullan
+  const [scanMode, setScanMode] = useState<'qr' | 'barcode'>(initialScanMode);
   const [cameraFocused, setCameraFocused] = useState<boolean>(false);
-  const [showSuccess, setShowSuccess] = useState<boolean>(false); // Barkod başarılı okuma göstergesi
+  const [showSuccess, setShowSuccess] = useState<boolean>(false);
   
   // CSS keyframes animasyonu için stil
   const pulseKeyframes = `
@@ -45,7 +46,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     }
   `;
 
-  // Geliştirilmiş kamera odaklama fonksiyonu
+  // Geliştirilmiş kamera odaklama fonksiyonu - 10-13 cm mesafe için optimize edildi
   const focusCamera = async () => {
     try {
       if (!streamRef.current) return;
@@ -56,7 +57,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       // TypeScript hatalarını önlemek için any tipini kullan
       const capabilities = track.getCapabilities() as any;
       
-      // Tüm odaklama modlarını dene
+      // Tüm odaklama modlarını dene - yakın mesafe için optimize
       const focusModes = ['continuous', 'single-shot', 'manual', 'auto'];
       
       // Eğer kamera odaklama özelliğini destekliyorsa
@@ -68,32 +69,43 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
               await (track as any).applyConstraints({
                 advanced: [{ 
                   focusMode: mode,
-                  // Odak mesafesini yakın ayarla (barkod okuma için)
-                  focusDistance: mode === 'manual' ? 0.3 : undefined
+                  // Odak mesafesini yakın ayarla (10-13 cm için)
+                  focusDistance: mode === 'manual' ? 0.11 : undefined // 0.11 yaklaşık 11cm'ye denk gelir
                 }]
               });
+              
+              console.log(`Kamera odaklama modu ayarlandı: ${mode}`);
               
               // Odaklama başarılı
               setCameraFocused(true);
               break;
-            } catch (e) {}
+            } catch (e) {
+              console.log(`Odaklama modu ayarlama hatası (${mode}):`, e);
+            }
           }
         }
+      } else {
+        console.log('Bu kamera odaklama özelliğini desteklemiyor');
       }
       
-      // Ek olarak, maksimum çözünürlük ve kare hızı ayarla
+      // Ek olarak, maksimum çözünürlük ve kare hızı ayarla - yakın mesafe için optimize
       try {
         await track.applyConstraints({
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          frameRate: { ideal: 30, min: 15 }
         });
-      } catch (e) {}
+        console.log('Kamera çözünürlük ve kare hızı ayarlandı');
+      } catch (e) {
+        console.log('Kamera çözünürlük ayarlama hatası:', e);
+      }
       
-    } catch (error) {}
+    } catch (error) {
+      console.error('Kamera odaklama hatası:', error);
+    }
   };
 
-  // Barkod tarama fonksiyonu - QR kod için jsQR kullanır
+  // QR kod tarama fonksiyonu - jsQR kullanır
   const scanQRCode = () => {
     if (!videoRef.current || !canvasRef.current || !isScanning) return;
     
@@ -101,7 +113,8 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     
     const canvas = canvasRef.current;
     const video = videoRef.current;
-    const context = canvas.getContext('2d');
+    // willReadFrequently özelliğini ekleyerek canvas performansını artır
+    const context = canvas.getContext('2d', { willReadFrequently: true });
     
     if (!context) {
       setIsProcessing(false);
@@ -126,7 +139,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     if (code) {
       const now = Date.now();
       
-      // Aynı barkodu kısa süre içinde tekrar taramayı önle (300ms - daha hızlı tarama için)
+      // Aynı barkodu kısa süre içinde tekrar taramayı önle
       if (!lastDetectedRef.current.barcode || 
           lastDetectedRef.current.barcode !== code.data || 
           (now - lastDetectedRef.current.timestamp) > 300) {
@@ -137,8 +150,9 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         playSuccessSound();
         showSuccessEffect();
         
-        // Barkod değerini gönder
+        // Barkod değerini gönder ve input'a yaz
         onScan(code.data);
+        writeToInputAndPressEnter(code.data);
         onScanComplete();
         
         // QR kod tarama işlemi tamamlandıktan sonra kısa bir duraklama
@@ -152,61 +166,175 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     setIsProcessing(false);
   };
   
-  // Ses çalma fonksiyonu - 0.2 saniyeden kısa sürecek şekilde optimize edildi
+  // Barkod okunduğunda belirgin bir bip sesi çalma fonksiyonu
   const playSuccessSound = () => {
     try {
-      // Eğer önceki bir AudioContext varsa ve aktifse, onu kullan
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        // Eğer AudioContext askıya alınmışsa, devam ettir
-        if (audioContextRef.current.state === 'suspended') {
-          audioContextRef.current.resume().catch(() => {});
-        }
-      } else {
-        // Yeni bir AudioContext oluştur
+      // Web Audio API kullanarak ses oluştur
+      if (!audioContextRef.current) {
         try {
           audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         } catch (e) {
-          return; // Ses çalamıyorsak fonksiyondan çık
+          console.log('AudioContext oluşturulamadı:', e);
+          return; // Ses oluşturulamadı, sessiz devam et
         }
       }
       
-      const audioContext = audioContextRef.current;
-      if (!audioContext) return; // Güvenlik kontrolü
-      
-      // Oscillator ve gain node oluştur
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.type = 'sine';
-      oscillator.frequency.value = 1200; // Daha yüksek ton - daha iyi duyulabilir
-      gainNode.gain.value = 0.05; // Ses seviyesi
-      
-      // Ses çal
-      oscillator.start();
-      
-      // Kısa süre sonra durdur - 0.2 saniyeden kısa
-      setTimeout(() => {
+      // Eğer ses bağlamı kapalıysa, yeni bir tane oluştur
+      if (audioContextRef.current.state === 'closed') {
         try {
-          oscillator.stop();
-        } catch (e) {}
-      }, 150); // 150ms - 0.15 saniye
-    } catch (error) {}
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        } catch (e) {
+          console.log('AudioContext yeniden oluşturulamadı:', e);
+          return; // Ses oluşturulamadı, sessiz devam et
+        }
+      }
+      
+      // Eğer ses bağlamı askıya alınmışsa, devam ettir
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume().catch(e => {
+          console.log('AudioContext devam ettirilemedi:', e);
+        });
+      }
+      
+      // İlk ses - 1800 Hz kare dalga
+      const oscillator1 = audioContextRef.current.createOscillator();
+      oscillator1.type = 'square';
+      oscillator1.frequency.setValueAtTime(1800, audioContextRef.current.currentTime);
+      
+      // Ses seviyesi kontrolü
+      const gainNode1 = audioContextRef.current.createGain();
+      gainNode1.gain.setValueAtTime(0.2, audioContextRef.current.currentTime);
+      gainNode1.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.08);
+      
+      // Bağlantıları kur ve sesi başlat
+      oscillator1.connect(gainNode1);
+      gainNode1.connect(audioContextRef.current.destination);
+      oscillator1.start();
+      oscillator1.stop(audioContextRef.current.currentTime + 0.08);
+      
+      // Kısa bir gecikme sonra ikinci ses - 2200 Hz kare dalga
+      setTimeout(() => {
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+          const oscillator2 = audioContextRef.current.createOscillator();
+          oscillator2.type = 'square';
+          oscillator2.frequency.setValueAtTime(2200, audioContextRef.current.currentTime);
+          
+          const gainNode2 = audioContextRef.current.createGain();
+          gainNode2.gain.setValueAtTime(0.2, audioContextRef.current.currentTime);
+          gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.1);
+          
+          oscillator2.connect(gainNode2);
+          gainNode2.connect(audioContextRef.current.destination);
+          oscillator2.start();
+          oscillator2.stop(audioContextRef.current.currentTime + 0.1);
+        }
+      }, 100); // 100ms - ilk ses süresi
+      
+    } catch (error) {
+      console.error('Ses çalma hatası:', error);
+    }
   };
 
-  // Başarı efekti gösterme fonksiyonu - 0.2 saniyeden kısa sürecek şekilde optimize edildi
+  // Başarı efekti gösterme fonksiyonu
   const showSuccessEffect = () => {
     setShowSuccess(true);
     setTimeout(() => {
       setShowSuccess(false);
-    }, 200); // 200ms - 0.2 saniye
+    }, 300);
   };
-
+  
+  // Input alanına barkod yazma ve enter tuşuna basma fonksiyonu - daha seri çalışacak şekilde optimize edildi
+  const writeToInputAndPressEnter = (barcode: string) => {
+    if (inputRef && inputRef.current) {
+      try {
+        // Input alanına barkodu yaz
+        inputRef.current.value = barcode;
+        
+        // Input alanına odaklan
+        inputRef.current.focus();
+        
+        // Input değerini değiştir (React state güncellemesi için)
+        const inputEvent = new Event('input', { bubbles: true });
+        inputRef.current.dispatchEvent(inputEvent);
+        
+        // Change event tetikle
+        const changeEvent = new Event('change', { bubbles: true });
+        inputRef.current.dispatchEvent(changeEvent);
+        
+        // Enter tuşuna basma olayını simüle et - daha hızlı çalışması için gecikmeyi azalt
+        setTimeout(() => {
+          try {
+            // KeyDown
+            const keydownEvent = new KeyboardEvent('keydown', {
+              key: 'Enter',
+              code: 'Enter',
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+              cancelable: true
+            });
+            inputRef.current?.dispatchEvent(keydownEvent);
+            
+            // KeyPress
+            const keypressEvent = new KeyboardEvent('keypress', {
+              key: 'Enter',
+              code: 'Enter',
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+              cancelable: true
+            });
+            inputRef.current?.dispatchEvent(keypressEvent);
+            
+            // KeyUp
+            const keyupEvent = new KeyboardEvent('keyup', {
+              key: 'Enter',
+              code: 'Enter',
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+              cancelable: true
+            });
+            inputRef.current?.dispatchEvent(keyupEvent);
+            
+            // Arama butonunu bul ve tıkla
+            const parentElement = inputRef.current?.parentElement;
+            if (parentElement) {
+              const searchButton = parentElement.querySelector('button[type="button"]') as HTMLElement;
+              if (searchButton) {
+                searchButton.click();
+              }
+            }
+          } catch (eventError) {
+            console.error('Enter tuşu simülasyon hatası:', eventError);
+          }
+        }, 50);
+        
+        // Eğer input temizlenecekse, kısa bir gecikme sonrasında temizle
+        if (clearInput) {
+          setTimeout(() => {
+            if (inputRef.current) {
+              inputRef.current.value = '';
+              const inputEvent = new Event('input', { bubbles: true });
+              inputRef.current.dispatchEvent(inputEvent);
+            }
+          }, 500); // Daha uzun bir gecikme ekledik, böylece arama işlemi tamamlanabilir
+        }
+      } catch (error) {
+        console.error('Input yazma hatası:', error);
+      }
+    }
+  };
+  
   // Geleneksel barkod tarama fonksiyonu - Quagga kullanır (EAN, UPC, Code128 vb.)
   const startBarcodeScanner = () => {
     if (!quaggaContainerRef.current || !isScanning) return;
+    
+    // Eğer Quagga zaten başlatıldıysa, tekrar başlatma
+    if (quaggaInitializedRef.current) {
+      console.log('Quagga zaten başlatılmış, tekrar başlatma atlatılıyor');
+      return;
+    }
     
     Quagga.init({
       inputStream: {
@@ -214,87 +342,156 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         type: 'LiveStream',
         target: quaggaContainerRef.current,
         constraints: {
-          facingMode: 'environment', // Arka kamera
-          width: { min: 640 },
-          height: { min: 480 },
+          facingMode: 'environment',
+          width: { min: 640, ideal: 1024 },
+          height: { min: 480, ideal: 768 },
           aspectRatio: { min: 1, max: 2 }
         },
+        area: {
+          top: "0%",
+          right: "0%",
+          left: "0%",
+          bottom: "0%"
+        },
+        singleChannel: false,
+        willReadFrequently: true
       },
       locator: {
-        patchSize: 'medium',
-        halfSample: true
+        patchSize: 'medium', // 10-13 cm mesafe için orta boy uygun
+        halfSample: false    // Yakın mesafe için false daha iyi sonuç veriyor
       },
-      numOfWorkers: 2,
-      frequency: 10,
+      numOfWorkers: Math.max(2, navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency - 1, 4) : 2),
+      frequency: 5,
       decoder: {
         readers: [
-          'ean_reader',  // EAN-13 barkodları için
-          'ean_8_reader', // EAN-8 barkodları için
-        ]
+          'ean_reader',
+          'ean_8_reader',
+          'code_128_reader',
+          'code_39_reader',
+        ],
+        multiple: false
+      },
+      debug: {
+        drawBoundingBox: false,
+        showFrequency: false,
+        drawScanline: false,
+        showPattern: false
       },
       locate: true,
-      debug: false,
       multiple: false
-      // @ts-ignore - Quagga callback tiplerini görmezden gel
-    }, (err) => {
+    }, (err: Error | null | undefined) => {
       if (err) {
         console.error('Quagga başlatma hatası:', err);
-        setScanMode('qr'); // Quagga başarısız olursa QR moduna geç
+        setScanMode('qr');
         return;
       }
       
       console.log('Quagga başlatıldı');
+      quaggaInitializedRef.current = true;
       
-      Quagga.onDetected((result: any) => {
-        const barcode = result.codeResult.code;
-        const format = result.codeResult.format;
+      // Performans için throttling uygula
+      let lastProcessedTimestamp = 0;
+      const THROTTLE_MS = 150;
+      
+      // Barkod algılama kalitesini izle - throttled
+      Quagga.onProcessed((result: any) => {
+        const now = Date.now();
+        if (now - lastProcessedTimestamp < THROTTLE_MS) {
+          return;
+        }
         
-        // Barkod formatını ve uzunluğunu kontrol et
-        const isValidFormat = ['ean_13', 'ean_8', 'upc', 'upc_e', 'code_128'].includes(format);
-        const isValidLength = (format === 'ean_13' && barcode.length === 13) || 
-                            (format === 'ean_8' && barcode.length === 8) || 
-                            ((format === 'upc' || format === 'upc_e') && barcode.length >= 11) ||
-                            (format === 'code_128' && barcode.length >= 8);
-        const isNumeric = /^\d+$/.test(barcode);
+        lastProcessedTimestamp = now;
         
-        if ((isValidFormat && isValidLength) || (isNumeric && barcode.length >= 8)) {
-          // Aynı barkod için tekrar algılama kontrolü
-          const now = Date.now();
-          
-          // Aynı barkodu kısa süre içinde tekrar taramayı önle (300ms - daha hızlı tarama için)
-          if (!lastDetectedRef.current.barcode || 
-              lastDetectedRef.current.barcode !== barcode || 
-              (now - lastDetectedRef.current.timestamp) > 300) {
-            
-            lastDetectedRef.current = {barcode: barcode, timestamp: now};
-            
-            // Barkod bulunduğunda ses çal ve başarı efekti göster
-            playSuccessSound();
-            showSuccessEffect();
-            
-            // Quagga'yı durdur ve yeniden başlatmadan önce kısa bir süre bekle
-            Quagga.stop();
-            
-            // Barkod değerini gönder
-            setTimeout(() => {
-              if (isScanning) { // Eğer hala tarama modundaysak
-                onScan(barcode);
-                onScanComplete();
-                
-                // Quagga'yı yeniden başlat - daha hızlı yeniden başlatma
-                setTimeout(() => {
-                  if (isScanning && scanMode === 'barcode') {
-                    startBarcodeScanner();
-                  }
-                  
-                }, 300); // 300ms - 0.3 saniye
-              }
-            }, 50); // 50ms - daha hızlı işlem
+        if (result && result.codeResult && result.codeResult.code && typeof result.codeResult.confidence !== 'undefined') {
+          const confidence = result.codeResult.confidence;
+          if (confidence > 0.9) {
+            console.log(`Yüksek güvenilirlik: ${confidence.toFixed(2)}, Kod: ${result.codeResult.code}`);
           }
         }
       });
       
-      // Quagga'yı başlat
+      // Performans için son algılama zamanını takip et
+      let lastDetectionTime = 0;
+      const DETECTION_THROTTLE_MS = 300;
+      
+      Quagga.onDetected((result: any) => {
+        const now = Date.now();
+        if (now - lastDetectionTime < DETECTION_THROTTLE_MS) {
+          return;
+        }
+        lastDetectionTime = now;
+        
+        if (!result || !result.codeResult) {
+          console.error('Geçersiz barkod sonucu:', result);
+          return;
+        }
+        
+        const barcode = result.codeResult.code;
+        const format = result.codeResult.format;
+        const confidence = result.codeResult.confidence;
+        
+        if (!barcode || !format) {
+          console.error('Eksik barkod bilgisi:', { barcode, format });
+          return;
+        }
+        
+        if (typeof confidence === 'undefined') {
+          console.log('Confidence değeri eksik, ancak barkod işleniyor:', { barcode, format });
+        }
+        
+        const confidenceDisplay = typeof confidence === 'number' ? confidence.toFixed(2) : 'N/A';
+        console.log(`Barkod bulundu: ${barcode}, Format: ${format}, Güvenilirlik: ${confidenceDisplay}`);
+        
+        // Barkod formatını, uzunluğunu ve güvenilirliğini kontrol et
+        const isValidFormat = ['ean_13', 'ean_8', 'upc', 'upc_e', 'code_128', 'code_39'].includes(format);
+        const isValidLength = (format === 'ean_13' && barcode.length === 13) || 
+                            (format === 'ean_8' && barcode.length === 8) || 
+                            ((format === 'upc' || format === 'upc_e') && barcode.length >= 11) ||
+                            ((format === 'code_128' || format === 'code_39') && barcode.length >= 4);
+        const isNumeric = /^\d+$/.test(barcode);
+        
+        // Güvenilirlik eşiği - formatına göre farklı eşikler kullan
+        const confidenceThreshold = format === 'ean_13' || format === 'ean_8' ? 0.7 : 0.6;
+        const confidenceValue = typeof confidence === 'number' ? confidence : 0;
+        
+        if ((isValidFormat && isValidLength) || (isNumeric && barcode.length >= 4)) {
+          if (typeof confidence === 'number' && confidence <= confidenceThreshold) {
+            console.log(`Düşük güvenilirlik ancak barkod işleniyor: ${confidence.toFixed(2)}`);
+          }
+          
+          if (!lastDetectedRef.current.barcode || 
+              lastDetectedRef.current.barcode !== barcode || 
+              (now - lastDetectedRef.current.timestamp) > 1000) {
+            
+            lastDetectedRef.current = {barcode: barcode, timestamp: now};
+            
+            setTimeout(() => {
+              playSuccessSound();
+              showSuccessEffect();
+            }, 0);
+            
+            try {
+              Quagga.stop();
+              quaggaInitializedRef.current = false;
+              console.log('Quagga durduruldu');
+            } catch (e) {
+              console.error('Quagga durdurma hatası:', e);
+            }
+            
+            // Barkod değerini gönder ve input'a yaz
+            onScan(barcode);
+            writeToInputAndPressEnter(barcode);
+            onScanComplete();
+            
+            setTimeout(() => {
+              if (isScanning && scanMode === 'barcode') {
+                startBarcodeScanner();
+              }
+            }, 1000);
+          }
+        }
+      });
+      
       Quagga.start();
     });
   };
@@ -302,45 +499,46 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   // Tarama moduna göre uygun tarama fonksiyonunu çağır
   const scanBarcode = () => {
     if (scanMode === 'qr') {
-      // QR kod tarama işlemi için doğrudan fonksiyonu çağır
       scanQRCode();
-    } else {
-      // Quagga zaten kendi içinde tarama yapıyor
     }
   };
 
   // Kamera durdurma fonksiyonu
   const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
+    // Video akışını durdur
+    if (videoRef.current && videoRef.current.srcObject) {
       videoRef.current.srcObject = null;
-      // Stream referansını temizle
-      if (streamRef) {
-        streamRef.current = null;
-      }
     }
     
-    if (scanMode === 'barcode') {
+    // Stream'i durdur
+    if (streamRef.current) {
+      const tracks = streamRef.current.getTracks();
+      tracks.forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    
+    // Quagga'yı durdur
+    if (quaggaInitializedRef.current) {
       try {
         Quagga.stop();
-      } catch (error) {
-        // Quagga zaten durdurulmuş olabilir
+        quaggaInitializedRef.current = false;
+        console.log('Quagga durduruldu (stopCamera)');
+      } catch (e) {
+        console.log('Quagga durdurma hatası:', e);
       }
     }
     
-    setCameraFocused(false); // Odaklanma durumunu sıfırla
+    setCameraFocused(false);
     setIsProcessing(false);
   };
 
-  // Kamera başlatma fonksiyonu - useEffect dışında tanımlandı ki yeniden deneme butonundan çağrılabilsin
+  // Kamera başlatma fonksiyonu
   const startCamera = async () => {
     try {
       if (!isScanning) return { videoStream: null, scanInterval: undefined };
       
       // Tarama moduna göre farklı işlem yap
       if (scanMode === 'barcode') {
-        // Barkod modu için Quagga kullan
         console.log('Barkod tarama modu başlatılıyor...');
         startBarcodeScanner();
         return { videoStream: null, scanInterval: undefined };
@@ -349,39 +547,35 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       // QR kod modu için getUserMedia kullan
       console.log('QR kod tarama modu başlatılıyor...');
       
-      // Tarayıcı kamera erişimini desteklemiyor
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error('Bu tarayıcı kamera erişimini desteklemiyor');
         setHasCamera(false);
         return { videoStream: null, scanInterval: undefined };
       }
       
-      // Kamera erişimi iste
-      // @ts-ignore - focusMode MediaTrackConstraints'te tanımlı değil, bu yüzden tüm constraints nesnesini görmezden geliyoruz
+      // Kamera erişimi iste - 10-13 cm mesafe için optimize edilmiş
       const constraints = {
         video: {
-          facingMode: 'environment', // Arka kamera
+          facingMode: 'environment',
           width: { min: 640, ideal: 1280, max: 1920 },
           height: { min: 480, ideal: 720, max: 1080 },
           advanced: [
             {
-              focusMode: 'continuous' // Sürekli odaklama modu
+              focusMode: 'continuous'
             }
           ]
         },
         audio: false
       };
       
-      // @ts-ignore - TypeScript hatalarını görmezden geliyoruz
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints as MediaStreamConstraints);
       let videoStream = stream;
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        streamRef.current = stream; // Stream'i referansta sakla
+        streamRef.current = stream;
         videoRef.current.play();
         
-        // Kamera başladıktan sonra odaklanma işlemini çağır
         setTimeout(() => {
           focusCamera();
         }, 1000);
@@ -404,36 +598,56 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
     }
   };
 
+  // Kaynakları temizleme fonksiyonu
+  const cleanupResources = () => {
+    // Video akışını durdur
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject = null;
+    }
+    
+    // Stream'i durdur
+    if (streamRef.current) {
+      const tracks = streamRef.current.getTracks();
+      tracks.forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    
+    // Quagga'yı durdur
+    if (quaggaInitializedRef.current) {
+      try {
+        Quagga.stop();
+        quaggaInitializedRef.current = false;
+        console.log('Quagga durduruldu (cleanupResources)');
+      } catch (e) {
+        console.log('Quagga durdurma hatası:', e);
+      }
+    }
+    
+    // lastDetectedRef'i sıfırla
+    lastDetectedRef.current = {barcode: '', timestamp: 0};
+  };
+  
+  // Tarama modunu değiştirme fonksiyonu
+  const toggleScanMode = () => {
+    // Önce kamerayı durdur
+    stopCamera();
+    
+    // Modu değiştir
+    setScanMode(scanMode === 'qr' ? 'barcode' : 'qr');
+    
+    // Kısa bir süre sonra yeni modda başlat
+    setTimeout(() => {
+      if (isScanning) {
+        startCamera();
+      }
+    }, 500);
+  };
+  
   // Kamera ve tarama işlemlerini başlat/durdur
   useEffect(() => {
     let videoStream: MediaStream | null = null;
     let scanInterval: NodeJS.Timeout | undefined;
     let mounted = true; // Bileşenin hala mount edilmiş olup olmadığını takip et
-    
-    // Kaynakları temizleme fonksiyonu
-    const cleanupResources = () => {
-      if (scanInterval) {
-        clearInterval(scanInterval);
-        scanInterval = undefined;
-      }
-      
-      if (videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
-        videoStream = null;
-      }
-      
-      // Quagga'yı durdur
-      try {
-        Quagga.stop();
-      } catch (e) {
-        console.log('Quagga durdurma hatası:', e);
-      }
-      
-      stopCamera();
-      
-      // lastDetectedRef'i sıfırla
-      lastDetectedRef.current = {barcode: '', timestamp: 0};
-    };
 
     if (isScanning && mounted) {
       startCamera().then(result => {
@@ -462,22 +676,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       }
     };
   }, [isScanning, onScan, onScanComplete, scanMode]);
-  
-  // Tarama modunu değiştirme fonksiyonu
-  const toggleScanMode = () => {
-    // Önce kamerayı durdur
-    stopCamera();
-    
-    // Modu değiştir
-    setScanMode(scanMode === 'qr' ? 'barcode' : 'qr');
-    
-    // Kısa bir süre sonra yeni modda başlat
-    setTimeout(() => {
-      if (isScanning) {
-        startCamera();
-      }
-    }, 500);
-  };
   
   return (
     <div style={{ 
@@ -563,9 +761,8 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         }} 
       />
       
-      {/* Butonlar BarcodeModal bileşenine taşındı */}
       
-      {/* Başarılı tarama göstergesi - daha parlak ve kısa süreli */}
+      {/* Başarılı tarama göstergesi */}
       {showSuccess && (
         <div style={{
           position: 'absolute',
