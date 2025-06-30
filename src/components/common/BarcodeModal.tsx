@@ -438,12 +438,16 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
   const handleSearch = async () => {
     // Arama zaten devam ediyorsa çık
     if (isSearching) {
+      console.log('Arama zaten devam ediyor, yeni arama yapılmıyor');
       return;
     }
+    
+    console.log('Arama başlatılıyor, barkod:', barcodeInput);
     setIsSearching(true);
     
     // Barkod input boşsa işlemi iptal et
     if (!barcodeInput) {
+      console.log('Barkod input boş, arama iptal ediliyor');
       setIsSearching(false);
       return;
     }
@@ -456,6 +460,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     
     if (existingItemIndex !== -1) {
       // Zaten eklenen ürün varsa miktarını artır
+      console.log('Ürün zaten eklenmiş, miktar artırılıyor:', barcodeInput);
       const updatedItems = [...scannedItems];
       updatedItems[existingItemIndex].quantity += 1;
       setScannedItems(updatedItems);
@@ -468,6 +473,14 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       // Input alanını temizle
       setBarcodeInput('');
       setIsSearching(false);
+      
+      // Input elementini temizle
+      if (inputRef.current) {
+        const inputElement = inputRef.current.input as HTMLInputElement;
+        if (inputElement) {
+          inputElement.value = '';
+        }
+      }
       
       // Barkod okuma işlemi tamamlandıktan sonra input alanına tekrar odaklan
       setTimeout(() => {
@@ -561,13 +574,16 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
           
           // Ürün varyantlarını ara ve ekle
           if (onSearch) {
+            console.log('onSearch fonksiyonu çağrılıyor:', cleanBarcode);
             onSearch(cleanBarcode);
             
             // onSearch fonksiyonu çağrıldıktan sonra kısa bir süre bekle
             // Bu, productVariants state'inin güncellenmesi için zaman tanır
-            await new Promise(resolve => setTimeout(resolve, 300));
+            console.log('Ürün varyantlarının yüklenmesi bekleniyor...');
+            await new Promise(resolve => setTimeout(resolve, 500)); // Daha uzun bir bekleme süresi
             
             // Eğer ürün varyantları bulunduysa otomatik olarak ekle
+            console.log('Bulunan ürün varyantları:', productVariants.length);
             if (productVariants.length > 0) {
               const foundVariant = productVariants.find(variant => 
                 variant.barcode === cleanBarcode || 
@@ -575,6 +591,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
               );
               
               if (foundVariant) {
+                console.log('Ürün varyantı bulundu, ekleniyor:', foundVariant.barcode || foundVariant.productCode);
                 // Yeni ürün ekle - burada tekrar kontrol etmiyoruz çünkü zaten fonksiyonun başında kontrol ettik
                 const newItem = {
                   variant: foundVariant,
@@ -584,6 +601,20 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
                 
                 // Ürün eklendikten sonra bulunan ürünler tablosunu temizle
                 setProductVariants([]);
+                
+                // Input alanını temizle ve odaklan
+                setBarcodeInput('');
+                if (inputRef.current) {
+                  const inputElement = inputRef.current.input as HTMLInputElement;
+                  if (inputElement) {
+                    inputElement.value = '';
+                  }
+                  setTimeout(() => {
+                    inputRef.current?.focus();
+                  }, 100);
+                }
+              } else {
+                console.log('Aranan barkod için ürün varyantı bulunamadı:', cleanBarcode);
               }
             }
           }
@@ -618,6 +649,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     if (isSearching) return;
     
     const cleanBarcode = barcode.trim();
+    console.log('Kameradan barkod alındı:', cleanBarcode);
     
     // Barkod format kontrolü - daha esnek bir yaklaşım
     const isNumeric = /^\d+$/.test(cleanBarcode);
@@ -625,6 +657,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     
     // Geçersiz barkod formatı ise işlemi sonlandır
     if (!isNumeric && !cleanBarcode.includes('-')) {
+      console.log('Geçersiz barkod formatı:', cleanBarcode);
       return;
     }
     
@@ -634,6 +667,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     // Aynı barkodu kısa süre içinde tekrar taramayı önle (300ms - daha hızlı tarama için)
     if (!lastScan || lastScan.barcode !== cleanBarcode || (now - lastScan.timestamp) > 300) {
       lastScannedBarcode.current = { barcode: cleanBarcode, timestamp: now };
+      console.log('Barkod işleniyor:', cleanBarcode);
       
       // 1. Öncelikle eklenen ürünler tablosunda kontrol et
       const existingItemIndex = scannedItems.findIndex(item => 
@@ -643,6 +677,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       
       if (existingItemIndex !== -1) {
         // Zaten eklenen ürün varsa miktarını artır
+        console.log('Ürün zaten eklenmiş, miktar artırılıyor:', cleanBarcode);
         const updatedItems = [...scannedItems];
         updatedItems[existingItemIndex].quantity += 1;
         setScannedItems(updatedItems);
@@ -657,6 +692,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       
       if (existingVariant) {
         // Bulunan ürünler tablosunda varsa, eklenen ürünlere ekle
+        console.log('Ürün bulunan varyantlarda var, ekleniyor:', cleanBarcode);
         const newItem: ScannedItem = {
           variant: existingVariant,
           quantity: 1
@@ -666,14 +702,52 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       }
       
       // 3. Hiçbir yerde yoksa, yeni barkod olarak ara
+      console.log('Yeni barkod aranıyor:', cleanBarcode);
       setBarcodeInput(cleanBarcode);
-      // Önceki arama tamamlanmadan yeni arama başlatma
-      if (!isSearching) {
-        handleSearch();
-      }
+      
+      // Input alanına barkodu yaz ve odaklan
       if (inputRef.current) {
-        inputRef.current.focus();
+        // InputRef tipinde doğrudan value ve dispatchEvent erişimi yok
+        // input elementine erişim sağlayalım
+        const inputElement = inputRef.current.input as HTMLInputElement;
+        if (inputElement) {
+          inputElement.value = cleanBarcode;
+          inputRef.current.focus();
+          
+          // Input event'lerini tetikle
+          const inputEvent = new Event('input', { bubbles: true });
+          const changeEvent = new Event('change', { bubbles: true });
+          inputElement.dispatchEvent(inputEvent);
+          inputElement.dispatchEvent(changeEvent);
+          
+          // Enter tuşu olayını tetikle
+          console.log('Enter tuşu olayı tetikleniyor');
+          setTimeout(() => {
+            const keydownEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true });
+            const keypressEvent = new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true });
+            const keyupEvent = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true });
+            
+            inputElement.dispatchEvent(keydownEvent);
+            inputElement.dispatchEvent(keypressEvent);
+            inputElement.dispatchEvent(keyupEvent);
+            
+            // Form submit olayını tetiklemeyi dene
+            const form = inputElement.closest('form');
+            if (form) {
+              console.log('Form bulundu, submit olayı tetikleniyor');
+              form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            }
+          }, 50);
+        }
       }
+      
+      // Kısa bir gecikme ile arama işlemini başlat
+      setTimeout(() => {
+        if (!isSearching) {
+          console.log('Arama başlatılıyor:', cleanBarcode);
+          handleSearch();
+        }
+      }, 200);
     }
   };
   
