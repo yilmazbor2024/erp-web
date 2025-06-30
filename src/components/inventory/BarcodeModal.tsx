@@ -341,7 +341,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     const cleanBarcode = barcode.trim();
     console.log('Barkod tarandı:', cleanBarcode);
     setSearchText(cleanBarcode);
-    setShowScanner(false); // Tarama başarılı olduğunda tarayıcıyı kapat
+    // setShowScanner(false) satırını kaldırdım - artık kamera barkod okuduktan sonra açık kalacak
     
     // onScan prop'u varsa çağır
     if (onScan) {
