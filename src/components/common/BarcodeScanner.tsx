@@ -358,7 +358,21 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       },
       locator: {
         patchSize: 'medium', // 10-13 cm mesafe için orta boy uygun
-        halfSample: false    // Yakın mesafe için false daha iyi sonuç veriyor
+        halfSample: false,   // Yakın mesafe için false daha iyi sonuç veriyor
+        debug: {
+          showCanvas: true,
+          showPatches: true,
+          showFoundPatches: true,
+          showSkeleton: true,
+          showLabels: true,
+          showPatchLabels: true,
+          showRemainingPatchLabels: true,
+          boxFromPatches: {
+            showTransformed: true,
+            showTransformedBox: true,
+            showBB: true
+          }
+        }
       },
       numOfWorkers: Math.max(2, navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency - 1, 4) : 2),
       frequency: 5,
@@ -372,10 +386,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         multiple: false
       },
       debug: {
-        drawBoundingBox: false,
-        showFrequency: false,
-        drawScanline: false,
-        showPattern: false
+        drawBoundingBox: true,
+        showFrequency: true,
+        drawScanline: true,
+        showPattern: true
       },
       locate: true,
       multiple: false
