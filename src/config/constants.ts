@@ -45,10 +45,10 @@ if (process.env.REACT_APP_FRONTEND_URL && process.env.REACT_APP_FRONTEND_URL.tri
     );
     frontendBaseUrl = 'http://edikravat.tr';
   } else {
-    // Geliştirme ortamında bile gerçek domain adresini kullanıyoruz
-    // QR kodlarında localhost yerine gerçek domain görünmesi için
+    // Geliştirme ortamında bile edikravat.tr kullanıyoruz
+    console.log('DEVELOPMENT: REACT_APP_FRONTEND_URL ortam değişkeni tanımsız. edikravat.tr kullanılıyor.');
     frontendBaseUrl = 'http://edikravat.tr';
-    console.log('Geliştirme ortamında QR kodları için gerçek domain kullanılıyor:', frontendBaseUrl);
+    console.log('Geliştirme ortamında QR kodları için edikravat.tr kullanılıyor:', frontendBaseUrl);
   }
 }
 

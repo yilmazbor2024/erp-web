@@ -220,14 +220,28 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
       let tempLinkValue = '';
       let expiryMinutesValue = 10; // Varsayılan 10 dakika
       
+      console.log('API yanıtı işleniyor...');
+      
       if (response.data && response.data.data) {
         // Eğer yanıt data.data içinde geliyorsa
+        console.log('data.data formatında yanıt alındı:', response.data.data);
         tempLinkValue = response.data.data.tempLink;
         expiryMinutesValue = response.data.data.expiryMinutes || 10;
       } else if (response.data) {
         // Eğer yanıt doğrudan data içinde geliyorsa
+        console.log('data formatında yanıt alındı:', response.data);
         tempLinkValue = response.data.tempLink;
         expiryMinutesValue = response.data.expiryMinutes || 10;
+      }
+      
+      console.log('Oluşturulan tempLink:', tempLinkValue);
+      
+      // API'den gelen URL'de localhost varsa, FRONTEND_URL ile değiştir
+      if (tempLinkValue && tempLinkValue.includes('localhost')) {
+        console.log(`API yanıtında localhost tespit edildi, ${FRONTEND_URL} ile değiştiriliyor`);
+        // localhost:3000 veya localhost:herhangi bir port numarasını yakala
+        tempLinkValue = tempLinkValue.replace(/https?:\/\/localhost(:[0-9]+)?/, FRONTEND_URL);
+        console.log('Düzeltilmiş link:', tempLinkValue);
       }
       
       // Eğer tempLink undefined ise, varsayılan bir değer ata
@@ -239,7 +253,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ isMobile: propIsMobi
         const randomToken = Math.random().toString(36).substring(2, 15);
         
         // URL oluştur
-        tempLinkValue = `${FRONTEND_URL}/customer-registration?token=${randomToken}`;
+        tempLinkValue = `https://edikravat.tr/customer-registration?token=${randomToken}`;
         
         console.log(`Oluşturulan geçici link: ${tempLinkValue}`);
       }

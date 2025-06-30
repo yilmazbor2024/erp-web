@@ -9,8 +9,8 @@
 
   /* Fatura sayfası için özel düzeltmeler */
   .invoice-page-container {
-    padding-bottom: 100px !important; /* Alt kısımda butonlar için ekstra alan */
-    min-height: calc(100vh - 60px);
+    padding-bottom: 10px !important; /* Alt kısımda butonlar için ekstra alan */
+    min-height: calc(100vh - 160px);
     overflow-y: auto;
   }
 
@@ -27,13 +27,13 @@
 
   /* Tab içindeki form alanları için düzeltme */
   .ant-tabs-tabpane {
-    padding-bottom: 60px;
+    padding-bottom: 160px;
   }
 
   /* Alt kısımdaki butonlar için düzeltme */
   .invoice-footer-buttons {
     position: fixed;
-    bottom: 0;
+    bottom: 220px;
     left: 0;
     right: 0;
     background: #fff;

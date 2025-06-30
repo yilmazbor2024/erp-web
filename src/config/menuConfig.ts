@@ -216,6 +216,11 @@ export const mainMenuItems: MenuItem[] = [
         title: 'Depo ve Depolar Arası Transfer',
         path: '/inventory/warehouse-transfers'
       },
+      {
+        id: 'production-order',
+        title: 'İmalat Fişleri',
+        path: '/inventory/production-orders'
+      },
     ]
   },
   {

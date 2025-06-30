@@ -152,9 +152,168 @@ const InvoiceLines: React.FC<InvoiceLinesProps> = ({
       overflowX: 'auto' as const
     }
   };
+  
+  // Mobil tablo için CSS stillerini ekliyoruz
+  useEffect(() => {
+    if (isMobile) {
+      // Stil elementi oluştur
+      const styleEl = document.createElement('style');
+      styleEl.id = 'mobile-invoice-table-styles';
+      styleEl.innerHTML = `
+        .mobile-table-row td {
+          padding: 8px 4px !important;
+          border-bottom: 2px solid #fa8c16 !important;
+        }
+        .mobile-table-row:hover td {
+          background-color: #fff7e6 !important;
+        }
+        .mobile-table-row {
+          margin-bottom: 12px !important;
+        }
+        .ant-table-tbody > tr.mobile-table-row > td {
+          transition: background 0.2s, border-color 0.2s;
+        }
+        .ant-table-tbody > tr.mobile-table-row:hover > td {
+          background-color: #fff7e6 !important;
+        }
+      `;
+      document.head.appendChild(styleEl);
+      
+      // Temizleme fonksiyonu
+      return () => {
+        const existingStyle = document.getElementById('mobile-invoice-table-styles');
+        if (existingStyle) {
+          existingStyle.remove();
+        }
+      };
+    }
+  }, [isMobile]);
 
   // Tablo sütunları
-  const columns = [
+  // Mobil ve masaüstü için farklı kolon yapıları tanımlıyoruz
+  const mobileColumns = [
+    {
+      title: '',
+      dataIndex: 'itemCode',
+      key: 'productInfo',
+      width: '40%',
+      render: (_: any, record: InvoiceDetail) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 0' }}>
+          <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{record.itemCode}</div>
+          <div style={{ fontSize: '13px' }}>{record.productDescription || record.description || '-'}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>
+            {record.colorDescription ? `${record.colorDescription} ` : ''}
+            {record.itemDim1Code ? record.itemDim1Code : ''}
+          </div>
+        </div>
+      )
+    },
+    {
+      title: '',
+      dataIndex: 'quantity',
+      key: 'quantityPrice',
+      width: '25%',
+      render: (_: any, record: InvoiceDetail) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 0' }}>
+          <div>
+            <InputNumber
+              value={record.quantity}
+              min={0}
+              step={0.01}
+              precision={2}
+              style={{ width: '100%' }}
+              onChange={(value) => {
+                if (value !== null) {
+                  const updatedDetail = {
+                    ...record,
+                    quantity: value
+                  };
+                  const calculatedDetail = calculateLineAmounts(updatedDetail);
+                  updateInvoiceDetail(record.id, 'quantity', value);
+                }
+              }}
+            />
+          </div>
+          <div style={{ marginTop: '4px' }}>
+            <InputNumber
+              value={record.unitPrice}
+              min={0}
+              step={0.01}
+              precision={2}
+              style={{ width: '100%' }}
+              formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={(value) => parseFloat(value!.replace(/\$\s?|(,*)/g, ''))}
+              onChange={(value) => {
+                if (value !== null) {
+                  const updatedDetail = {
+                    ...record,
+                    unitPrice: value
+                  };
+                  const calculatedDetail = calculateLineAmounts(updatedDetail);
+                  updateInvoiceDetail(record.id, 'unitPrice', value);
+                }
+              }}
+            />
+          </div>
+        </div>
+      )
+    },
+    {
+      title: '',
+      dataIndex: 'vatRate',
+      key: 'vatTotal',
+      width: '25%',
+      render: (_: any, record: InvoiceDetail) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '8px 0' }}>
+          <div>
+            <InputNumber
+              value={record.vatRate}
+              min={0}
+              max={100}
+              step={1}
+              precision={0}
+              style={{ width: '100%' }}
+              formatter={value => `${value}%`}
+              parser={(value) => parseFloat(value!.replace('%', ''))}
+              onChange={(value) => {
+                if (value !== null) {
+                  const updatedDetail = {
+                    ...record,
+                    vatRate: value
+                  };
+                  const calculatedDetail = calculateLineAmounts(updatedDetail);
+                  updateInvoiceDetail(record.id, 'vatRate', value);
+                }
+              }}
+            />
+          </div>
+          <div style={{ fontWeight: 'bold', fontSize: '14px', textAlign: 'right', marginTop: '4px' }}>
+            {record.netAmount?.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {getCurrencySymbol(record.currencyCode || currency)}
+          </div>
+        </div>
+      )
+    },
+    {
+      title: '',
+      key: 'action',
+      width: '10%',
+      render: (_: any, record: InvoiceDetail) => (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '8px 0' }}>
+          <Popconfirm
+            title="Bu satırı silmek istediğinize emin misiniz?"
+            onConfirm={() => removeInvoiceDetail(record.id)}
+            okText="Evet"
+            cancelText="Hayır"
+          >
+            <Button type="link" danger icon={<DeleteOutlined style={{ fontSize: '18px' }} />} />
+          </Popconfirm>
+        </div>
+      )
+    }
+  ];
+
+  // Masaüstü için normal kolonlar
+  const desktopColumns = [
     {
       title: 'Ürn',
       dataIndex: 'itemCode',
@@ -426,16 +585,6 @@ return (
             >
               Satır Ekle
             </Button>
-            <Button 
-              type="primary"
-              style={{ 
-                ...mobileStyles.button,
-                backgroundColor: isPriceIncludeVat ? '#52c41a' : '#1890ff' 
-              }}
-              onClick={() => updateInvoiceDetail('', 'isPriceIncludeVat', !isPriceIncludeVat)}
-            >
-              {isPriceIncludeVat ? "KDV Dahil" : "KDV Hariç"}
-            </Button>
             {selectedRowKeys.length > 0 && (
               <Popconfirm
                 title={`${selectedRowKeys.length} satırı silmek istediğinize emin misiniz?`}
@@ -468,11 +617,13 @@ return (
       <div style={mobileStyles.tableContainer}>
         <Table
           dataSource={filteredDetails}
-          columns={columns}
+          columns={isMobile ? mobileColumns : desktopColumns}
           rowKey="id"
-          size="small"
+          size={isMobile ? "middle" : "small"}
           scroll={{ x: '100%', y: 300 }}
           pagination={false}
+          rowClassName={() => isMobile ? 'mobile-table-row' : ''}
+          showHeader={!isMobile}
           rowSelection={{
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys as string[]),

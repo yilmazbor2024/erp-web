@@ -109,7 +109,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           ShipmentMethodCode: method.shipmentMethodCode
         }));
         setShipmentMethods(formattedMethods);
-        console.log('Sevkiyat yöntemleri yüklendi:', response.data);
+        // console.log('Sevkiyat yöntemleri yüklendi:', response.data);
         
         // Varsayılan olarak hiçbir sevkiyat yöntemi seçilmeyecek
         // Kullanıcının manuel olarak seçmesi gerekiyor
@@ -132,7 +132,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   useEffect(() => {
     if (taxTypes?.length > 0) {
       // Tüm vergi tiplerini konsola yazdır
-      console.log('Mevcut tüm vergi tipleri:', JSON.stringify(taxTypes, null, 2));
+      // console.log('Mevcut tüm vergi tipleri:', JSON.stringify(taxTypes, null, 2));
       
       // "Vergisiz" vergi tipini bul
       const taxFreeType = taxTypes.find(tax => 
@@ -143,7 +143,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       // Eğer "Vergisiz" vergi tipi varsa, onu varsayılan olarak ayarla
       if (taxFreeType) {
         form.setFieldsValue({ taxTypeCode: taxFreeType.taxTypeCode });
-        console.log('Varsayılan vergi tipi ayarlandı:', taxFreeType.taxTypeCode, taxFreeType);
+        // console.log('Varsayılan vergi tipi ayarlandı:', taxFreeType.taxTypeCode, taxFreeType);
         // Varsayılan olarak "Vergisiz" seçildiğinde KDV oranlarını sıfırla
         handleTaxTypeChange(taxFreeType.taxTypeCode);
       }
@@ -152,11 +152,11 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   
   // Vergi tipi değiştiğinde çalışacak fonksiyon
   const handleTaxTypeChange = (taxTypeCode: string) => {
-    console.log('Vergi tipi değişti - Seçilen TaxTypeCode:', taxTypeCode);
+    // console.log('Vergi tipi değişti - Seçilen TaxTypeCode:', taxTypeCode);
     
     // Seçilen vergi tipini bul
     const selectedTaxType = taxTypes?.find(tax => tax.taxTypeCode === taxTypeCode);
-    console.log('Seçilen vergi tipi detayları:', selectedTaxType);
+    // console.log('Seçilen vergi tipi detayları:', selectedTaxType);
     
     // Form alanını güncelle - bu önemli, API'ye gönderilecek
     form.setFieldsValue({ taxTypeCode: taxTypeCode });
@@ -167,7 +167,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         (selectedTaxType.taxTypeCode === '4' || 
          selectedTaxType.taxTypeDescription === 'Vergisiz')) {
       
-      console.log('Vergisiz seçildi (TaxTypeCode=4), tüm KDV oranları 0 ve KDV kodları %0 olarak ayarlanıyor');
+      // console.log('Vergisiz seçildi (TaxTypeCode=4), tüm KDV oranları 0 ve KDV kodları %0 olarak ayarlanıyor');
       
       // InvoiceForm bileşeninden gelen onTaxTypeChange fonksiyonunu çağır
       if (onTaxTypeChange) {
@@ -175,7 +175,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       }
     } else {
       // Başka bir vergi tipi seçildiyse, normal KDV oranlarını kullan (varsayılan %10)
-      console.log('Normal vergi tipi seçildi (TaxTypeCode=' + taxTypeCode + '), varsayılan KDV oranı %10 kullanılıyor');
+      // console.log('Normal vergi tipi seçildi (TaxTypeCode=' + taxTypeCode + '), varsayılan KDV oranı %10 kullanılıyor');
       if (onTaxTypeChange) {
         onTaxTypeChange('normal'); // normal mod - varsayılan KDV oranı %10
       }
@@ -185,14 +185,14 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   // Müşteri adreslerini getir
   const fetchCustomerAddresses = async (customerId: string) => {
     if (!customerId) {
-      console.log('Müşteri kodu boş, adresler getirilmiyor');
+      // console.log('Müşteri kodu boş, adresler getirilmiyor');
       return;
     }
     
     setLoadingAddresses(true);
     try {
       const response = await customerService.getCustomerAddresses(customerId);
-      console.log('Müşteri adresleri API yanıtı:', response);
+      // console.log('Müşteri adresleri API yanıtı:', response);
       
       let addresses: CustomerAddress[] = [];
       
@@ -207,14 +207,14 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           isDefaultBillingAddress: addr.isDefaultBillingAddress,
           isDefaultShippingAddress: addr.isDefaultShippingAddress
         }));
-        console.log('API yanıtından dönüştürülen adresler:', addresses);
+        // console.log('API yanıtından dönüştürülen adresler:', addresses);
       } else {
-        console.log('API yanıtında adres bulunamadı, müşteri detaylarını kontrol ediyorum...');
+        // console.log('API yanıtında adres bulunamadı, müşteri detaylarını kontrol ediyorum...');
         
         // API yanıtında adres yoksa, müşteri detaylarından adresleri almayı dene
         try {
           const customerResponse = await customerService.getCustomerByCode(customerId);
-          console.log('Müşteri detayları alındı:', customerResponse);
+          // console.log('Müşteri detayları alındı:', customerResponse);
           
           // Müşteri detaylarında adresler varsa onları kullan
           if (customerResponse && customerResponse.addresses && customerResponse.addresses.length > 0) {
@@ -228,9 +228,9 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               isDefaultBillingAddress: addr.isDefaultBillingAddress,
               isDefaultShippingAddress: addr.isDefaultShippingAddress
             }));
-            console.log('Müşteri detaylarından alınan adresler:', addresses);
+            // console.log('Müşteri detaylarından alınan adresler:', addresses);
           } else {
-            console.log('Müşteri detaylarında da adres bulunamadı');
+            // console.log('Müşteri detaylarında da adres bulunamadı');
           }
         } catch (detailError) {
           console.error('Müşteri detayları getirme hatası:', detailError);
@@ -239,7 +239,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       
       // Bulunan adresleri state'e kaydet
       if (addresses.length > 0) {
-        console.log('Müşteri adresleri başarıyla alındı:', addresses);
+        // console.log('Müşteri adresleri başarıyla alındı:', addresses);
         setCustomerAddresses(addresses);
         
         // Varsayılan fatura adresi
@@ -252,8 +252,8 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           address.isDefaultShippingAddress || address.isDefault
         );
         
-        console.log('Varsayılan fatura adresi:', defaultBillingAddress);
-        console.log('Varsayılan teslimat adresi:', defaultShippingAddress);
+        // console.log('Varsayılan fatura adresi:', defaultBillingAddress);
+        // console.log('Varsayılan teslimat adresi:', defaultShippingAddress);
         
         // Form alanlarını güncelle
         const formUpdate: any = {};
@@ -264,27 +264,27 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         // Fatura adresi seçimi
         if (defaultBillingAddress) {
           formUpdate.billingPostalAddressID = defaultBillingAddress.postalAddressId;
-          console.log('Varsayılan fatura adresi seçildi:', defaultBillingAddress.postalAddressId);
+          // console.log('Varsayılan fatura adresi seçildi:', defaultBillingAddress.postalAddressId);
         } else if (addresses.length === 1) {
           formUpdate.billingPostalAddressID = addresses[0].postalAddressId;
-          console.log('Tek adres olduğu için fatura adresi olarak seçildi:', addresses[0].postalAddressId);
+          // console.log('Tek adres olduğu için fatura adresi olarak seçildi:', addresses[0].postalAddressId);
         } else if (addresses.length > 1) {
           // Birden fazla adres varsa ve varsayılan yoksa, ilk adresi seç
           formUpdate.billingPostalAddressID = addresses[0].postalAddressId;
-          console.log('Varsayılan fatura adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
+          // console.log('Varsayılan fatura adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
         }
         
         // Teslimat adresi seçimi
         if (defaultShippingAddress) {
           formUpdate.shippingPostalAddressID = defaultShippingAddress.postalAddressId;
-          console.log('Varsayılan teslimat adresi seçildi:', defaultShippingAddress.postalAddressId);
+          // console.log('Varsayılan teslimat adresi seçildi:', defaultShippingAddress.postalAddressId);
         } else if (addresses.length === 1) {
           formUpdate.shippingPostalAddressID = addresses[0].postalAddressId;
-          console.log('Tek adres olduğu için teslimat adresi olarak seçildi:', addresses[0].postalAddressId);
+          // console.log('Tek adres olduğu için teslimat adresi olarak seçildi:', addresses[0].postalAddressId);
         } else if (addresses.length > 1) {
           // Birden fazla adres varsa ve varsayılan yoksa, ilk adresi seç
           formUpdate.shippingPostalAddressID = addresses[0].postalAddressId;
-          console.log('Varsayılan teslimat adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
+          // console.log('Varsayılan teslimat adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
         }
         
         // Kullanıcının daha önce seçtiği vade günü değerini kontrol et ve koru
@@ -297,37 +297,37 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         // Bazen form.getFieldsValue form.getFieldValue'dan farklı değerler döndürebilir
         if (!currentDueDays) {
           currentDueDays = form.getFieldValue('dueDays');
-          console.log('Form.getFieldValue ile alınan vade günü:', currentDueDays);
+          // console.log('Form.getFieldValue ile alınan vade günü:', currentDueDays);
         }
         
         const currentPaymentType = currentFormValues.paymentType;
-        console.log('Form değerleri:', currentFormValues);
-        console.log('Mevcut vade günü değeri:', currentDueDays, 'Tipi:', typeof currentDueDays);
-        console.log('Mevcut ödeme tipi:', currentPaymentType, 'Tipi:', typeof currentPaymentType);
+        // console.log('Form değerleri:', currentFormValues);
+        // console.log('Mevcut vade günü değeri:', currentDueDays, 'Tipi:', typeof currentDueDays);
+        // console.log('Mevcut ödeme tipi:', currentPaymentType, 'Tipi:', typeof currentPaymentType);
         
         if (Object.keys(formUpdate).length > 0) {
-          console.log('Form alanları güncelleniyor:', formUpdate);
+          // console.log('Form alanları güncelleniyor:', formUpdate);
           form.setFieldsValue(formUpdate);
           
           // Form alanlarının güncel değerlerini kontrol et
           setTimeout(() => {
             const currentValues = form.getFieldsValue(['billingPostalAddressID', 'shippingPostalAddressID', 'currAccCode']);
-            console.log('Form alanlarının güncel değerleri:', currentValues);
+            // console.log('Form alanlarının güncel değerleri:', currentValues);
             
             // Eğer adres alanları boşsa, tekrar dene
             if (!currentValues.billingPostalAddressID || !currentValues.shippingPostalAddressID) {
-              console.log('Adres alanları boş, tekrar ayarlanıyor...');
+              // console.log('Adres alanları boş, tekrar ayarlanıyor...');
               form.setFieldsValue(formUpdate);
             }
             
             // Kullanıcının daha önce seçtiği vade günü ve ödeme tipi değerlerini geri yükle
             if (currentDueDays !== undefined && currentDueDays !== null && currentDueDays > 0) {
-              console.log('Önceki vade günü değeri geri yükleniyor:', currentDueDays);
+              // console.log('Önceki vade günü değeri geri yükleniyor:', currentDueDays);
               form.setFieldsValue({ dueDays: currentDueDays });
               
               // Vade günü 0'dan büyükse ödeme tipini Vadeli olarak ayarla
               if (!currentPaymentType || currentPaymentType === 'Peşin') {
-                console.log('Vade günü > 0 olduğu için ödeme tipi Vadeli olarak ayarlanıyor');
+                // console.log('Vade günü > 0 olduğu için ödeme tipi Vadeli olarak ayarlanıyor');
                 form.setFieldsValue({ paymentType: 'Vadeli' });
               }
             } else {
@@ -336,38 +336,38 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               const formValues = form.getFieldsValue(['paymentType']);
               if (formValues.paymentType === 'Vadeli') {
                 // Ödeme tipi Vadeli ise, vade günü muhtemelen > 0 olmalı
-                console.log('Ödeme tipi Vadeli, vade günü kontrol ediliyor...');
+                // console.log('Ödeme tipi Vadeli, vade günü kontrol ediliyor...');
                 const dueDaysFromField = form.getFieldValue('dueDays');
                 
                 // InvoiceForm tarafından kaydedilen son bilinen vade günü değerini kontrol et
                 const lastKnownDueDays = typeof window !== 'undefined' ? (window as any).lastKnownDueDays : null;
-                console.log('InvoiceForm tarafından kaydedilen son vade günü:', lastKnownDueDays);
+                // console.log('InvoiceForm tarafından kaydedilen son vade günü:', lastKnownDueDays);
                 
                 if (lastKnownDueDays && lastKnownDueDays > 0) {
                   // InvoiceForm'dan gelen değeri kullan
-                  console.log('InvoiceForm tarafından kaydedilen vade günü kullanılıyor:', lastKnownDueDays);
+                  // console.log('InvoiceForm tarafından kaydedilen vade günü kullanılıyor:', lastKnownDueDays);
                   form.setFieldsValue({ dueDays: lastKnownDueDays });
                 } else if (dueDaysFromField > 0) {
-                  console.log('Alan kontrolünden vade günü bulundu:', dueDaysFromField);
+                  // console.log('Alan kontrolünden vade günü bulundu:', dueDaysFromField);
                   form.setFieldsValue({ dueDays: dueDaysFromField });
                 } else {
                   // Varsayılan vade günü ayarla
-                  console.log('Vadeli ödeme tipi için varsayılan vade günü (30) ayarlanıyor');
+                  // console.log('Vadeli ödeme tipi için varsayılan vade günü (30) ayarlanıyor');
                   form.setFieldsValue({ dueDays: 30 });
                 }
               } else {
-                console.log('Vade günü değeri boş veya 0, geri yükleme yapılmıyor');
+                // console.log('Vade günü değeri boş veya 0, geri yükleme yapılmıyor');
               }
             }
             
             if (currentPaymentType) {
-              console.log('Önceki ödeme tipi geri yükleniyor:', currentPaymentType);
+              // console.log('Önceki ödeme tipi geri yükleniyor:', currentPaymentType);
               form.setFieldsValue({ paymentType: currentPaymentType });
             }
           }, 200);
         }
       } else {
-        console.log('Müşteri adresleri bulunamadı');
+        // console.log('Müşteri adresleri bulunamadı');
         setCustomerAddresses([]);
       }
     } catch (error) {
@@ -382,16 +382,16 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   // Tedarikçi adreslerini getir
   const fetchVendorAddresses = async (vendorId: string) => {
     if (!vendorId) {
-      console.log('Tedarikçi kodu boş, adresler getirilmiyor');
+      // console.log('Tedarikçi kodu boş, adresler getirilmiyor');
       return;
     }
     
     setLoadingAddresses(true);
     try {
-      console.log('Tedarikçi adresleri getiriliyor:', vendorId);
+      // console.log('Tedarikçi adresleri getiriliyor:', vendorId);
       // Tedarikçi adreslerini getirmek için API çağrısı
       const response = await customerService.getCustomerAddresses(vendorId);
-      console.log('Tedarikçi adresleri API yanıtı:', response);
+      // console.log('Tedarikçi adresleri API yanıtı:', response);
       
       let addresses: CustomerAddress[] = [];
       
@@ -406,9 +406,9 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           isDefaultBillingAddress: addr.isDefaultBillingAddress,
           isDefaultShippingAddress: addr.isDefaultShippingAddress
         }));
-        console.log('API yanıtından dönüştürülen tedarikçi adresleri:', addresses);
+        // console.log('API yanıtından dönüştürülen tedarikçi adresleri:', addresses);
       } else {
-        console.log('API yanıtında tedarikçi adresi bulunamadı');
+        // console.log('API yanıtında tedarikçi adresi bulunamadı');
       }
       
       if (addresses.length > 0) {
@@ -425,8 +425,8 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
           address.isDefaultShippingAddress || address.isDefault
         );
         
-        console.log('Varsayılan fatura adresi:', defaultBillingAddress);
-        console.log('Varsayılan teslimat adresi:', defaultShippingAddress);
+        // console.log('Varsayılan fatura adresi:', defaultBillingAddress);
+        // console.log('Varsayılan teslimat adresi:', defaultShippingAddress);
         
         // Form alanlarını güncelle
         const formUpdate: any = {};
@@ -437,48 +437,48 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         // Fatura adresi seçimi
         if (defaultBillingAddress) {
           formUpdate.billingPostalAddressID = defaultBillingAddress.postalAddressId;
-          console.log('Varsayılan fatura adresi seçildi:', defaultBillingAddress.postalAddressId);
+          // console.log('Varsayılan fatura adresi seçildi:', defaultBillingAddress.postalAddressId);
         } else if (addresses.length === 1) {
           formUpdate.billingPostalAddressID = addresses[0].postalAddressId;
-          console.log('Tek adres olduğu için fatura adresi olarak seçildi:', addresses[0].postalAddressId);
+          // console.log('Tek adres olduğu için fatura adresi olarak seçildi:', addresses[0].postalAddressId);
         } else if (addresses.length > 1) {
           // Birden fazla adres varsa ve varsayılan yoksa, ilk adresi seç
           formUpdate.billingPostalAddressID = addresses[0].postalAddressId;
-          console.log('Varsayılan fatura adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
+          // console.log('Varsayılan fatura adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
         }
         
         // Teslimat adresi seçimi
         if (defaultShippingAddress) {
           formUpdate.shippingPostalAddressID = defaultShippingAddress.postalAddressId;
-          console.log('Varsayılan teslimat adresi seçildi:', defaultShippingAddress.postalAddressId);
+          // console.log('Varsayılan teslimat adresi seçildi:', defaultShippingAddress.postalAddressId);
         } else if (addresses.length === 1) {
           formUpdate.shippingPostalAddressID = addresses[0].postalAddressId;
-          console.log('Tek adres olduğu için teslimat adresi olarak seçildi:', addresses[0].postalAddressId);
+          // console.log('Tek adres olduğu için teslimat adresi olarak seçildi:', addresses[0].postalAddressId);
         } else if (addresses.length > 1) {
           // Birden fazla adres varsa ve varsayılan yoksa, ilk adresi seç
           formUpdate.shippingPostalAddressID = addresses[0].postalAddressId;
-          console.log('Varsayılan teslimat adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
+          // console.log('Varsayılan teslimat adresi bulunamadı, ilk adres seçildi:', addresses[0].postalAddressId);
         }
         
         // Form alanlarını güncelle
         if (Object.keys(formUpdate).length > 0) {
-          console.log('Form alanları güncelleniyor:', formUpdate);
+          // console.log('Form alanları güncelleniyor:', formUpdate);
           form.setFieldsValue(formUpdate);
           
           // Form alanlarının güncel değerlerini kontrol et
           setTimeout(() => {
             const currentValues = form.getFieldsValue(['billingPostalAddressID', 'shippingPostalAddressID', 'currAccCode']);
-            console.log('Form alanlarının güncel değerleri:', currentValues);
+            // console.log('Form alanlarının güncel değerleri:', currentValues);
             
             // Eğer adres alanları boşsa, tekrar dene
             if (!currentValues.billingPostalAddressID || !currentValues.shippingPostalAddressID) {
-              console.log('Adres alanları boş, tekrar ayarlanıyor...');
+              // console.log('Adres alanları boş, tekrar ayarlanıyor...');
               form.setFieldsValue(formUpdate);
               
               // Bir kez daha kontrol et
               setTimeout(() => {
                 const finalValues = form.getFieldsValue(['billingPostalAddressID', 'shippingPostalAddressID']);
-                console.log('Son form alanları değerleri:', finalValues);
+                // console.log('Son form alanları değerleri:', finalValues);
               }, 200);
             }
           }, 200);
@@ -502,14 +502,14 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   const fetchExchangeRate = async (currencyCodeParam?: string) => {
     // Önemli: Mevcut fatura tarihini sakla
     const currentInvoiceDate = form.getFieldValue('invoiceDate');
-    console.log('fetchExchangeRate: Mevcut tarih saklandı:', currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+    // console.log('fetchExchangeRate: Mevcut tarih saklandı:', currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
     
     const currencyCode = currencyCodeParam || form.getFieldValue('currencyCode');
     const invoiceDate = currentInvoiceDate; // Sakladığımız tarihi kullan
     const source = form.getFieldValue('exchangeRateSource') || exchangeRateSource;
     
     if (!currencyCode || !invoiceDate) {
-      console.log('Para birimi veya tarih eksik, döviz kuru alınamıyor');
+      // console.log('Para birimi veya tarih eksik, döviz kuru alınamıyor');
       return;
     }
     
@@ -537,7 +537,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
     setExchangeRateDisabled(true);
     
     try {
-      console.log(`Döviz kuru alınıyor: ${currencyCode}, Tarih: ${invoiceDate.format('YYYY-MM-DD')}, Kaynak: ${source}`);
+      // console.log(`Döviz kuru alınıyor: ${currencyCode}, Tarih: ${invoiceDate.format('YYYY-MM-DD')}, Kaynak: ${source}`);
       
       // Döviz kuru API'sini çağır - kaynak değerini API beklentisine göre dönüştür
       let apiSource = 'central_bank';
@@ -576,8 +576,8 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
       // Son kontrol: Tarih hala doğru mu?
       const finalDate = form.getFieldValue('invoiceDate');
       if (!finalDate || (currentInvoiceDate && !dayjs(finalDate).isSame(currentInvoiceDate))) {
-        console.log('fetchExchangeRate: Tarih değişmiş, tekrar yükleniyor:', 
-                    currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+        // console.log('fetchExchangeRate: Tarih değişmiş, tekrar yükleniyor:', currentInvoiceDate ? currentInvoiceDate.format('YYYY-MM-DD') : 'Tarih yok');
+
         form.setFieldsValue({ invoiceDate: currentInvoiceDate });
       }
     } catch (error) {
@@ -656,7 +656,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
   
   // Ödeme tipi değiştiğinde çalışacak fonksiyon
   const handlePaymentTypeChange = (value: string) => {
-    console.log('Ödeme tipi değişti:', value);
+    // console.log('Ödeme tipi değişti:', value);
     if (value === 'Peşin') {
       // Peşin seçilirse vade gün sıfırla ve vade tarihi fatura tarihine eşitle
       form.setFieldsValue({
@@ -804,16 +804,16 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         }
       });
       
-      console.log('Form başlangıcında tüm değerler (formatlı):', formattedValues);
+      // console.log('Form başlangıcında tüm değerler (formatlı):', formattedValues);
       
       // Mevcut ödeme tipi değerini al
       const currentPaymentType = form.getFieldValue('paymentType');
-      console.log('Ödeme tipi ham değer:', currentPaymentType, 'Türü:', typeof currentPaymentType);
+      // console.log('Ödeme tipi ham değer:', currentPaymentType, 'Türü:', typeof currentPaymentType);
       
       // API'den gelen verileri kontrol et
       const formType = form.getFieldValue('formType');
       const paymentTerm = form.getFieldValue('paymentTerm');
-      console.log('FormType:', formType, 'PaymentTerm:', paymentTerm);
+      // console.log('FormType:', formType, 'PaymentTerm:', paymentTerm);
       
       // Ödeme tipini normalize et
       let normalizedPaymentType;
@@ -831,7 +831,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         normalizedPaymentType = 'Peşin';
       }
       
-      console.log('Normalize edilmiş ödeme tipi:', normalizedPaymentType);
+      // console.log('Normalize edilmiş ödeme tipi:', normalizedPaymentType);
       
       // Önemli: Mevcut fatura tarihini kontrol et
       const currentInvoiceDate = form.getFieldValue('invoiceDate');
@@ -860,7 +860,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         }
       });
       
-      console.log('Form değerleri güncellendi (formatlı):', formattedUpdatedValues);
+      // console.log('Form değerleri güncellendi (formatlı):', formattedUpdatedValues);
     } catch (error) {
       console.error('Form değerleri ayarlanırken hata oluştu:', error);
     }
@@ -898,7 +898,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
             name="taxTypeCode"
             label="Vergi Türü"
             rules={[{ required: true, message: 'Lütfen vergi tipi seçin!' }]}
-            style={{ marginBottom: '12px' }}
+            style={{ marginBottom: '12px',marginLeft:'0' }}
           >
             <Select
               showSearch
@@ -940,7 +940,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
             name="isEInvoice"
             valuePropName="checked"
             label="Belge Türü"
-            style={{ marginBottom: '12px', textAlign: 'right', display: 'flex', justifyContent: 'flex-end' }}
+            style={{ marginBottom: '12px',marginLeft:'0' }}
           >
             <Switch 
               checkedChildren="E-Fatura" 
@@ -1124,13 +1124,13 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               normalize={(value) => {
                 // Form değerini normalize et
                 const normalized = normalizePaymentType(value);
-                console.log('Form normalize edildi:', value, '->', normalized);
+                // console.log('Form normalize edildi:', value, '->', normalized);
                 return normalized;
               }}
               getValueProps={(value) => {
                 // Değeri görüntülemek için normalize et
                 const normalized = normalizePaymentType(value);
-                console.log('getValueProps:', value, '->', normalized);
+                // console.log('getValueProps:', value, '->', normalized);
                 return { value: normalized };
               }}
             >
@@ -1237,7 +1237,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 size="middle"
                 style={{ width: '100%' }}
                 onChange={(value) => {
-                  console.log('Para birimi seçildi:', value);
+                  // console.log('Para birimi seçildi:', value);
                   handleCurrencyChange(value);
                 }}
                 filterOption={(input, option) => {
@@ -1435,7 +1435,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 onChange={(value) => {
                   if (!value) return;
                   
-                  console.log('Seçilen müşteri kodu:', value);
+                  // console.log('Seçilen müşteri kodu:', value);
                   
                   // Form alanını güncelle (artık currAccCode olarak)
                   form.setFieldsValue({ currAccCode: value });
@@ -1456,7 +1456,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                       
                       // Para birimi değişikliğini bildir
                       if (onCurrencyChange) {
-                        console.log('Müşteri seçimi sonrası para birimi değişti:', customer.currencyCode);
+                        // console.log('Müşteri seçimi sonrası para birimi değişti:', customer.currencyCode);
                         onCurrencyChange(customer.currencyCode);
                       }
                     } else {
@@ -1522,7 +1522,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                 onChange={(value) => {
                   if (!value) return;
                   
-                  console.log('Seçilen tedarikçi kodu:', value);
+                  // console.log('Seçilen tedarikçi kodu:', value);
                   
                   // Form alanını güncelle (artık currAccCode olarak)
                   form.setFieldsValue({ currAccCode: value });
@@ -1543,7 +1543,7 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
                       
                       // Para birimi değişikliğini bildir
                       if (onCurrencyChange) {
-                        console.log('Tedarikçi seçimi sonrası para birimi değişti:', vendor.currencyCode);
+                        // console.log('Tedarikçi seçimi sonrası para birimi değişti:', vendor.currencyCode);
                         onCurrencyChange(vendor.currencyCode);
                       }
                     } else {
@@ -1589,14 +1589,14 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               loading={loadingShipmentMethods}
               onChange={(value) => {
                 if (!value) return;
-                console.log('Sevkiyat yöntemi seçildi:', value);
+                // console.log('Sevkiyat yöntemi seçildi:', value);
                 // Seçilen değeri doğrudan form alanına ata
                 form.setFieldsValue({ ShipmentMethodCode: value });
                 
                 // Form alanının güncel değerini kontrol et
                 setTimeout(() => {
                   const currentValue = form.getFieldValue('ShipmentMethodCode');
-                  console.log('Sevkiyat yöntemi form alanı güncel değeri:', currentValue);
+                  // console.log('Sevkiyat yöntemi form alanı güncel değeri:', currentValue);
                 }, 100);
               }}
               filterOption={(input, option) => {
@@ -1646,14 +1646,14 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               loading={loadingAddresses}
               onChange={(value) => {
                 if (!value) return;
-                console.log('Teslimat adresi seçildi:', value);
+                // console.log('Teslimat adresi seçildi:', value);
                 // Seçilen değeri doğrudan form alanına ata
                 form.setFieldsValue({ shippingPostalAddressID: value });
                 
                 // Form alanının güncel değerini kontrol et
                 setTimeout(() => {
                   const currentValue = form.getFieldValue('shippingPostalAddressID');
-                  console.log('Teslimat adresi form alanı güncel değeri:', currentValue);
+                  // console.log('Teslimat adresi form alanı güncel değeri:', currentValue);
                 }, 100);
               }}
               filterOption={(input, option) => {
@@ -1703,14 +1703,14 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
               loading={loadingAddresses}
               onChange={(value) => {
                 if (!value) return;
-                console.log('Fatura adresi seçildi:', value);
+                // console.log('Fatura adresi seçildi:', value);
                 // Seçilen değeri doğrudan form alanına ata
                 form.setFieldsValue({ billingPostalAddressID: value });
                 
                 // Form alanının güncel değerini kontrol et
                 setTimeout(() => {
                   const currentValue = form.getFieldValue('billingPostalAddressID');
-                  console.log('Fatura adresi form alanı güncel değeri:', currentValue);
+                  // console.log('Fatura adresi form alanı güncel değeri:', currentValue);
                 }, 100);
               }}
               filterOption={(input, option) => {
@@ -1752,7 +1752,6 @@ const InvoiceHeader: React.FC<InvoiceHeaderProps> = ({
         <Col xs={24} sm={12}>
           <Form.Item
             name="notes"
-            label="Notlar"
           >
             <Input.TextArea rows={3} placeholder="Fatura ile ilgili notlar..." />
           </Form.Item>

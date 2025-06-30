@@ -16,7 +16,7 @@ instance.interceptors.request.use(
     // Login ve register endpoint'leri için token kontrolünü atla
     const url = config.url || '';
     if (url.includes('/login') || url.includes('/register')) {
-      console.log(`🔓 Axios: ${url} için token kontrolü atlanıyor (auth endpoint)`);
+      // console.log(`🔓 Axios: ${url} için token kontrolü atlanıyor (auth endpoint)`);
       return config;
     }
     
@@ -26,7 +26,7 @@ instance.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
       // İstek detaylarını daha açıklayıcı şekilde logla
       const method = config.method?.toUpperCase() || 'UNKNOWN';
-      console.log(`🔐 Axios [${method}] ${url}: Token eklendi (${token.substring(0, 10)}...)`);
+      // console.log(`🔐 Axios [${method}] ${url}: Token eklendi (${token.substring(0, 10)}...)`);
     } else {
       const method = config.method?.toUpperCase() || 'UNKNOWN';
       console.warn(`⚠️ Axios [${method}] ${url}: Token bulunamadı!`);
@@ -36,7 +36,7 @@ instance.interceptors.request.use(
     const selectedDatabaseId = localStorage.getItem('selectedDatabaseId');
     if (selectedDatabaseId && !url.includes('/login') && !url.includes('/register') && !url.includes('/UserDatabase/current-user')) {
       config.headers['X-Database-Id'] = selectedDatabaseId;
-      console.log(`💾 Axios [${config.method?.toUpperCase() || 'UNKNOWN'}] ${url}: Veritabanı ID eklendi (${selectedDatabaseId})`);
+      // console.log(`💾 Axios [${config.method?.toUpperCase() || 'UNKNOWN'}] ${url}: Veritabanı ID eklendi (${selectedDatabaseId})`);
     }
     
     return config;
@@ -72,7 +72,7 @@ instance.interceptors.response.use(
           window.location.href = '/login';
         }, 100);
       } else {
-        console.log(`🔓 Axios: URL'de token parametresi bulundu, login yönlendirmesi atlanıyor`);
+        // console.log(`🔓 Axios: URL'de token parametresi bulundu, login yönlendirmesi atlanıyor`);
       }
     }
     return Promise.reject(error);

@@ -7,5 +7,3 @@ export const Grid: React.FC<any> = (props) => {
   const { item, ...otherProps } = props;
   return <MuiGrid {...otherProps} />;
 };
-
-export default Grid; 

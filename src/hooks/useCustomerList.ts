@@ -14,29 +14,40 @@ interface CustomerListResult {
 }
 
 interface UseCustomerListParams {
-  page: number;
+  page?: number;
+  offset?: number;
   pageSize?: number;
   searchTerm?: string;
   sortField?: string;
   sortDirection?: 'asc' | 'desc';
   customerTypeCode?: number;
+  useLazyLoading?: boolean;
 }
 
 export const useCustomerList = ({ 
-  page, 
+  page = 1, 
+  offset = 0,
   pageSize = 10,
   searchTerm, 
   sortField, 
   sortDirection,
-  customerTypeCode
+  customerTypeCode,
+  useLazyLoading = false
 }: UseCustomerListParams) => {
   return useQuery<CustomerListResult, Error>({
-    queryKey: ['customers', page, pageSize, searchTerm, sortField, sortDirection, customerTypeCode],
+    queryKey: ['customers', page, offset, pageSize, searchTerm, sortField, sortDirection, customerTypeCode, useLazyLoading],
     queryFn: async () => {
       const filter: CustomerFilterRequest = {
-        pageNumber: page,
+        pageNumber: useLazyLoading ? Math.floor(offset / pageSize) + 1 : page,
         pageSize: pageSize
       };
+      
+      console.log('useCustomerList: Fetching with params:', { 
+        useLazyLoading, 
+        offset, 
+        page: filter.pageNumber, 
+        pageSize 
+      });
       
       // Müşteri adı veya kodu ile arama için
       if (searchTerm) {

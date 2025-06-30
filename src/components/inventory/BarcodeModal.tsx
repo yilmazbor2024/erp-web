@@ -65,13 +65,15 @@ interface BarcodeModalProps {
   onCancel: () => void;
   onAdd: (products: ScannedProduct[]) => void;
   warehouseCode?: string;
+  onScan?: (barcode: string) => void;
 }
 
 const BarcodeModal: React.FC<BarcodeModalProps> = ({
   visible,
   onCancel,
   onAdd,
-  warehouseCode
+  warehouseCode,
+  onScan
 }) => {
   const [searchText, setSearchText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
@@ -340,6 +342,11 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     console.log('Barkod tarandı:', cleanBarcode);
     setSearchText(cleanBarcode);
     setShowScanner(false); // Tarama başarılı olduğunda tarayıcıyı kapat
+    
+    // onScan prop'u varsa çağır
+    if (onScan) {
+      onScan(cleanBarcode);
+    }
     
     console.log('Seçili ürünler:', selectedProducts);
     

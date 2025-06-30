@@ -1,8 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import jsQR from 'jsqr';
-
-// @ts-ignore - Quagga için tip tanımlamaları yok
-import Quagga from 'quagga';
+import { Html5Qrcode, Html5QrcodeScannerState, Html5QrcodeResult, QrcodeSuccessCallback, QrcodeErrorCallback } from 'html5-qrcode';
 
 interface BarcodeScannerProps {
   onScan: (barcode: string) => void;
@@ -23,69 +20,145 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   initialScanMode = 'barcode',
   inputRef
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const quaggaContainerRef = useRef<HTMLDivElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  // State ve ref tanımlamaları
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState<boolean>(false);
+  const scannerContainerRef = useRef<HTMLDivElement>(null);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const quaggaInitializedRef = useRef<boolean>(false);
   const lastDetectedRef = useRef<{barcode: string, timestamp: number}>({barcode: '', timestamp: 0});
-  
   const [hasCamera, setHasCamera] = useState<boolean>(true);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [scanMode, setScanMode] = useState<'qr' | 'barcode'>(initialScanMode);
-  const [cameraFocused, setCameraFocused] = useState<boolean>(false);
-  const [showSuccess, setShowSuccess] = useState<boolean>(false);
   
-  // CSS keyframes animasyonu için stil
-  const pulseKeyframes = `
-    @keyframes pulse {
-      0% { opacity: 0.6; }
-      50% { opacity: 0.9; }
-      100% { opacity: 0.6; }
-    }
-  `;
-
-  // Geliştirilmiş kamera odaklama fonksiyonu - 10-13 cm mesafe için optimize edildi
-  const focusCamera = async () => {
+  // Tarayıcı başlatma fonksiyonu
+  const startScanner = async () => {
+    if (!scannerContainerRef.current) return;
+    
     try {
-      if (!streamRef.current) return;
+      // Mevcut tarayıcıyı temizle
+      if (html5QrCodeRef.current) {
+        await stopScanner();
+      }
       
-      const track = streamRef.current.getVideoTracks()[0];
-      if (!track) return;
-      
-      // TypeScript hatalarını önlemek için any tipini kullan
-      const capabilities = track.getCapabilities() as any;
-      
-      // Tüm odaklama modlarını dene - yakın mesafe için optimize
-      const focusModes = ['continuous', 'single-shot', 'manual', 'auto'];
-      
-      // Eğer kamera odaklama özelliğini destekliyorsa
-      if (capabilities && capabilities.focusMode) {
-        for (const mode of focusModes) {
-          if (capabilities.focusMode.includes(mode)) {
-            try {
-              // TypeScript hatalarını önlemek için any tipini kullan
-              await (track as any).applyConstraints({
-                advanced: [{ 
-                  focusMode: mode,
-                  // Odak mesafesini yakın ayarla (10-13 cm için)
-                  focusDistance: mode === 'manual' ? 0.11 : undefined // 0.11 yaklaşık 11cm'ye denk gelir
-                }]
-              });
-              
-              console.log(`Kamera odaklama modu ayarlandı: ${mode}`);
-              
-              // Odaklama başarılı
-              setCameraFocused(true);
-              break;
-            } catch (e) {
-              console.log(`Odaklama modu ayarlama hatası (${mode}):`, e);
+      // Kamera listesini al
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length) {
+        // Arka kamera varsa onu kullan, yoksa ilk kamerayı kullan
+        const backCamera = devices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('arka') ||
+          device.label.toLowerCase().includes('rear')
+        );
+        
+        const selectedCameraId = backCamera ? backCamera.id : devices[0].id;
+        
+        // HTML5 QR Code tarayıcısını başlat
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        html5QrCodeRef.current = html5QrCode;
+        
+        // Html5Qrcode için yapılandırma
+        const config = {
+          fps: 10,
+          qrbox: { width: 400, height: 200 },
+          aspectRatio: 1.0,
+          // BarcodeFormat türünü kullanmadan string olarak belirtiyoruz
+          formatsToSupport: [
+            'EAN_13',
+            'CODE_39',
+            'CODE_128',
+            'QR_CODE',
+          ] as any,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
+        };
+        
+        await html5QrCode.start(
+          selectedCameraId, 
+          config, 
+          (decodedText, decodedResult) => {
+            handleScan(decodedText, decodedResult);
+          },
+          (errorMessage) => {
+            // Hata mesajlarını filtreleme
+            // Sadece gerçek hatalar için loglama yapıyoruz
+            if (!(errorMessage.includes('No MultiFormat Readers') || errorMessage.includes('No barcode or QR code detected'))) {
+              console.error('QR tarama hatası:', errorMessage);
             }
           }
-        }
+        );
+        
+        // Kamera odaklama ayarları
+        setTimeout(() => {
+          focusCamera();
+        }, 1000);
+        
       } else {
-        console.log('Bu kamera odaklama özelliğini desteklemiyor');
+        console.error('Kamera bulunamadı');
+        setHasCamera(false);
+      }
+    } catch (error) {
+      console.error('Tarayıcı başlatma hatası:', error);
+      setHasCamera(false);
+    }
+  };
+  
+  // Tarayıcıyı durdurma fonksiyonu
+  const stopScanner = async () => {
+    if (html5QrCodeRef.current) {
+      try {
+        if (html5QrCodeRef.current.getState() === Html5QrcodeScannerState.SCANNING) {
+          await html5QrCodeRef.current.stop();
+          console.log('Tarayıcı durduruldu');
+        }
+      } catch (error) {
+        console.error('Tarayıcı durdurma hatası:', error);
+      }
+    }
+  };
+  
+  // Kamera odaklama fonksiyonu - 5-10 cm mesafe için optimize edildi
+  const focusCamera = async () => {
+    try {
+      const videoElement = document.querySelector('#qr-reader video') as HTMLVideoElement;
+      if (!videoElement) {
+        console.warn('Video elementi bulunamadı');
+        return;
+      }
+      
+      // MediaStream'i al
+      const stream = videoElement.srcObject as MediaStream;
+      if (!stream) {
+        console.warn('Video stream bulunamadı');
+        return;
+      }
+      
+      const track = stream.getVideoTracks()[0];
+      if (!track) {
+        console.warn('Video track bulunamadı');
+        return;
+      }
+      
+      // Kamera özelliklerini al
+      const capabilities = track.getCapabilities();
+      
+      // Eğer kamera manuel odaklama destekliyorsa
+      if (capabilities && 
+          'focusMode' in capabilities && 
+          Array.isArray(capabilities.focusMode) && 
+          capabilities.focusMode.includes('manual') && 
+          'focusDistance' in capabilities) {
+        
+        // Kamera ayarlarını yapılandır - 5-10 cm mesafe için
+        const constraints = {
+          advanced: [{
+            focusMode: 'manual',
+            focusDistance: 0.07, // 7cm mesafe için sabit odak (5-10cm aralığının ortası)
+            zoom: 1.0
+          }]
+        };
+        
+        await track.applyConstraints(constraints as MediaTrackConstraints);
+        console.log('Manuel odaklama ayarlandı: 7cm (5-10cm aralığı)');
+        return true;
       }
       
       // Ek olarak, maksimum çözünürlük ve kare hızı ayarla - yakın mesafe için optimize
@@ -93,591 +166,172 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         await track.applyConstraints({
           width: { ideal: 1280, min: 640 },
           height: { ideal: 720, min: 480 },
-          frameRate: { ideal: 30, min: 15 }
+          frameRate: { ideal: 25, max: 30 }
         });
-        console.log('Kamera çözünürlük ve kare hızı ayarlandı');
-      } catch (e) {
-        console.log('Kamera çözünürlük ayarlama hatası:', e);
+        console.log('Kamera çözünürlük ve kare hızı optimize edildi');
+      } catch (err) {
+        console.warn('Kamera çözünürlük ayarı yapılamadı:', err);
       }
       
+      // Alternatif odaklama modu dene
+      try {
+        await track.applyConstraints({
+          advanced: [{ focusMode: 'continuous' } as any]
+        });
+        console.log('Alternatif odaklama modu ayarlandı');
+        return true;
+      } catch (err) {
+        console.warn('Alternatif odaklama ayarlanamadı:', err);
+      }
+      
+      console.log('Kamera odaklama ayarlanamadı, varsayılan ayarlar kullanılıyor');
+      return false;
     } catch (error) {
       console.error('Kamera odaklama hatası:', error);
+      return false;
     }
   };
-
-  // QR kod tarama fonksiyonu - jsQR kullanır
-  const scanQRCode = () => {
-    if (!videoRef.current || !canvasRef.current || !isScanning) return;
+  
+  // Barkod tarama başarılı olduğunda çağrılacak fonksiyon
+  const handleScan = (decodedText: string, decodedResult: Html5QrcodeResult) => {
+    const now = Date.now();
+    const lastDetected = lastDetectedRef.current;
     
-    setIsProcessing(true);
-    
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    // willReadFrequently özelliğini ekleyerek canvas performansını artır
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    
-    if (!context) {
-      setIsProcessing(false);
+    // Aynı barkodu tekrar okumamak için kontrol - 5 saniye bekleme süresi
+    if (lastDetected.barcode === decodedText && now - lastDetected.timestamp < 5000) {
       return;
     }
     
-    // Video boyutlarını canvas'a ayarla
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    lastDetectedRef.current = { barcode: decodedText, timestamp: now };
     
-    // Video frame'ini canvas'a çiz
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    // Başarılı tarama efektleri
+    setShowSuccessAnimation(true);
+    setTimeout(() => setShowSuccessAnimation(false), 1500);
     
-    // Canvas'tan görüntü verilerini al
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    // Bip sesi çal
+    playBipSound();
     
-    // jsQR ile QR kodu tara
-    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-      inversionAttempts: 'dontInvert',
-    });
+    // Barkodu input alanına yaz ve enter tuşuna bas
+    writeToInputAndPressEnter(decodedText);
     
-    if (code) {
-      const now = Date.now();
-      
-      // Aynı barkodu kısa süre içinde tekrar taramayı önle
-      if (!lastDetectedRef.current.barcode || 
-          lastDetectedRef.current.barcode !== code.data || 
-          (now - lastDetectedRef.current.timestamp) > 300) {
-        
-        lastDetectedRef.current = {barcode: code.data, timestamp: now};
-        
-        // Barkod bulunduğunda ses çal ve başarı efekti göster
-        playSuccessSound();
-        showSuccessEffect();
-        
-        // Barkod değerini gönder ve input'a yaz
-        onScan(code.data);
-        writeToInputAndPressEnter(code.data);
-        onScanComplete();
-        
-        // QR kod tarama işlemi tamamlandıktan sonra kısa bir duraklama
-        setIsProcessing(true);
-        setTimeout(() => {
-          setIsProcessing(false);
-        }, 50);
-      }
-    }
-    
-    setIsProcessing(false);
+    // Callback fonksiyonlarını çağır
+    onScan(decodedText);
+    onScanComplete();
   };
   
   // Barkod okunduğunda belirgin bir bip sesi çalma fonksiyonu
-  const playSuccessSound = () => {
+  const playBipSound = () => {
     try {
-      // Web Audio API kullanarak ses oluştur
       if (!audioContextRef.current) {
-        try {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        } catch (e) {
-          console.log('AudioContext oluşturulamadı:', e);
-          return; // Ses oluşturulamadı, sessiz devam et
-        }
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       
-      // Eğer ses bağlamı kapalıysa, yeni bir tane oluştur
-      if (audioContextRef.current.state === 'closed') {
-        try {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        } catch (e) {
-          console.log('AudioContext yeniden oluşturulamadı:', e);
-          return; // Ses oluşturulamadı, sessiz devam et
-        }
-      }
+      const context = audioContextRef.current;
+      const oscillator = context.createOscillator();
+      const gainNode = context.createGain();
       
-      // Eğer ses bağlamı askıya alınmışsa, devam ettir
-      if (audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume().catch(e => {
-          console.log('AudioContext devam ettirilemedi:', e);
-        });
-      }
+      oscillator.connect(gainNode);
+      gainNode.connect(context.destination);
       
-      // İlk ses - 1800 Hz kare dalga
-      const oscillator1 = audioContextRef.current.createOscillator();
-      oscillator1.type = 'square';
-      oscillator1.frequency.setValueAtTime(1800, audioContextRef.current.currentTime);
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 1500; // Yüksek frekanslı bip sesi
+      gainNode.gain.value = 0.1; // Ses seviyesi
       
-      // Ses seviyesi kontrolü
-      const gainNode1 = audioContextRef.current.createGain();
-      gainNode1.gain.setValueAtTime(0.2, audioContextRef.current.currentTime);
-      gainNode1.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.08);
+      oscillator.start();
       
-      // Bağlantıları kur ve sesi başlat
-      oscillator1.connect(gainNode1);
-      gainNode1.connect(audioContextRef.current.destination);
-      oscillator1.start();
-      oscillator1.stop(audioContextRef.current.currentTime + 0.08);
-      
-      // Kısa bir gecikme sonra ikinci ses - 2200 Hz kare dalga
+      // Kısa bir bip sesi
       setTimeout(() => {
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          const oscillator2 = audioContextRef.current.createOscillator();
-          oscillator2.type = 'square';
-          oscillator2.frequency.setValueAtTime(2200, audioContextRef.current.currentTime);
-          
-          const gainNode2 = audioContextRef.current.createGain();
-          gainNode2.gain.setValueAtTime(0.2, audioContextRef.current.currentTime);
-          gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.1);
-          
-          oscillator2.connect(gainNode2);
-          gainNode2.connect(audioContextRef.current.destination);
-          oscillator2.start();
-          oscillator2.stop(audioContextRef.current.currentTime + 0.1);
-        }
-      }, 100); // 100ms - ilk ses süresi
+        oscillator.stop();
+      }, 150);
       
     } catch (error) {
       console.error('Ses çalma hatası:', error);
     }
   };
-
-  // Başarı efekti gösterme fonksiyonu
-  const showSuccessEffect = () => {
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-    }, 300);
-  };
   
-  // Input alanına barkod yazma ve enter tuşuna basma fonksiyonu - daha seri çalışacak şekilde optimize edildi
+  // Input alanına barkod yazma ve enter tuşuna basma fonksiyonu
   const writeToInputAndPressEnter = (barcode: string) => {
     if (inputRef && inputRef.current) {
+      // Input alanı doluysa yeni barkod okuma yapma
+      if (inputRef.current.value && inputRef.current.value.trim() !== '') {
+        console.log('Input alanı dolu olduğu için yeni barkod yazılmadı:', barcode);
+        return;
+      }
+      
       try {
-        // Input alanına barkodu yaz
-        inputRef.current.value = barcode;
+        console.log('Barkod input alanına yazılıyor:', barcode);
         
-        // Input alanına odaklan
+        // Barkodu input alanına yaz
+        inputRef.current.value = barcode;
         inputRef.current.focus();
         
-        // Input değerini değiştir (React state güncellemesi için)
+        // Input event'lerini tetikle
         const inputEvent = new Event('input', { bubbles: true });
-        inputRef.current.dispatchEvent(inputEvent);
-        
-        // Change event tetikle
         const changeEvent = new Event('change', { bubbles: true });
+        inputRef.current.dispatchEvent(inputEvent);
         inputRef.current.dispatchEvent(changeEvent);
         
-        // Enter tuşuna basma olayını simüle et - daha hızlı çalışması için gecikmeyi azalt
+        // Enter tuşu olaylarını tetikle - biraz gecikme ile
         setTimeout(() => {
-          try {
-            // KeyDown
-            const keydownEvent = new KeyboardEvent('keydown', {
-              key: 'Enter',
-              code: 'Enter',
-              keyCode: 13,
-              which: 13,
-              bubbles: true,
-              cancelable: true
-            });
-            inputRef.current?.dispatchEvent(keydownEvent);
+          console.log('Enter tuşu olayları tetikleniyor');
+          if (inputRef.current) {
+            // Enter tuşu olaylarını tetikle
+            const keydownEvent = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true });
+            const keypressEvent = new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true });
+            const keyupEvent = new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true });
             
-            // KeyPress
-            const keypressEvent = new KeyboardEvent('keypress', {
-              key: 'Enter',
-              code: 'Enter',
-              keyCode: 13,
-              which: 13,
-              bubbles: true,
-              cancelable: true
-            });
-            inputRef.current?.dispatchEvent(keypressEvent);
-            
-            // KeyUp
-            const keyupEvent = new KeyboardEvent('keyup', {
-              key: 'Enter',
-              code: 'Enter',
-              keyCode: 13,
-              which: 13,
-              bubbles: true,
-              cancelable: true
-            });
-            inputRef.current?.dispatchEvent(keyupEvent);
+            inputRef.current.dispatchEvent(keydownEvent);
+            inputRef.current.dispatchEvent(keypressEvent);
+            inputRef.current.dispatchEvent(keyupEvent);
             
             // Arama butonunu bul ve tıkla
-            const parentElement = inputRef.current?.parentElement;
-            if (parentElement) {
-              const searchButton = parentElement.querySelector('button[type="button"]') as HTMLElement;
-              if (searchButton) {
-                searchButton.click();
-              }
+            const searchButton = document.querySelector('button[type="submit"]');
+            if (searchButton) {
+              console.log('Arama butonu bulundu ve tıklanıyor');
+              (searchButton as HTMLElement).click();
+            } else {
+              console.log('Arama butonu bulunamadı');
             }
-          } catch (eventError) {
-            console.error('Enter tuşu simülasyon hatası:', eventError);
+            
+            // Form submit olayını tetikle
+            const form = inputRef.current?.closest('form');
+            if (form) {
+              console.log('Form bulundu ve submit olayı tetikleniyor');
+              form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            } else {
+              console.log('Form bulunamadı');
+            }
+            
+            // Input alanını temizle (isteğe bağlı)
+            if (clearInput) {
+              setTimeout(() => {
+                if (inputRef.current) {
+                  console.log('Input alanı temizleniyor');
+                  inputRef.current.value = '';
+                  const inputEvent = new Event('input', { bubbles: true });
+                  inputRef.current.dispatchEvent(inputEvent);
+                }
+              }, 500); // Daha uzun bir gecikme ekledik, böylece arama işlemi tamamlanabilir
+            }
           }
-        }, 50);
-        
-        // Eğer input temizlenecekse, kısa bir gecikme sonrasında temizle
-        if (clearInput) {
-          setTimeout(() => {
-            if (inputRef.current) {
-              inputRef.current.value = '';
-              const inputEvent = new Event('input', { bubbles: true });
-              inputRef.current.dispatchEvent(inputEvent);
-            }
-          }, 500); // Daha uzun bir gecikme ekledik, böylece arama işlemi tamamlanabilir
-        }
+        }, 100);
       } catch (error) {
         console.error('Input yazma hatası:', error);
       }
     }
   };
   
-  // Geleneksel barkod tarama fonksiyonu - Quagga kullanır (EAN, UPC, Code128 vb.)
-  const startBarcodeScanner = () => {
-    if (!quaggaContainerRef.current || !isScanning) return;
-    
-    // Eğer Quagga zaten başlatıldıysa, tekrar başlatma
-    if (quaggaInitializedRef.current) {
-      console.log('Quagga zaten başlatılmış, tekrar başlatma atlatılıyor');
-      return;
-    }
-    
-    Quagga.init({
-      inputStream: {
-        name: 'Live',
-        type: 'LiveStream',
-        target: quaggaContainerRef.current,
-        constraints: {
-          facingMode: 'environment',
-          width: { min: 640, ideal: 1024 },
-          height: { min: 480, ideal: 768 },
-          aspectRatio: { min: 1, max: 2 }
-        },
-        area: {
-          top: "0%",
-          right: "0%",
-          left: "0%",
-          bottom: "0%"
-        },
-        singleChannel: false,
-        willReadFrequently: true
-      },
-      locator: {
-        patchSize: 'medium', // 10-13 cm mesafe için orta boy uygun
-        halfSample: false,   // Yakın mesafe için false daha iyi sonuç veriyor
-        debug: {
-          showCanvas: true,
-          showPatches: true,
-          showFoundPatches: true,
-          showSkeleton: true,
-          showLabels: true,
-          showPatchLabels: true,
-          showRemainingPatchLabels: true,
-          boxFromPatches: {
-            showTransformed: true,
-            showTransformedBox: true,
-            showBB: true
-          }
-        }
-      },
-      numOfWorkers: Math.max(2, navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency - 1, 4) : 2),
-      frequency: 5,
-      decoder: {
-        readers: [
-          'ean_reader',
-          'ean_8_reader',
-          'code_128_reader',
-          'code_39_reader',
-        ],
-        multiple: false
-      },
-      debug: {
-        drawBoundingBox: true,
-        showFrequency: true,
-        drawScanline: true,
-        showPattern: true
-      },
-      locate: true,
-      multiple: false
-    }, (err: Error | null | undefined) => {
-      if (err) {
-        console.error('Quagga başlatma hatası:', err);
-        setScanMode('qr');
-        return;
-      }
-      
-      console.log('Quagga başlatıldı');
-      quaggaInitializedRef.current = true;
-      
-      // Performans için throttling uygula
-      let lastProcessedTimestamp = 0;
-      const THROTTLE_MS = 150;
-      
-      // Barkod algılama kalitesini izle - throttled
-      Quagga.onProcessed((result: any) => {
-        const now = Date.now();
-        if (now - lastProcessedTimestamp < THROTTLE_MS) {
-          return;
-        }
-        
-        lastProcessedTimestamp = now;
-        
-        if (result && result.codeResult && result.codeResult.code && typeof result.codeResult.confidence !== 'undefined') {
-          const confidence = result.codeResult.confidence;
-          if (confidence > 0.9) {
-            console.log(`Yüksek güvenilirlik: ${confidence.toFixed(2)}, Kod: ${result.codeResult.code}`);
-          }
-        }
-      });
-      
-      // Performans için son algılama zamanını takip et
-      let lastDetectionTime = 0;
-      const DETECTION_THROTTLE_MS = 300;
-      
-      Quagga.onDetected((result: any) => {
-        const now = Date.now();
-        if (now - lastDetectionTime < DETECTION_THROTTLE_MS) {
-          return;
-        }
-        lastDetectionTime = now;
-        
-        if (!result || !result.codeResult) {
-          console.error('Geçersiz barkod sonucu:', result);
-          return;
-        }
-        
-        const barcode = result.codeResult.code;
-        const format = result.codeResult.format;
-        const confidence = result.codeResult.confidence;
-        
-        if (!barcode || !format) {
-          console.error('Eksik barkod bilgisi:', { barcode, format });
-          return;
-        }
-        
-        if (typeof confidence === 'undefined') {
-          console.log('Confidence değeri eksik, ancak barkod işleniyor:', { barcode, format });
-        }
-        
-        const confidenceDisplay = typeof confidence === 'number' ? confidence.toFixed(2) : 'N/A';
-        console.log(`Barkod bulundu: ${barcode}, Format: ${format}, Güvenilirlik: ${confidenceDisplay}`);
-        
-        // Barkod formatını, uzunluğunu ve güvenilirliğini kontrol et
-        const isValidFormat = ['ean_13', 'ean_8', 'upc', 'upc_e', 'code_128', 'code_39'].includes(format);
-        const isValidLength = (format === 'ean_13' && barcode.length === 13) || 
-                            (format === 'ean_8' && barcode.length === 8) || 
-                            ((format === 'upc' || format === 'upc_e') && barcode.length >= 11) ||
-                            ((format === 'code_128' || format === 'code_39') && barcode.length >= 4);
-        const isNumeric = /^\d+$/.test(barcode);
-        
-        // Güvenilirlik eşiği - formatına göre farklı eşikler kullan
-        const confidenceThreshold = format === 'ean_13' || format === 'ean_8' ? 0.7 : 0.6;
-        const confidenceValue = typeof confidence === 'number' ? confidence : 0;
-        
-        if ((isValidFormat && isValidLength) || (isNumeric && barcode.length >= 4)) {
-          if (typeof confidence === 'number' && confidence <= confidenceThreshold) {
-            console.log(`Düşük güvenilirlik ancak barkod işleniyor: ${confidence.toFixed(2)}`);
-          }
-          
-          if (!lastDetectedRef.current.barcode || 
-              lastDetectedRef.current.barcode !== barcode || 
-              (now - lastDetectedRef.current.timestamp) > 1000) {
-            
-            lastDetectedRef.current = {barcode: barcode, timestamp: now};
-            
-            setTimeout(() => {
-              playSuccessSound();
-              showSuccessEffect();
-            }, 0);
-            
-            try {
-              Quagga.stop();
-              quaggaInitializedRef.current = false;
-              console.log('Quagga durduruldu');
-            } catch (e) {
-              console.error('Quagga durdurma hatası:', e);
-            }
-            
-            // Barkod değerini gönder ve input'a yaz
-            onScan(barcode);
-            writeToInputAndPressEnter(barcode);
-            onScanComplete();
-            
-            setTimeout(() => {
-              if (isScanning && scanMode === 'barcode') {
-                startBarcodeScanner();
-              }
-            }, 1000);
-          }
-        }
-      });
-      
-      Quagga.start();
-    });
-  };
-  
-  // Tarama moduna göre uygun tarama fonksiyonunu çağır
-  const scanBarcode = () => {
-    if (scanMode === 'qr') {
-      scanQRCode();
-    }
-  };
-
-  // Kamera durdurma fonksiyonu
-  const stopCamera = () => {
-    // Video akışını durdur
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject = null;
-    }
-    
-    // Stream'i durdur
-    if (streamRef.current) {
-      const tracks = streamRef.current.getTracks();
-      tracks.forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    
-    // Quagga'yı durdur
-    if (quaggaInitializedRef.current) {
-      try {
-        Quagga.stop();
-        quaggaInitializedRef.current = false;
-        console.log('Quagga durduruldu (stopCamera)');
-      } catch (e) {
-        console.log('Quagga durdurma hatası:', e);
-      }
-    }
-    
-    setCameraFocused(false);
-    setIsProcessing(false);
-  };
-
-  // Kamera başlatma fonksiyonu
-  const startCamera = async () => {
-    try {
-      if (!isScanning) return { videoStream: null, scanInterval: undefined };
-      
-      // Tarama moduna göre farklı işlem yap
-      if (scanMode === 'barcode') {
-        console.log('Barkod tarama modu başlatılıyor...');
-        startBarcodeScanner();
-        return { videoStream: null, scanInterval: undefined };
-      }
-      
-      // QR kod modu için getUserMedia kullan
-      console.log('QR kod tarama modu başlatılıyor...');
-      
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('Bu tarayıcı kamera erişimini desteklemiyor');
-        setHasCamera(false);
-        return { videoStream: null, scanInterval: undefined };
-      }
-      
-      // Kamera erişimi iste - 10-13 cm mesafe için optimize edilmiş
-      const constraints = {
-        video: {
-          facingMode: 'environment',
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
-          advanced: [
-            {
-              focusMode: 'continuous'
-            }
-          ]
-        },
-        audio: false
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints as MediaStreamConstraints);
-      let videoStream = stream;
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        videoRef.current.play();
-        
-        setTimeout(() => {
-          focusCamera();
-        }, 1000);
-      }
-
-      // Tarama aralığını başlat
-      const scanInterval = setInterval(() => {
-        if (isScanning) {
-          scanQRCode();
-        } else {
-          clearInterval(scanInterval);
-        }
-      }, 500);
-      
-      return { videoStream, scanInterval };
-    } catch (error) {
-      console.error('Kamera erişim hatası:', error);
-      setHasCamera(false);
-      return { videoStream: null, scanInterval: undefined };
-    }
-  };
-
-  // Kaynakları temizleme fonksiyonu
-  const cleanupResources = () => {
-    // Video akışını durdur
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject = null;
-    }
-    
-    // Stream'i durdur
-    if (streamRef.current) {
-      const tracks = streamRef.current.getTracks();
-      tracks.forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    
-    // Quagga'yı durdur
-    if (quaggaInitializedRef.current) {
-      try {
-        Quagga.stop();
-        quaggaInitializedRef.current = false;
-        console.log('Quagga durduruldu (cleanupResources)');
-      } catch (e) {
-        console.log('Quagga durdurma hatası:', e);
-      }
-    }
-    
-    // lastDetectedRef'i sıfırla
-    lastDetectedRef.current = {barcode: '', timestamp: 0};
-  };
-  
-  // Tarama modunu değiştirme fonksiyonu
-  const toggleScanMode = () => {
-    // Önce kamerayı durdur
-    stopCamera();
-    
-    // Modu değiştir
-    setScanMode(scanMode === 'qr' ? 'barcode' : 'qr');
-    
-    // Kısa bir süre sonra yeni modda başlat
-    setTimeout(() => {
-      if (isScanning) {
-        startCamera();
-      }
-    }, 500);
-  };
-  
   // Kamera ve tarama işlemlerini başlat/durdur
   useEffect(() => {
-    let videoStream: MediaStream | null = null;
-    let scanInterval: NodeJS.Timeout | undefined;
-    let mounted = true; // Bileşenin hala mount edilmiş olup olmadığını takip et
-
-    if (isScanning && mounted) {
-      startCamera().then(result => {
-        if (result && mounted) { // Eğer bileşen hala mount edilmişse
-          videoStream = result.videoStream;
-          scanInterval = result.scanInterval;
-        }
-      });
+    if (isScanning) {
+      startScanner();
     } else {
-      cleanupResources();
+      stopScanner();
     }
     
     // Component unmount olduğunda kaynakları temizle
     return () => {
-      mounted = false; // Bileşen unmount edildi
-      cleanupResources();
+      stopScanner();
       
       // AudioContext'i temizle
       if (audioContextRef.current) {
@@ -689,7 +343,79 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         }
       }
     };
-  }, [isScanning, onScan, onScanComplete, scanMode]);
+  }, [isScanning]);
+  
+  // CSS animasyonu ekle
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes fadeOut {
+        0% { opacity: 0.7; }
+        100% { opacity: 0; }
+      }
+      
+      .barcode-success-animation {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 255, 0, 0.3);
+        animation: fadeOut 1.5s ease-out forwards;
+        pointer-events: none;
+        z-index: 10;
+      }
+      
+      #qr-reader {
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+      
+      #qr-reader video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      
+      #qr-reader__scan_region {
+        position: relative;
+      }
+      
+      #qr-reader__scan_region img {
+        display: none;
+      }
+      
+      #qr-reader__dashboard {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        padding: 5px;
+        border-radius: 5px;
+        font-size: 12px;
+        display: flex;
+        justify-content: center;
+      }
+      
+      #qr-reader__dashboard_section_csr button {
+        background-color: #1890ff;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        margin: 0 5px;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   
   return (
     <div style={{ 
@@ -699,8 +425,6 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
       overflow: 'hidden',
       backgroundColor: '#000' 
     }}>
-      <style>{pulseKeyframes}</style>
-      
       {!hasCamera && (
         <div style={{ 
           position: 'absolute', 
@@ -721,7 +445,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           <button 
             onClick={() => {
               setHasCamera(true);
-              setTimeout(() => startCamera(), 500);
+              setTimeout(() => startScanner(), 500);
             }}
             style={{
               padding: '8px 16px',
@@ -737,59 +461,18 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         </div>
       )}
       
-      {/* QR kod modu için video elementi */}
-      {scanMode === 'qr' && (
-        <video 
-          ref={videoRef} 
-          style={{ 
-            width: '100%', 
-            height: '100%', 
-            objectFit: 'cover',
-            display: isScanning ? 'block' : 'none'
-          }} 
-          muted 
-          playsInline
-        />
-      )}
-      
-      {/* Barkod modu için Quagga container */}
-      {scanMode === 'barcode' && (
-        <div 
-          ref={quaggaContainerRef} 
-          style={{ 
-            width: '100%', 
-            height: '100%',
-            overflow: 'hidden',
-            position: 'relative'
-          }}
-        />
-      )}
-      
-      <canvas 
-        ref={canvasRef} 
-        style={{ 
-          display: 'none',
-          position: 'absolute',
-          top: 0,
-          left: 0
-        }} 
+      <div 
+        id="qr-reader" 
+        ref={scannerContainerRef}
+        style={{
+          width: '100%',
+          height: '100%'
+        }}
       />
       
-      
-      {/* Başarılı tarama göstergesi */}
-      {showSuccess && (
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 255, 0, 0.15)', // %15 şeffaflık
-          animation: 'pulse 0.2s ease-in-out',
-          pointerEvents: 'none',
-          zIndex: 10,
-          border: '2px solid rgba(0, 255, 0, 0.5)' // Yeşil çerçeve
-        }} />
+      {/* Başarılı barkod okuma animasyonu */}
+      {showSuccessAnimation && (
+        <div className="barcode-success-animation" />
       )}
     </div>
   );

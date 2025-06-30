@@ -63,6 +63,10 @@ const StandaloneModal: React.FC<any> = (props) => {
   
   const handleClose = () => {
     setVisible(false);
+    // Modal kapandığında CashPaymentModalAPI.close'u da çağır
+    setTimeout(() => {
+      CashPaymentModalAPI.close();
+    }, 100);
     if (props.onCancel) {
       props.onCancel();
     }
@@ -70,6 +74,10 @@ const StandaloneModal: React.FC<any> = (props) => {
   
   const handleSuccess = (response: any) => {
     setVisible(false);
+    // Başarılı işlemden sonra da CashPaymentModalAPI.close'u çağır
+    setTimeout(() => {
+      CashPaymentModalAPI.close();
+    }, 100);
     if (props.onSuccess) {
       props.onSuccess(response);
     }
@@ -82,7 +90,7 @@ const StandaloneModal: React.FC<any> = (props) => {
       onCancel={handleClose}
       footer={null}
       width={800}
-      destroyOnClose={false}
+      destroyOnClose={true}
       maskClosable={false}
       keyboard={false}
       zIndex={1050}
@@ -197,7 +205,7 @@ export const CashPaymentModalAPI = {
         // React 18 ile null yerine boş bir fragment render etmek daha güvenli
         rootInstance.render(<></>);
         
-        // Temizlik için bir timeout kullan
+        // Temizlik için bir timeout kullan - daha uzun bir süre ver
         setTimeout(() => {
           try {
             // Modal root elementini gizle
@@ -209,15 +217,28 @@ export const CashPaymentModalAPI = {
               // Ek olarak, body'deki tüm antd modal masklarını temizle
               const masks = document.querySelectorAll('.ant-modal-mask');
               masks.forEach(mask => {
-                (mask as HTMLElement).style.display = 'none';
-                (mask as HTMLElement).remove(); // Mask elementini tamamen kaldır
+                if (mask && mask.parentNode) {
+                  (mask as HTMLElement).style.display = 'none';
+                  mask.parentNode.removeChild(mask); // Mask elementini tamamen kaldır
+                }
               });
               
               // Ant Design'ın modal-root elementlerini de kontrol et
               const antdRoots = document.querySelectorAll('.ant-modal-root');
               antdRoots.forEach(root => {
-                (root as HTMLElement).style.display = 'none';
-                (root as HTMLElement).remove(); // Root elementini tamamen kaldır
+                if (root && root.parentNode) {
+                  (root as HTMLElement).style.display = 'none';
+                  root.parentNode.removeChild(root); // Root elementini tamamen kaldır
+                }
+              });
+              
+              // Ant Design'ın modal-wrap elementlerini de temizle
+              const modalWraps = document.querySelectorAll('.ant-modal-wrap');
+              modalWraps.forEach(wrap => {
+                if (wrap && wrap.parentNode) {
+                  (wrap as HTMLElement).style.display = 'none';
+                  wrap.parentNode.removeChild(wrap);
+                }
               });
               
               // Body'nin overflow stilini eski haline getir
@@ -232,7 +253,7 @@ export const CashPaymentModalAPI = {
           } catch (error) {
             console.error('Modal temizleme hatası:', error);
           }
-        }, 100);
+        }, 200); // Süreyi 200ms'ye çıkardık
         
         console.log('Modal temizlendi');
       } catch (error) {

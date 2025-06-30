@@ -1024,11 +1024,21 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
               onClick={() => {
                 setBarcodeInput('');
                 setProductVariants([]);
+                setScannedItems([]);
+                setScanCount(0);
+                setScanStartTime(null);
+                setLastScanTime(null);
+                setScanTimes([]);
+                setAverageScanTime(0);
+                setScansPerSecond(0);
+                setDbFetchTimes([]);
+                setUiRenderTimes([]);
                 inputRef.current?.focus();
               }}
               icon={<DeleteOutlined />}
               style={{ width: '10%', flex: 1, padding: '0 8px' }}
               size={isMobile ? "large" : "middle"}
+              title="Tüm verileri temizle"
             />
           </div>
         </Col>

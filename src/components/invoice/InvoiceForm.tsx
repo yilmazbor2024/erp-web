@@ -692,95 +692,80 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   //     // TRY seçildiğinde, tüm fiyatları TRY olarak güncelle
   //     const updatedDetails = invoiceDetails.map(detail => ({
   //       ...detail,
-  //       currencyCode: 'TRY'
-  //     }));
-  //     setInvoiceDetails(updatedDetails);
-  //   }
-  // }, [currentCurrencyCode, exchangeRates]);
+// Ürün varyantlarını barkod ile arama
+const searchProductVariantsByBarcode = async (searchText: string) => {
+  if (!searchText) {
+    message.warning('Lütfen bir barkod girin');
+    return;
+  }
 
-  // Bir metnin barkod olup olmadığını kontrol et
-  const isBarcodeFormat = (text: string): boolean => {
-    // Barkodlar genellikle 8 veya 2 ile başlar, en az 12, en fazla 13 hanedir
-    const barcodeRegex = /^(8|2)\d{11,12}$/;
-    return barcodeRegex.test(text) && text.length >= 12 && text.length <= 13;
-  };
+  const existingItemIndex = scannedItems.findIndex(item =>
+    item.variant.barcode === searchText.trim() ||
+    item.variant.productCode === searchText.trim()
+  );
 
-  // Ürün varyantlarını barkod ile arama
-  const searchProductVariantsByBarcode = async (searchText: string) => {
-    if (!searchText) {
-      message.warning('Lütfen bir barkod girin');
-      return;
+  if (existingItemIndex !== -1) {
+    const updatedItems = [...scannedItems];
+    updatedItems[existingItemIndex].quantity += 1;
+    setScannedItems(updatedItems);
+    setProductVariants([]);
+    message.success('Ürün miktarı güncellendi');
+    return;
+  }
+
+  try {
+    setLoadingVariants(true);
+    
+    // Önce doğrudan barkod API'sini deneyelim
+    let result = await productApi.getProductVariantsByBarcode(searchText);
+    
+    // Eğer barkod API'si sonuç vermezse, genel arama metodunu deneyelim
+    if (!result || result.length === 0) {
+      console.log('Barkod API sonuç vermedi, genel arama deneniyor:', searchText);
+      result = await productApi.searchProducts(searchText);
     }
     
-    try {
-      setLoadingVariants(true);
-      
-      // Önce doğrudan barkod API'sini deneyelim
-      let result = await productApi.getProductVariantsByBarcode(searchText);
-      
-      // Eğer barkod API'si sonuç vermezse, genel arama metodunu deneyelim
-      if (!result || result.length === 0) {
-        console.log('Barkod API sonuç vermedi, genel arama deneniyor:', searchText);
-        result = await productApi.searchProducts(searchText);
-      }
-      
-      if (result && result.length > 0) {
-        setProductVariants(result);
-        // İlk bulunan varyantı otomatik olarak ekle
-        addVariantToScannedList(result[0]);
-      } else {
-        // Barkod ile bulunamadıysa uyarı göster
-        console.log('Barkod ile varyant bulunamadı');
-        message.warning(`'${searchText}' için hiçbir ürün bulunamadı`);
-        setProductVariants([]);
-      }
-    } catch (error) {
-      console.error('Barkod araması hatası:', error);
-      message.error('Barkod arama sırasında bir hata oluştu');
-      setProductVariants([]);
-    } finally {
-      setLoadingVariants(false);
-    }
-  };
-  
-  // Varyantı taranan ürünler listesine ekle
-  const addVariantToScannedList = (variant: ProductVariant) => {
-    if (!variant) {
-      console.error('Eklenecek varyant bulunamadı');
-      return;
-    }
-    // Aynı barkoda sahip ürün var mı kontrol et
-    const existingItemIndex = scannedItems.findIndex(item => 
-      item.variant.barcode === variant.barcode
-    );
-
-    if (existingItemIndex >= 0) {
-      // Varsa miktarını artır
-      const updatedItems = [...scannedItems];
-      updatedItems[existingItemIndex] = {
-        ...updatedItems[existingItemIndex],
-        quantity: updatedItems[existingItemIndex].quantity + 1
-      };
-      setScannedItems(updatedItems);
+    if (result && result.length > 0) {
+      setProductVariants(result);
+      // İlk bulunan varyantı otomatik olarak ekle
+      addVariantToScannedList(result[0]);
     } else {
-      // Yoksa yeni ekle
-      setScannedItems([...scannedItems, { variant, quantity: 1 }]);
+      // Barkod ile bulunamadıysa uyarı göster
+      console.log('Barkod ile varyant bulunamadı');
+      message.warning(`'${searchText}' için hiçbir ürün bulunamadı`);
+      setProductVariants([]);
     }
+  } catch (error) {
+    console.error('Barkod arama sırasında hata oluştu:', error);
+    message.error('Barkod arama sırasında bir hata oluştu');
+  } finally {
+    setLoadingVariants(false);
+  }
+};
 
-    // Başarı mesajı göster
-    message.success(`${variant.productDescription} listeye eklendi`);
-  };
-  
-  // Fatura detaylarını API için hazırla
-  const mapInvoiceDetailToRequest = (detail: InvoiceDetail) => {
-    return {
-      ...detail,
-      // InvoiceDetail tipinde bulunan alanları kullan
-      vatAmount: detail.vatAmount || 0,
-      discountAmount: detail.discountAmount || 0,
-      netAmount: detail.netAmount || 0
-    };
-  };
+const addVariantToScannedList = (variant: ProductVariant) => {
+  if (!variant) {
+    console.error('Eklenecek varyant bulunamadı');
+    return;
+  }
+  // Aynı barkoda sahip ürün var mı kontrol et
+  const existingItemIndex = scannedItems.findIndex(item => 
+    item.variant.barcode === variant.barcode
+  );
+
+  if (existingItemIndex > -1) {
+    // Ürün zaten listede varsa miktarını artır
+    const updatedScannedItems = [...scannedItems];
+    updatedScannedItems[existingItemIndex].quantity += 1;
+    setScannedItems(updatedScannedItems);
+    message.success(`${variant.productCode} - ${variant.colorDescription} miktarı güncellendi.`);
+  } else {
+    // Ürün listede yoksa yeni olarak ekle
+    setScannedItems(prevItems => [...prevItems, { variant, quantity: 1 }]);
+    message.success(`${variant.productCode} - ${variant.colorDescription} listeye eklendi.`);
+  }
+};
+
   
   // Satır tutarlarını hesapla
   const calculateLineAmounts = (detail: InvoiceDetail, currencyCode?: string): InvoiceDetail => {
@@ -2307,7 +2292,7 @@ const openBarcodeModal = () => {
                   taxTypes={taxTypes}
                   loadingTaxTypes={loadingTaxTypes}
                 />
-                <div className="invoice-footer-buttons" style={{ marginTop: '20px', textAlign: 'right' }}>
+                <div className="invoice-footer-buttons" style={{ marginBottom: '80px', textAlign: 'right' }}>
                   <Button 
                     type="primary" 
                     onClick={() => {
@@ -2391,7 +2376,7 @@ const openBarcodeModal = () => {
                 />
                 
                 {/* TOPLAM sekmesine kaydet butonu eklendi */}
-                <Row justify="end" className="invoice-footer-buttons" style={{ marginTop: '20px' }}>
+                <Row justify="end" className="invoice-footer-buttons" style={{ marginBottom: '70px',marginTop:'20px' }}>
                   <Col>
                     <Button 
                       type="primary" 
@@ -2415,11 +2400,7 @@ const openBarcodeModal = () => {
     <BarcodeModal
       open={barcodeModalVisible}
       onClose={() => {
-        // Barkod Modal'ı kapat
         setBarcodeModalVisible(false);
-        
-        // Tüm ilgili state'leri sıfırla
-        setBarcodeInput('');
         setProductVariants([]);
         setScannedItems([]);
       }}
@@ -2477,7 +2458,7 @@ const openBarcodeModal = () => {
       updateScannedItemPrice={(index, price) => {
         const updatedItems = [...scannedItems];
         updatedItems[index] = { 
-          ...updatedItems[index], 
+          ...updatedItems[index],
           variant: { 
             ...updatedItems[index].variant, 
             salesPrice1: price 
@@ -2548,7 +2529,6 @@ const openBarcodeModal = () => {
 
   </Card>
   );
-  // Not: invoice-page-container sınıfı mobil görünümde scroll sorununu çözmek için eklendi
 };
 
 export default InvoiceForm;

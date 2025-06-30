@@ -161,7 +161,7 @@ const productApi = {
   // Ürün adı veya kodu ile arama yap
   async searchProducts(searchText: string): Promise<ProductVariant[]> {
     try {
-      console.log('Ürün araması yapılıyor:', searchText);
+      // console.log('Ürün araması yapılıyor:', searchText);
       
       // Ürün varyantlarını getirmek için getProductVariantsByProductCodeOrDescription fonksiyonunu kullan
       return await this.getProductVariantsByProductCodeOrDescription(searchText);
@@ -179,7 +179,7 @@ const productApi = {
         return [];
       }
       
-      console.log('Ürün kodu/açıklaması ile arama yapılıyor:', searchText);
+      // console.log('Ürün kodu/açıklaması ile arama yapılıyor:', searchText);
       
       // Sadece ProductController endpoint'ini kullan
       const response = await axiosInstance.get(`/api/Product/variants/by-product-code-or-description`, {
@@ -191,7 +191,7 @@ const productApi = {
            (Array.isArray(response.data.items) && response.data.items.length > 0))) {
         
         const responseData = response.data.data || response.data.items;
-        console.log('Ürün kodu/açıklaması ile bulunan varyantlar:', responseData.length, 'adet');
+        // console.log('Ürün kodu/açıklaması ile bulunan varyantlar:', responseData.length, 'adet');
         
         // API'den gelen verileri ProductVariant formatına dönüştür
         const variants: ProductVariant[] = responseData.map((item: any) => ({
@@ -220,7 +220,7 @@ const productApi = {
       }
       
       // Bulunamadıysa boş dizi döndür
-      console.log('Ürün kodu/açıklaması ile varyant bulunamadı');
+      // console.log('Ürün kodu/açıklaması ile varyant bulunamadı');
       return [];
     } catch (error) {
       console.error('Ürün kodu veya açıklamasına göre ürün varyantları alınırken hata oluştu:', error);
@@ -230,7 +230,7 @@ const productApi = {
   // Çok amaçlı envanter/stok sorgulama
   async getInventoryStockMultiPurpose(params: InventoryStockParams): Promise<InventoryStock[]> {
     try {
-      console.log('Envanter/stok bilgileri getiriliyor... Parametreler:', params);
+      // console.log('Envanter/stok bilgileri getiriliyor... Parametreler:', params);
       
       const queryParams = new URLSearchParams();
       
@@ -243,9 +243,9 @@ const productApi = {
       if (params.warehouseCode) queryParams.append('warehouseCode', params.warehouseCode);
       if (params.showOnlyPositiveStock !== undefined) queryParams.append('showOnlyPositiveStock', params.showOnlyPositiveStock.toString());
       
-      console.log('Envanter API çağrısı yapılıyor:', `/api/Inventory/stock/multi-purpose?${queryParams.toString()}`);
+      // console.log('Envanter API çağrısı yapılıyor:', `/api/Inventory/stock/multi-purpose?${queryParams.toString()}`);
       const response = await axiosInstance.get<ApiResponse<InventoryStock[]>>(`/api/Inventory/stock/multi-purpose?${queryParams.toString()}`);
-      console.log('Envanter API yanıtı alındı:', response.data);
+      // console.log('Envanter API yanıtı alındı:', response.data);
       
       if (response.data && response.data.success) {
         return response.data.data.map((item: any) => ({
@@ -288,7 +288,7 @@ const productApi = {
   // Ürün listesini getir
   async getProducts(params?: ProductListParams): Promise<ProductListResponse> {
     try {
-      console.log('Ürün listesi getiriliyor... Parametreler:', params);
+      // console.log('Ürün listesi getiriliyor... Parametreler:', params);
       
       // API endpoint'ini değiştir: /api/products -> /api/Item
       const queryParams = new URLSearchParams();
@@ -305,7 +305,7 @@ const productApi = {
         
         // Ürün kodu araması için özel parametre ekleyelim
         queryParams.append('searchField', 'itemCode'); // Ürün kodu alanında ara
-        console.log(`Ürün kodu araması: "${searchTerm}"`);
+        // console.log(`Ürün kodu araması: "${searchTerm}"`);
       }
       
       // Diğer parametreleri ekle
@@ -317,12 +317,12 @@ const productApi = {
         if (params.isBlocked !== undefined) queryParams.append('isBlocked', params.isBlocked.toString());
       }
       
-      console.log('Ürün API çağrısı yapılıyor:', `/api/Item?${queryParams.toString()}`);
+      // console.log('Ürün API çağrısı yapılıyor:', `/api/Item?${queryParams.toString()}`);
       const response = await axiosInstance.get(`/api/Item?${queryParams.toString()}`);
-      console.log('Ürün API yanıtı alındı');
+      // console.log('Ürün API yanıtı alındı');
       
       if (response.data && response.data.success) {
-        console.log('Ürün API yanıtı başarılı');
+        // console.log('Ürün API yanıtı başarılı');
         
         // API yanıtını frontend modeliyle eşleştir
         const data = response.data.data;
@@ -334,11 +334,11 @@ const productApi = {
         if (data && data.items && Array.isArray(data.items)) {
           items = data.items;
           totalCount = data.totalCount || items.length;
-          console.log(`API yanıtında ${items.length} ürün bulundu`);
+          // console.log(`API yanıtında ${items.length} ürün bulundu`);
         } else if (data && Array.isArray(data)) {
           items = data;
           totalCount = items.length;
-          console.log(`API yanıtında dizi olarak ${items.length} ürün bulundu`);
+          // console.log(`API yanıtında dizi olarak ${items.length} ürün bulundu`);
         } else {
           console.warn('API yanıtında ürün verisi bulunamadı:', data);
         }
@@ -368,7 +368,7 @@ const productApi = {
           isBlocked: item.isBlocked || false
         }));
         
-        console.log(`${standardizedItems.length} ürün verisi standartlaştırıldı`);
+        // console.log(`${standardizedItems.length} ürün verisi standartlaştırıldı`);
         
         return {
           items: standardizedItems,
@@ -398,7 +398,7 @@ const productApi = {
         throw new Error('Bu sayfa bir ürün detayı değil, fiyat listesi sayfasıdır. Lütfen geçerli bir ürün kodu ile tekrar deneyin.');
       }
 
-      console.log(`Ürün detayı için istek yapılıyor: ${productCode}`);
+      // console.log(`Ürün detayı için istek yapılıyor: ${productCode}`);
       
       // Doğru endpoint'i kullan
       const response = await axiosInstance.get(`/api/Item/${productCode}`, {
@@ -649,15 +649,15 @@ const productApi = {
       
       // Barkod değerini temizle (boşluk vs.)
       const cleanBarcode = searchText.trim();
-      console.log(`Sadece barkod ile ürün varyantı aranıyor: ${cleanBarcode}`);
+      // console.log(`Sadece barkod ile ürün varyantı aranıyor: ${cleanBarcode}`);
       
       try {
         // Önce Item API'sini deneyelim
-        console.log(`/api/Item API'si deneniyor: ${cleanBarcode}`);
+        // console.log(`/api/Item API'si deneniyor: ${cleanBarcode}`);
         const itemResponse = await axiosInstance.get(`/api/Item/${cleanBarcode}`);
         
         if (itemResponse.data && itemResponse.data.success && itemResponse.data.data) {
-          console.log('Item API ile ürün bulundu:', itemResponse.data.data);
+          // console.log('Item API ile ürün bulundu:', itemResponse.data.data);
           const item = itemResponse.data.data;
           
           // Item API'den gelen veriyi ProductVariant formatına dönüştür
@@ -686,11 +686,11 @@ const productApi = {
           return [variant];
         }
       } catch (itemError) {
-        console.log('Item API ile ürün bulunamadı, Product API deneniyor:', itemError);
+        // console.log('Item API ile ürün bulunamadı, Product API deneniyor:', itemError);
       }
       
       // Item API başarısız olduysa Product API'yi dene
-      console.log(`Product API deneniyor: /api/Product/variants/by-barcode/${cleanBarcode}`);
+      // console.log(`Product API deneniyor: /api/Product/variants/by-barcode/${cleanBarcode}`);
       const response = await axiosInstance.get(`/api/Product/variants/by-barcode/${cleanBarcode}`);
       
       if (response.data && (response.data.success || response.data.isSuccess) && 
@@ -698,7 +698,7 @@ const productApi = {
            (Array.isArray(response.data.items) && response.data.items.length > 0))) {
         
         const responseData = response.data.data || response.data.items;
-        console.log('Barkod ile ürün varyantları bulundu:', responseData);
+        // console.log('Barkod ile ürün varyantları bulundu:', responseData);
         
         // API'den gelen verileri ProductVariant formatına dönüştür
         const variants: ProductVariant[] = responseData.map((item: any) => ({
@@ -727,7 +727,7 @@ const productApi = {
       }
       
       // Bulunamadıysa boş dizi döndür
-      console.log(`Barkod ${cleanBarcode} ile hiçbir API'den sonuç alınamadı`);
+      // console.log(`Barkod ${cleanBarcode} ile hiçbir API'den sonuç alınamadı`);
       return [];
     } catch (error) {
       console.error('Barkod ile ürün varyantları aranırken hata oluştu:', error);
@@ -742,24 +742,24 @@ const productApi = {
         throw new Error('Ürün kodu boş olamaz');
       }
       
-      console.log(`Ürün koduna göre varyantlar aranıyor: ${productCode}`);
+      // console.log(`Ürün koduna göre varyantlar aranıyor: ${productCode}`);
       
       // Önce API'den varyantları getirmeyi dene
       try {
         // URL yapısını değiştirdim, query parameter kullanıyorum
-        console.log(`API çağrısı yapılıyor: /api/Product/variants/by-product-code?productCode=${productCode}`);
+        // console.log(`API çağrısı yapılıyor: /api/Product/variants/by-product-code?productCode=${productCode}`);
         const response = await axiosInstance.get(`/api/Product/variants/by-product-code`, {
           params: { productCode }
         });
         
-        console.log('API yanıtı:', response.data);
+        // console.log('API yanıtı:', response.data);
         
         if (response.data && (response.data.success || response.data.isSuccess) && 
             ((Array.isArray(response.data.data) && response.data.data.length > 0) || 
              (Array.isArray(response.data.items) && response.data.items.length > 0))) {
           
           const responseData = response.data.data || response.data.items;
-          console.log('Ürün koduna göre varyantlar bulundu:', responseData);
+          // console.log('Ürün koduna göre varyantlar bulundu:', responseData);
           
           // API'den gelen verileri ProductVariant formatına dönüştür
           const variants: ProductVariant[] = responseData.map((item: any) => ({
@@ -787,13 +787,13 @@ const productApi = {
           return variants;
         }
       } catch (variantError) {
-        console.log('Ürün varyantları bulunamadı, ürün detayı deneniyor:', variantError);
+        // console.log('Ürün varyantları bulunamadı, ürün detayı deneniyor:', variantError);
       }
       
       // Varyantlar bulunamazsa, ürün detayını getir
       try {
         // Ürün detayını getir - URL encode ediyoruz ve parametreleri ayrı gönderiyoruz
-        console.log(`Ürün detayı aranıyor: /api/Item - searchTerm: ${productCode}`);
+        // console.log(`Ürün detayı aranıyor: /api/Item - searchTerm: ${productCode}`);
         const productResponse = await axiosInstance.get(`/api/Item`, {
           params: {
             searchTerm: productCode,
@@ -802,13 +802,13 @@ const productApi = {
           }
         });
         
-        console.log('Ürün detayı API yanıtı:', productResponse.data);
+        // console.log('Ürün detayı API yanıtı:', productResponse.data);
         
         if (productResponse.data && productResponse.data.success && productResponse.data.data && 
             Array.isArray(productResponse.data.data.items) && productResponse.data.data.items.length > 0) {
           
           const item = productResponse.data.data.items[0];
-          console.log('Ürün detayı bulundu:', item);
+          // console.log('Ürün detayı bulundu:', item);
           
           // Ürün detayını ProductVariant formatına dönüştür
           const variant: ProductVariant = {
@@ -858,7 +858,7 @@ const productApi = {
       
       // API dokümanında belirtilen kesin doğru endpoint
       const endpoint = `/api/Product/${productCode}/price-list`;
-      console.log(`Ürün fiyat listesi endpoint: ${endpoint}`);
+      // console.log(`Ürün fiyat listesi endpoint: ${endpoint}`);
       
       const response = await axiosInstance.get(endpoint);
       
@@ -866,7 +866,7 @@ const productApi = {
           (Array.isArray(response.data.data) || Array.isArray(response.data.items))) {
         
         const items = response.data.data || response.data.items || [];
-        console.log('Ürün fiyat listesi bulundu:', items.length, 'adet');
+        // console.log('Ürün fiyat listesi bulundu:', items.length, 'adet');
         
         // API'den gelen verileri ProductPriceList formatına dönüştür
         const priceList: ProductPriceList[] = items.map((item: any) => {

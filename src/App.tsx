@@ -84,6 +84,9 @@ import InventoryStockPage from './pages/inventory/InventoryStockPage';
 import WarehouseTransferListPage from './pages/inventory/WarehouseTransferListPage';
 import WarehouseTransferDetailPage from './pages/inventory/WarehouseTransferDetailPage';
 import WarehouseTransferFormPage from './pages/inventory/WarehouseTransferFormPage';
+import ProductionOrderListPage from './pages/inventory/ProductionOrderListPage';
+import ProductionOrderDetailPage from './pages/inventory/ProductionOrderDetailPage';
+import ProductionOrderFormPage from './pages/inventory/ProductionOrderFormPage';
 
 // Exchange Rate pages
 import ExchangeRatesPage from './pages/finance/ExchangeRatesPage';
@@ -241,6 +244,10 @@ function App() {
                   <Route path="warehouse-transfers/new" element={<AuthGuard><WarehouseTransferFormPage /></AuthGuard>} />
                   <Route path="warehouse-transfers/edit/:transferNumber" element={<AuthGuard><WarehouseTransferFormPage /></AuthGuard>} />
                   <Route path="warehouse-transfers/:transferNumber" element={<AuthGuard><WarehouseTransferDetailPage /></AuthGuard>} />
+                  <Route path="production-orders" element={<AuthGuard><ProductionOrderListPage /></AuthGuard>} />
+                  <Route path="production-orders/new" element={<AuthGuard><ProductionOrderFormPage /></AuthGuard>} />
+                  <Route path="production-orders/edit/:orderNumber" element={<AuthGuard><ProductionOrderFormPage /></AuthGuard>} />
+                  <Route path="production-orders/:orderNumber" element={<AuthGuard><ProductionOrderDetailPage /></AuthGuard>} />
                 </Route>
                 
                 {/* Finance Routes */}
