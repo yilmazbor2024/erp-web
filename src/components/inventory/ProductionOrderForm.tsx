@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Form, 
-  Input, 
-  Select, 
-  Button, 
-  Card, 
-  Tabs, 
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Divider,
+  Form,
+  Input,
+  InputNumber,
+  Select,
   Table, 
-  Space, 
-  Typography, 
-  Divider, 
+  Tabs,
+  Typography,
   message,
   Modal,
-  InputNumber,
   Row,
-  Col,
-  Checkbox
+  Space
 } from 'antd';
 import { 
   PlusOutlined, 
@@ -24,7 +24,7 @@ import {
   CloseOutlined,
   BarcodeOutlined
 } from '@ant-design/icons';
-import { WarehouseResponse } from '../../services/productionOrderApi';
+import { WarehouseResponse } from '../../services/warehouseTransferApi';
 import BarcodeModal from './BarcodeModal';
 
 const { Option } = Select;
@@ -32,7 +32,7 @@ const { Text } = Typography;
 const { TabPane } = Tabs;
 
 // Ürün satırı tipi
-interface ProductionItem {
+interface TransferItem {
   key: string;
   itemCode: string;
   itemName: string;
@@ -42,10 +42,22 @@ interface ProductionItem {
   itemDim1Name?: string;
   quantity: number;
   unitCode: string;
-  unitName?: string;
   barcode?: string;
   lineDescription?: string;
+  itemTypeCode?: number; // 1: Ürün, 2: Malzeme
+  currencyCode?: string; // Para birimi
+  costPrice?: number; // Maliyet fiyatı
+  costAmount?: number; // Maliyet tutarı
+  costPriceWithInflation?: number; // Enflasyon düzeltmeli maliyet fiyatı
+  costAmountWithInflation?: number; // Enflasyon düzeltmeli maliyet tutarı
   [key: string]: any; // String indeksleme için gerekli
+}
+
+// Form tipi enum
+export enum FormType {
+  WAREHOUSE_TRANSFER = 'warehouse_transfer', // Depolar arası transfer
+  PRODUCTION_ORDER = 'production_order',     // İmalat fişi
+  CONSUMPTION_ORDER = 'consumption_order'    // Sarf fişi
 }
 
 // Form props tipi
@@ -53,6 +65,7 @@ interface ProductionOrderFormProps {
   warehouses: WarehouseResponse[];
   onSave: (formData: any) => void;
   onCancel: () => void;
+  formType?: FormType; // Form tipi (varsayılan: depolar arası transfer)
   loading: boolean;
   initialValues?: any;
 }
@@ -62,22 +75,24 @@ const ProductionOrderForm: React.FC<ProductionOrderFormProps> = ({
   onSave,
   onCancel,
   loading,
-  initialValues
+  initialValues,
+  formType = FormType.WAREHOUSE_TRANSFER // Varsayılan olarak depolar arası transfer
 }) => {
   const [form] = Form.useForm();
-  const [items, setItems] = useState<ProductionItem[]>([]);
+  const [items, setItems] = useState<TransferItem[]>([]);
   const [activeTab, setActiveTab] = useState<string>('header');
   const [barcodeModalVisible, setBarcodeModalVisible] = useState<boolean>(false);
   const [totalQuantity, setTotalQuantity] = useState<number>(0);
-  const [targetWarehouse, setTargetWarehouse] = useState<string>('');
 
   // Form yüklendiğinde initial değerleri set et
   useEffect(() => {
     if (initialValues) {
       form.setFieldsValue({
+        sourceWarehouseCode: initialValues.sourceWarehouseCode,
         targetWarehouseCode: initialValues.targetWarehouseCode,
         description: initialValues.description || '',
         operationDate: initialValues.operationDate,
+        // shippingMethod kaldırıldı, her zaman "1" değeri gönderilecek
       });
 
       if (initialValues.items && initialValues.items.length > 0) {
@@ -96,134 +111,208 @@ const ProductionOrderForm: React.FC<ProductionOrderFormProps> = ({
 
   // Toplam miktarı hesapla
   useEffect(() => {
-    const total = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    const total = items.reduce((sum, item) => {
+      // quantity değeri string veya number olabilir, güvenli bir şekilde parse et
+      const itemQuantity = typeof item.quantity === 'string' 
+        ? parseFloat(item.quantity) || 0 
+        : (item.quantity || 0);
+      return sum + itemQuantity;
+    }, 0);
     setTotalQuantity(total);
   }, [items]);
 
-  // Form gönderme işlemi
-  const handleSubmit = () => {
-    form.validateFields()
-      .then(values => {
-        // Form değerlerini ve ürün satırlarını birleştir
-        const formData = {
-          ...values,
-          items: items.map(item => ({
-            itemCode: item.itemCode,
-            colorCode: item.colorCode || '',
-            itemDim1Code: item.itemDim1Code || '',
-            quantity: item.quantity,
-            unitCode: item.unitCode || 'AD',
-            lineDescription: item.lineDescription || '',
-            barcode: item.barcode || ''
-          }))
-        };
-        
-        onSave(formData);
-      })
-      .catch(info => {
-        console.log('Validate Failed:', info);
-        message.error('Lütfen form alanlarını kontrol ediniz');
-      });
-  };
-
-  // Yeni ürün satırı ekleme
-  const handleAddItem = () => {
-    const newItem: ProductionItem = {
-      key: Date.now().toString(),
+  // Yeni satır ekle
+  const addItem = () => {
+    const newItem: TransferItem = {
+      key: `item-${Date.now()}`,
       itemCode: '',
       itemName: '',
       quantity: 0,
-      unitCode: 'AD',
-      unitName: 'Adet'
+      unitCode: 'AD', // Varsayılan birim
+      itemTypeCode: 1, // Varsayılan olarak Ürün (1: Ürün, 2: Malzeme)
+      currencyCode: 'TRY', // Varsayılan para birimi
+      costPrice: 0,
+      costAmount: 0,
+      costPriceWithInflation: 0,
+      costAmountWithInflation: 0
     };
-    
     setItems([...items, newItem]);
-    
-    // Otomatik olarak ürünler tabına geç
-    setActiveTab('items');
   };
 
-  // Ürün satırı silme
-  const handleDeleteItem = (key: string) => {
+  // Satır sil
+  const removeItem = (key: string) => {
     setItems(items.filter(item => item.key !== key));
   };
 
-  // Ürün satırı güncelleme
-  const handleItemChange = (key: string, field: string, value: any) => {
-    const newItems = items.map(item => {
+  // Satır güncelle
+  const updateItem = (key: string, field: string, value: any) => {
+    setItems(items.map(item => {
       if (item.key === key) {
-        return { ...item, [field]: value };
+        // Değeri doğrudan güncelle
+        const updatedItem = { ...item, [field]: value };
+        
+        // Eğer miktar veya maliyet fiyatı değiştiyse, maliyet tutarını hesapla
+        if (field === 'quantity' || field === 'costPrice') {
+          // Null/undefined değerleri kontrol et
+          if (value === null || value === undefined) {
+            return updatedItem;
+          }
+          
+          try {
+            // Hesaplama için değerleri al
+            let quantity, costPrice;
+            
+            if (field === 'quantity') {
+              // Miktar alanı güncellendi
+              quantity = typeof value === 'string' ? parseFloat(value) : value;
+              costPrice = typeof item.costPrice === 'string' ? parseFloat(item.costPrice) : (item.costPrice || 0);
+            } else {
+              // Birim fiyat alanı güncellendi
+              quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity) : (item.quantity || 0);
+              costPrice = typeof value === 'string' ? parseFloat(value) : value;
+            }
+            
+            // NaN kontrolü
+            quantity = isNaN(quantity) ? 0 : quantity;
+            costPrice = isNaN(costPrice) ? 0 : costPrice;
+            
+            // Hassas decimal hesaplama
+            const costAmount = parseFloat((quantity * costPrice).toFixed(2));
+            updatedItem.costAmount = costAmount;
+            
+            // Enflasyon düzeltmeli değerleri de güncelle
+            const costPriceWithInflation = typeof item.costPriceWithInflation === 'string' 
+              ? parseFloat(item.costPriceWithInflation) 
+              : (item.costPriceWithInflation || costPrice);
+              
+            updatedItem.costAmountWithInflation = parseFloat((quantity * costPriceWithInflation).toFixed(2));
+            
+            // Hesaplama işlemi yapıldı
+          } catch (error) {
+            console.error('Hesaplama hatası:', error);
+          }
+        }
+        
+        return updatedItem;
       }
       return item;
-    });
-    
-    setItems(newItems);
+    }));
   };
 
-  // Barkod modalını açma
-  const handleOpenBarcodeModal = () => {
+  // Barkod modalını aç
+  const openBarcodeModal = () => {
     setBarcodeModalVisible(true);
   };
 
-  // Barkod okutma işlemi
-  const handleBarcodeScanned = (barcode: string) => {
-    // Burada barkod okutma işlemi yapılacak
-    // Gerçek uygulamada bu barkoda göre ürün bilgilerini getiren bir API çağrısı yapılabilir
-    message.info(`Barkod okutuldu: ${barcode}`);
+  // Barkod modalından ürün ekleme
+  const handleAddProductsFromBarcode = (products: any[]) => {
+    const newItems = products.map(product => {
+      // API'den gelen itemTypeCode değeri kullanılıyor
+      return {
+        key: `item-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        itemCode: product.itemCode,
+        itemName: product.itemName,
+        colorCode: product.colorCode,
+        colorName: product.colorName,
+        itemDim1Code: product.itemDim1Code,
+        itemDim1Name: product.itemDim1Name,
+        quantity: product.quantity,
+        unitCode: product.unitCode,
+        barcode: product.barcode,
+        // API'den gelen itemTypeCode değerini kullan
+        itemTypeCode: product.itemTypeCode,
+        lineDescription: form.getFieldValue('description') && form.getFieldValue('copyDescription') ? form.getFieldValue('description') : ''
+      };
+    });
+
+    setItems([...items, ...newItems]);
     setBarcodeModalVisible(false);
+  };
+
+  // Form gönderme
+  const handleSubmit = () => {
+    form.validateFields().then(values => {
+      if (items.length === 0) {
+        message.error('En az bir ürün satırı eklemelisiniz!');
+        return;
+      }
+
+      const formData = {
+        ...values,
+        innerProcessCode: "OC", // Sair Sarf Fişi için OC (Other Consumption) kodu
+        items: items.map(item => ({
+          itemCode: item.itemCode,
+          colorCode: item.colorCode,
+          itemDim1Code: item.itemDim1Code,
+          itemDim2Code: item.itemDim2Code,
+          itemDim3Code: item.itemDim3Code,
+          quantity: item.quantity, // Düzeltildi: Quantity -> quantity
+          unitCode: item.unitCode,
+          lineDescription: item.lineDescription,
+          itemTypeCode: item.itemTypeCode || 1, // Varsayılan olarak Ürün
+          currencyCode: item.currencyCode || 'TRY',
+          costPrice: item.costPrice || 0,
+          costAmount: item.costAmount || 0,
+          costPriceWithInflation: item.costPriceWithInflation || 0,
+          costAmountWithInflation: item.costAmountWithInflation || 0
+        }))
+      };
+
+      onSave(formData);
+    }).catch(error => {
+      console.error('Form validation failed:', error);
+    });
   };
 
   // Tablo sütunları
   const columns = [
     {
-      title: 'Stok Kodu',
+      title: 'Sıra',
+      dataIndex: 'key',
+      key: 'key',
+      width: 60,
+      render: (_: any, _record: any, index: number) => index + 1
+    },
+    {
+      title: 'Tip',
+      dataIndex: 'itemTypeCode',
+      key: 'itemTypeCode',
+      width: 100,
+      render: (text: number, record: TransferItem) => (
+        <Select
+          value={text || 1}
+          onChange={value => updateItem(record.key, 'itemTypeCode', value)}
+          size="small"
+          style={{ width: '100%' }}
+        >
+          <Option value={1}>Ürün</Option>
+          <Option value={2}>Malzeme</Option>
+        </Select>
+      )
+    },
+    {
+      title: 'Ürün',
       dataIndex: 'itemCode',
       key: 'itemCode',
-      width: 150,
-      render: (text: string, record: ProductionItem) => (
-        <Input
-          value={text}
-          onChange={(e) => handleItemChange(record.key, 'itemCode', e.target.value)}
-          placeholder="Stok Kodu"
+      width: 120,
+      render: (text: string, record: TransferItem) => (
+        <Input 
+          value={text} 
+          onChange={e => updateItem(record.key, 'itemCode', e.target.value)}
+          size="small"
         />
       )
     },
     {
-      title: 'Stok Adı',
+      title: 'Açıklama',
       dataIndex: 'itemName',
       key: 'itemName',
       width: 200,
-      render: (text: string, record: ProductionItem) => (
-        <Input
-          value={text}
-          onChange={(e) => handleItemChange(record.key, 'itemName', e.target.value)}
-          placeholder="Stok Adı"
-        />
-      )
-    },
-    {
-      title: 'Renk',
-      dataIndex: 'colorCode',
-      key: 'colorCode',
-      width: 120,
-      render: (text: string, record: ProductionItem) => (
-        <Input
-          value={text}
-          onChange={(e) => handleItemChange(record.key, 'colorCode', e.target.value)}
-          placeholder="Renk Kodu"
-        />
-      )
-    },
-    {
-      title: 'Beden',
-      dataIndex: 'itemDim1Code',
-      key: 'itemDim1Code',
-      width: 120,
-      render: (text: string, record: ProductionItem) => (
-        <Input
-          value={text}
-          onChange={(e) => handleItemChange(record.key, 'itemDim1Code', e.target.value)}
-          placeholder="Beden Kodu"
+      render: (text: string, record: TransferItem) => (
+        <Input 
+          value={text} 
+          onChange={e => updateItem(record.key, 'itemName', e.target.value)}
+          size="small"
         />
       )
     },
@@ -232,41 +321,76 @@ const ProductionOrderForm: React.FC<ProductionOrderFormProps> = ({
       dataIndex: 'quantity',
       key: 'quantity',
       width: 100,
-      render: (text: number, record: ProductionItem) => (
-        <InputNumber
+      render: (text: number, record: TransferItem) => (
+        <InputNumber 
+          value={text} 
+          onChange={value => {
+            updateItem(record.key, 'quantity', value);
+            // Miktar değiştiğinde maliyet tutarını otomatik hesapla
+            const quantity = value || 0;
+            const costPrice = record.costPrice || 0;
+            updateItem(record.key, 'costAmount', quantity * costPrice);
+          }}
+          size="small"
           min={0}
-          value={text}
-          onChange={(value) => handleItemChange(record.key, 'quantity', value)}
+          precision={record.itemTypeCode === 2 ? 2 : 0} // Malzeme için ondalıklı, ürün için tam sayı
+          step={record.itemTypeCode === 2 ? 0.01 : 1} // Malzeme için 0.01 adım, ürün için 1 adım
           style={{ width: '100%' }}
         />
       )
     },
     {
-      title: 'Birim',
-      dataIndex: 'unitCode',
-      key: 'unitCode',
+      title: 'Para Birimi',
+      dataIndex: 'currencyCode',
+      key: 'currencyCode',
       width: 100,
-      render: (text: string, record: ProductionItem) => (
+      render: (text: string, record: TransferItem) => (
         <Select
-          value={text || 'AD'}
-          onChange={(value) => handleItemChange(record.key, 'unitCode', value)}
+          value={text || 'TRY'}
+          onChange={value => updateItem(record.key, 'currencyCode', value)}
+          size="small"
           style={{ width: '100%' }}
         >
-          <Option value="AD">Adet</Option>
-          <Option value="KG">Kg</Option>
-          <Option value="MT">Metre</Option>
+          <Option value="TRY">TRY</Option>
+          <Option value="USD">USD</Option>
+          <Option value="EUR">EUR</Option>
+          <Option value="GBP">GBP</Option>
         </Select>
       )
     },
     {
-      title: 'Açıklama',
-      dataIndex: 'lineDescription',
-      key: 'lineDescription',
-      render: (text: string, record: ProductionItem) => (
-        <Input
-          value={text}
-          onChange={(e) => handleItemChange(record.key, 'lineDescription', e.target.value)}
-          placeholder="Açıklama"
+      title: 'Maliyet Fiyatı',
+      dataIndex: 'costPrice',
+      key: 'costPrice',
+      width: 120,
+      render: (text: number, record: TransferItem) => (
+        <InputNumber
+          value={text || 0}
+          onChange={value => {
+            updateItem(record.key, 'costPrice', value);
+            // Maliyet tutarını hesapla
+            const quantity = record.quantity || 0;
+            const costPrice = value || 0;
+            updateItem(record.key, 'costAmount', quantity * costPrice);
+          }}
+          size="small"
+          precision={2}
+          style={{ width: '100%' }}
+        />
+      )
+    },
+    {
+      title: 'Maliyet Tutarı',
+      dataIndex: 'costAmount',
+      key: 'costAmount',
+      width: 120,
+      render: (text: number, record: TransferItem) => (
+        <InputNumber
+          value={text || 0}
+          disabled={true} // Otomatik hesaplanacak
+          size="small"
+          precision={2}
+          style={{ width: '100%' }}
         />
       )
     },
@@ -274,158 +398,263 @@ const ProductionOrderForm: React.FC<ProductionOrderFormProps> = ({
       title: 'İşlem',
       key: 'action',
       width: 80,
-      render: (_: any, record: ProductionItem) => (
-        <Button
-          type="text"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleDeleteItem(record.key)}
+      render: (_: any, record: TransferItem) => (
+        <Button 
+          type="text" 
+          danger 
+          icon={<DeleteOutlined />} 
+          onClick={() => removeItem(record.key)}
+          size="small"
         />
       )
     }
   ];
 
+  const handleItemChange = (index: number, field: string, value: any) => {
+    const newItems = [...items];
+    newItems[index][field] = value;
+    setItems(newItems);
+  };
+
   return (
-    <Card>
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={{
-          operationDate: new Date().toISOString().split('T')[0], // Bugünün tarihi
-        }}
-      >
+    <Card style={{ padding: '5px' }}>
+      <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{
+        operationDate: new Date().toISOString().split('T')[0],
+      }}>
         <Tabs activeKey={activeTab} onChange={setActiveTab}>
-          <TabPane tab="Fiş Bilgileri" key="header">
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="targetWarehouseCode"
-                  label="Hedef Depo"
-                  rules={[{ required: true, message: 'Lütfen hedef depo seçiniz' }]}
-                >
-                  <Select
-                    placeholder="Hedef depo seçiniz"
-                    onChange={(value) => setTargetWarehouse(value)}
-                    showSearch
-                    optionFilterProp="children"
+          <TabPane tab="Başlık" key="header">
+            <Row gutter={8}>
+              <Col span={24}>
+                <Card size="small" styles={{ body: { padding: '5px' } }}>
+
+                  <Form.Item
+                    name="targetWarehouseCode"
+                    label="Depo"
+                    rules={[{ required: true, message: 'Lütfen depo seçin!' }]}
                   >
-                    {warehouses.map(warehouse => (
-                      <Option key={warehouse.warehouseCode} value={warehouse.warehouseCode}>
-                        {warehouse.warehouseName}
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              </Col>
-              
-              <Col span={12}>
-                <Form.Item
-                  name="operationDate"
-                  label="İşlem Tarihi"
-                  rules={[{ required: true, message: 'Lütfen işlem tarihi giriniz' }]}
-                >
-                  <Input type="date" />
-                </Form.Item>
+                    <Select 
+                      placeholder="Depo seçin" 
+                      size="large" 
+                      style={{ width: '100%' }}
+                    >
+                      {warehouses.map(warehouse => (
+                          <Select.Option 
+                            key={warehouse.warehouseCode} 
+                            value={warehouse.warehouseCode}
+                          >
+                            {`${warehouse.warehouseCode} - ${warehouse.warehouseDescription}`}
+                          </Select.Option>
+                        ))}
+                    </Select>
+                  </Form.Item>
+                
+                  
+                  <Form.Item
+                    name="operationDate"
+                    label="İşlem Tarihi"
+                    rules={[{ required: true, message: 'Lütfen işlem tarihi girin!' }]}
+                  >
+                    <Input type="date" size="large" style={{ width: '100%' }} />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="description"
+                    label="Açıklama"
+                  >
+                    <Input.TextArea rows={2} size="large" style={{ width: '100%' }} />
+                  </Form.Item>
+                  
+                  {/* Sevkiyat Yöntemi seçeneği kaldırıldı, her zaman "1" değeri gönderilecek */}
+                </Card>
               </Col>
             </Row>
-            
-            <Form.Item
-              name="description"
-              label="Açıklama"
-            >
-              <Input.TextArea rows={4} placeholder="Fiş açıklaması giriniz" />
-            </Form.Item>
           </TabPane>
-          
-          <TabPane tab="Ürünler" key="items">
-            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-              <Space>
+
+          <TabPane tab="Satırlar" key="items">
+            <Card
+              size="small"
+              styles={{ body: { padding: '5px' } }}
+              extra={
                 <Button
                   type="primary"
                   icon={<PlusOutlined />}
-                  onClick={handleAddItem}
+                  onClick={() => setBarcodeModalVisible(true)}
+                  size="large"
+                  style={{ width: '100%' }}
                 >
-                  Yeni Ürün Ekle
+                  Satır Ekle
                 </Button>
-                
-                <Button
-                  icon={<BarcodeOutlined />}
-                  onClick={handleOpenBarcodeModal}
-                >
-                  Barkod Okut
-                </Button>
-              </Space>
-              
-              <Text strong>
-                Toplam Miktar: {totalQuantity}
-              </Text>
+              }
+            >
+            <div style={{ marginBottom: 16 }}>
+              <Form.Item name="copyDescription" valuePropName="checked" noStyle>
+                <Checkbox>Açıklamayı Yeni Satıra Kopyala</Checkbox>
+              </Form.Item>
             </div>
-            
-            <Table
-              columns={columns}
-              dataSource={items}
-              rowKey="key"
-              size="small"
-              pagination={false}
-              scroll={{ x: 1000, y: 300 }}
-              bordered
-            />
-            
-            {items.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <Text type="secondary">Henüz ürün eklenmedi</Text>
-              </div>
-            )}
+
+            <div style={{ border: '1px solid #f0f0f0', borderRadius: '4px' }}>
+              {items.length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+                  Ürün satırı eklemek için "Satır Ekle" butonunu kullanın
+                </div>
+              )}
+              
+              {items.map((item, index) => (
+                <div key={item.key} style={{ 
+                  padding: '10px', 
+                  borderBottom: index < items.length - 1 ? '1px solid #f0f0f0' : 'none'
+                }}>
+                  {/* Ürün Bilgisi */}
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={{ fontWeight: 500 }}>{item.itemCode || '-'}</div>
+                    <div style={{ 
+                      color: '#666', 
+                      fontSize: '12px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>{item.itemName || 'Ürün açıklaması'}</div>
+                  </div>
+                  
+                  {/* Kontroller - Mobil uyumlu grid yapısı */}
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: formType === FormType.WAREHOUSE_TRANSFER 
+                      ? 'minmax(70px, 1fr) 40px' // Depolar arası transfer için sadece miktar ve silme butonu
+                      : 'repeat(auto-fit, minmax(70px, 1fr))', // İmalat ve Sarf fişleri için tüm alanlar
+                    gap: '8px',
+                    alignItems: 'center'
+                  }}>
+                    {/* Miktar */}
+                    <div>
+                      <Input
+                        type="text"
+                        value={item.quantity !== null && item.quantity !== undefined ? String(item.quantity) : ''}
+                        onChange={(e) => {
+                          // Sadece sayı ve nokta karakterlerine izin ver
+                          const inputValue = e.target.value.replace(/[^0-9.]/g, '');
+                          
+                          // Birden fazla nokta varsa, sadece ilkini kabul et
+                          const parts = inputValue.split('.');
+                          const cleanedValue = parts[0] + (parts.length > 1 ? '.' + parts.slice(1).join('') : '');
+                          
+                          // Değeri doğrudan güncelle
+                          updateItem(item.key, 'quantity', cleanedValue);
+                        }}
+                        size="small"
+                        style={{ width: '100%' }}
+                        placeholder="0.000"
+                      />
+                      <div style={{ textAlign: 'center', fontSize: '11px', color: '#999' }}>
+                        {String(item.unitCode || 'AD')}
+                      </div>
+                    </div>
+                    
+                    {/* İmalat ve Sarf fişleri için maliyet alanları */}
+                    {formType !== FormType.WAREHOUSE_TRANSFER && (
+                      <>
+                        {/* Birim Maliyet */}
+                        <div>
+                          <Input
+                            type="text"
+                            value={item.costPrice !== null && item.costPrice !== undefined ? String(item.costPrice) : ''}
+                            onChange={(e) => {
+                              // Sadece sayı ve nokta karakterlerine izin ver
+                              const inputValue = e.target.value.replace(/[^0-9.]/g, '');
+                              
+                              // Birden fazla nokta varsa, sadece ilkini kabul et
+                              const parts = inputValue.split('.');
+                              const cleanedValue = parts[0] + (parts.length > 1 ? '.' + parts.slice(1).join('') : '');
+                              
+                              // Değeri doğrudan güncelle
+                              updateItem(item.key, 'costPrice', cleanedValue);
+                            }}
+                            size="small"
+                            style={{ width: '100%' }}
+                            placeholder="0.00"
+                          />
+                          <div style={{ textAlign: 'center', fontSize: '11px', color: '#999' }}>Birim Fiyat</div>
+                        </div>
+                        
+                        {/* Para birimi */}
+                        <div>
+                          <Select
+                            value={item.currencyCode || 'TRY'}
+                            onChange={(value) => updateItem(item.key, 'currencyCode', value)}
+                            size="small"
+                            style={{ width: '100%' }}
+                          >
+                            <Option value="TRY">TRY</Option>
+                            <Option value="USD">USD</Option>
+                            <Option value="EUR">EUR</Option>
+                            <Option value="GBP">GBP</Option>
+                          </Select>
+                          <div style={{ textAlign: 'center', fontSize: '11px', color: '#999' }}>Para</div>
+                        </div>
+                        
+                        {/* Toplam Maliyet */}
+                        <div>
+                          <Input
+                            type="text"
+                            value={item.costAmount !== null && item.costAmount !== undefined ? String(item.costAmount) : ''}
+                            disabled={true}
+                            size="small"
+                            style={{ width: '100%' }}
+                          />
+                          <div style={{ textAlign: 'center', fontSize: '11px', color: '#999' }}>Maliyet</div>
+                        </div>
+                      </>
+                    )}
+                    
+                    {/* Silme Butonu */}
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                      <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => removeItem(item.key)}
+                        size="small"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 16, textAlign: 'right' }}>
+              <Card size="small" styles={{ body: { padding: '5px' } }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Text>Toplam Adet:</Text>
+                  <Text strong>{typeof totalQuantity === 'number' ? totalQuantity.toFixed(2) : '0.00'}</Text>
+                </div>
+              </Card>
+            </div>
+            </Card>
           </TabPane>
         </Tabs>
-        
+
         <Divider />
-        
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Space>
-            <Button
-              icon={<CloseOutlined />}
-              onClick={onCancel}
-            >
-              İptal
-            </Button>
-            
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={handleSubmit}
-              loading={loading}
-              disabled={items.length === 0}
-            >
-              Kaydet
-            </Button>
-          </Space>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Button onClick={onCancel} icon={<CloseOutlined />}>
+            İptal
+          </Button>
+          <Button 
+            type="primary" 
+            loading={loading}
+            icon={<SaveOutlined />}
+            onClick={handleSubmit}
+          >
+            Kaydet
+          </Button>
         </div>
       </Form>
-      
+
+      {/* Barkod ile Ürün Ekleme Modalı */}
       <BarcodeModal
         visible={barcodeModalVisible}
         onCancel={() => setBarcodeModalVisible(false)}
-        onScan={handleBarcodeScanned}
-        onAdd={(products) => {
-          // Taranan ürünleri listeye ekle
-          if (products && products.length > 0) {
-            const newItems = products.map(product => ({
-              key: Date.now() + Math.random().toString(),
-              itemCode: product.itemCode,
-              itemName: product.itemName,
-              colorCode: product.colorCode,
-              colorName: product.colorName,
-              itemDim1Code: product.itemDim1Code,
-              itemDim1Name: product.itemDim1Name,
-              quantity: product.quantity || 1,
-              unitCode: product.unitCode || 'AD',
-              unitName: 'Adet', // Sabit değer kullanıyoruz çünkü ScannedProduct tipinde unitName yok
-              barcode: product.barcode
-            }));
-            setItems([...items, ...newItems]);
-          }
-        }}
+        onAdd={handleAddProductsFromBarcode}
+        warehouseCode={form.getFieldValue('sourceWarehouseCode') || ''}
       />
     </Card>
   );

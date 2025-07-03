@@ -84,6 +84,9 @@ const ProductionOrderFormPage: React.FC = () => {
               itemCode: item.itemCode,
               colorCode: item.colorCode || '',
               itemDim1Code: item.itemDim1Code || '',
+              itemDim2Code: item.itemDim2Code || '', // itemDim2Code eklendi
+              itemDim3Code: item.itemDim3Code || '', // itemDim3Code eklendi
+              itemTypeCode: item.itemTypeCode, // itemTypeCode eklendi - backend'den gelen gerçek değer kullanılıyor
               Quantity: parseFloat(item.Quantity || item.quantity), // Kesinlikle sayı olduğundan emin ol
               unitCode: item.unitCode || 'AD', // Birim kodu (varsayılan: AD)
               lineDescription: item.lineDescription || '',
