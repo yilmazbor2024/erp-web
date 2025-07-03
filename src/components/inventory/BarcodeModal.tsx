@@ -38,27 +38,22 @@ interface Product {
   colorName?: string;
   itemDim1Code?: string; // Beden
   itemDim1Name?: string;
+  itemDim2Code?: string; // İkinci boyut (Renk vb.)
+  itemDim2Name?: string;
+  itemDim3Code?: string; // Üçüncü boyut
+  itemDim3Name?: string;
   unitCode: string;
   stock?: number;
   quantity?: number;
+  itemTypeCode?: number; // Ürün tipi kodu (1: Ürün, 2: Malzeme)
+  productCode?: string;
+  productDescription?: string;
+  colorDescription?: string;
 }
 
 interface ScannedProduct extends Product {
   quantity: number;
 }
-
-// ProductVariant'tan Product'a dönüştürme fonksiyonu
-const convertToProduct = (variant: ProductVariant, stock?: InventoryStock): Product => ({
-  itemCode: variant.productCode,
-  itemName: variant.productDescription,
-  barcode: variant.barcode,
-  colorCode: variant.colorCode,
-  colorName: variant.colorDescription,
-  itemDim1Code: variant.itemDim1Code,
-  itemDim1Name: variant.itemDim1Code, // API'de itemDim1Name yok, kodu kullanıyoruz
-  unitCode: variant.unitOfMeasureCode1,
-  stock: stock?.qty || 0
-});
 
 interface BarcodeModalProps {
   visible: boolean;
@@ -115,15 +110,15 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       // Arama moduna göre işlem yap
       if (searchMode === 'barcode') {
         // Barkod modunda ise doğrudan barkod araması yap
-        console.log('BARKOD modunda arama yapılıyor:', searchValue);
+        // BARKOD modunda arama yapılıyor
         await searchByBarcode(searchValue);
       } else {
         // Ürün modunda ise, barkod formatında mı kontrol et
         if (isBarcodeFormat(searchValue)) {
-          console.log('Barkod formatında arama yapılıyor:', searchValue);
+          // Barkod formatında arama yapılıyor
           await searchByBarcode(searchValue);
         } else {
-          console.log('Ürün olarak arama yapılıyor:', searchValue);
+          // Ürün olarak arama yapılıyor
           await searchByProductInfo(searchValue);
         }
       }
@@ -162,10 +157,24 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
         // Ürünleri stok bilgileriyle birleştir
         const productsWithStock = variants.map((variant, index) => {
           const stockInfo = stockResults[index];
-          return convertToProduct(
-            variant, 
-            stockInfo && stockInfo.length > 0 ? stockInfo[0] : undefined
-          );
+          // API'den gelen veriyi doğrudan kullan
+          
+          return {
+            itemCode: variant.productCode,
+            itemName: variant.productDescription,
+            barcode: variant.barcode,
+            colorCode: variant.colorCode,
+            colorName: variant.colorDescription,
+            itemDim1Code: variant.itemDim1Code,
+            itemDim1Name: variant.itemDim1Name, // itemDim1Code yerine itemDim1Name kullanılıyor
+            itemDim2Code: variant.itemDim2Code,
+            itemDim2Name: variant.itemDim2Name,
+            itemDim3Code: variant.itemDim3Code,
+            itemDim3Name: variant.itemDim3Name,
+            unitCode: variant.unitOfMeasureCode1,
+            stock: stockInfo && stockInfo.length > 0 ? stockInfo[0].qty : 0,
+            itemTypeCode: variant.itemTypeCode
+          };
         });
         
         setProducts(productsWithStock);
@@ -219,11 +228,27 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
               showOnlyPositiveStock: false
             }) : [];
           
-          // Ürün nesnesini oluştur
-          return convertToProduct(
-            variant, 
-            stockInfo.length > 0 ? stockInfo[0] : undefined
-          );
+          // API'den gelen veriyi doğrudan kullan
+          
+          // API'den gelen verileri logla
+          console.log('Backend\'den gelen ürün varyantı:', variant);
+          
+          return {
+            itemCode: variant.productCode,
+            itemName: variant.productDescription,
+            barcode: variant.barcode,
+            colorCode: variant.colorCode,
+            colorName: variant.colorDescription,
+            itemDim1Code: variant.itemDim1Code,
+            itemDim1Name: variant.itemDim1Name, // itemDim1Code yerine itemDim1Name kullanılıyor
+            itemDim2Code: variant.itemDim2Code,
+            itemDim2Name: variant.itemDim2Name,
+            itemDim3Code: variant.itemDim3Code,
+            itemDim3Name: variant.itemDim3Name,
+            unitCode: variant.unitOfMeasureCode1,
+            stock: stockInfo.length > 0 ? stockInfo[0].qty : 0,
+            itemTypeCode: variant.itemTypeCode
+          };
         })
       );
       
@@ -296,9 +321,15 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
 
     const productsToAdd = selectedProducts.map(product => {
       const productKey = `${product.itemCode}-${product.colorCode || ''}-${product.itemDim1Code || ''}`;
+      
+      // Miktar değerini olduğu gibi aktar
+      // Virgüllü sayıları (12,45) doğru şekilde gönder, API tarafında dönüştürülecek
+      const quantity = quantities[productKey] || 1;
+      
+      
       return {
         ...product,
-        quantity: quantities[productKey] || 1
+        quantity: quantity
       };
     });
 
@@ -339,7 +370,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     }
     
     const cleanBarcode = barcode.trim();
-    console.log('Barkod tarandı:', cleanBarcode);
+    // Barkod tarandı
     setSearchText(cleanBarcode);
     // setShowScanner(false) satırını kaldırdım - artık kamera barkod okuduktan sonra açık kalacak
     
@@ -348,7 +379,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       onScan(cleanBarcode);
     }
     
-    console.log('Seçili ürünler:', selectedProducts);
+    // Seçili ürünler kontrolü
     
     // Önce seçili ürünler listesinde bu barkoda sahip ürün var mı kontrol et
     // Barkodları karşılaştırırken trim yaparak ve büyük/küçük harf duyarlılığını kaldırarak karşılaştır
@@ -357,7 +388,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
     );
     
     if (existingProduct) {
-      console.log('Ürün zaten seçili, miktarı artırılıyor:', existingProduct);
+      // Ürün zaten seçili, miktarı artırılıyor
       // Ürün zaten seçili, miktarını artır
       const productKey = `${existingProduct.itemCode}-${existingProduct.colorCode || ''}-${existingProduct.itemDim1Code || ''}`;
       const currentQty = quantities[productKey] || 1;
@@ -401,10 +432,24 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
         // Ürünleri stok bilgileriyle birleştir
         const productsWithStock = variants.map((variant, index) => {
           const stockInfo = stockResults[index];
-          return convertToProduct(
-            variant, 
-            stockInfo && stockInfo.length > 0 ? stockInfo[0] : undefined
-          );
+          // API'den gelen veriyi doğrudan kullan
+          
+          return {
+            itemCode: variant.productCode,
+            itemName: variant.productDescription,
+            barcode: variant.barcode,
+            colorCode: variant.colorCode,
+            colorName: variant.colorDescription,
+            itemDim1Code: variant.itemDim1Code,
+            itemDim1Name: variant.itemDim1Name, // itemDim1Code yerine itemDim1Name kullanılıyor
+            itemDim2Code: variant.itemDim2Code,
+            itemDim2Name: variant.itemDim2Name,
+            itemDim3Code: variant.itemDim3Code,
+            itemDim3Name: variant.itemDim3Name,
+            unitCode: variant.unitOfMeasureCode1,
+            stock: stockInfo && stockInfo.length > 0 ? stockInfo[0].qty : 0,
+            itemTypeCode: variant.itemTypeCode
+          };
         });
         
         setProducts(productsWithStock);

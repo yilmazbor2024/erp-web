@@ -261,7 +261,7 @@ const ConsumptionOrderDetailPage: React.FC = () => {
           <TableContainer component={Paper}>
             <Table>
               <TableHead>
-                <TableRow>
+                <TableRow key="header-row">
                   <TableCell>Sıra</TableCell>
                   <TableCell>Ürün Kodu</TableCell>
                   <TableCell>Ürün Adı</TableCell>
@@ -274,7 +274,7 @@ const ConsumptionOrderDetailPage: React.FC = () => {
               </TableHead>
               <TableBody>
                 {items.length === 0 ? (
-                  <TableRow>
+                  <TableRow key="empty-row">
                     <TableCell colSpan={8} align="center">
                       Ürün bulunamadı
                     </TableCell>

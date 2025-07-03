@@ -97,7 +97,13 @@ const WarehouseTransferForm: React.FC<WarehouseTransferFormProps> = ({
 
   // Toplam miktarı hesapla
   useEffect(() => {
-    const total = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    const total = items.reduce((sum, item) => {
+      // quantity değeri string veya number olabilir, güvenli bir şekilde parse et
+      const itemQuantity = typeof item.quantity === 'string' 
+        ? parseFloat(item.quantity) || 0 
+        : (item.quantity || 0);
+      return sum + itemQuantity;
+    }, 0);
     setTotalQuantity(total);
   }, [items]);
 
@@ -135,6 +141,7 @@ const WarehouseTransferForm: React.FC<WarehouseTransferFormProps> = ({
 
   // Barkod modalından ürün ekleme
   const handleAddProductsFromBarcode = (products: any[]) => {
+    console.log('Barkod modalından gelen ürün verileri:', products);
     const newItems = products.map(product => ({
       key: `item-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       itemCode: product.itemCode,
@@ -143,6 +150,11 @@ const WarehouseTransferForm: React.FC<WarehouseTransferFormProps> = ({
       colorName: product.colorName,
       itemDim1Code: product.itemDim1Code,
       itemDim1Name: product.itemDim1Name,
+      itemDim2Code: product.itemDim2Code, // itemDim2Code eklendi
+      itemDim2Name: product.itemDim2Name, // itemDim2Name eklendi
+      itemDim3Code: product.itemDim3Code, // itemDim3Code eklendi
+      itemDim3Name: product.itemDim3Name, // itemDim3Name eklendi
+      itemTypeCode: product.itemTypeCode, // itemTypeCode eklendi
       quantity: product.quantity,
       unitCode: product.unitCode,
       barcode: product.barcode,
@@ -163,14 +175,21 @@ const WarehouseTransferForm: React.FC<WarehouseTransferFormProps> = ({
 
       const formData = {
         ...values,
-        items: items.map(item => ({
-          itemCode: item.itemCode,
-          colorCode: item.colorCode,
-          itemDim1Code: item.itemDim1Code,
-          quantity: item.quantity,
-          unitCode: item.unitCode,
-          lineDescription: item.lineDescription
-        }))
+        innerProcessCode: "WT", // Depo transferi için WT (Warehouse Transfer) kodu
+        items: items.map(item => {
+          console.log('API\'ye gönderilecek ürün verisi:', item);
+          return {
+            itemCode: item.itemCode,
+            colorCode: item.colorCode,
+            itemDim1Code: item.itemDim1Code,
+            itemDim2Code: item.itemDim2Code, // itemDim2Code eklendi
+            itemDim3Code: item.itemDim3Code, // itemDim3Code eklendi
+            itemTypeCode: item.itemTypeCode, // itemTypeCode eklendi
+            quantity: item.quantity,
+            unitCode: item.unitCode,
+            lineDescription: item.lineDescription
+          };
+        })
       };
 
       onSave(formData);
@@ -422,7 +441,7 @@ const WarehouseTransferForm: React.FC<WarehouseTransferFormProps> = ({
               <Card size="small" styles={{ body: { padding: '5px' } }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Text>Toplam Adet:</Text>
-                  <Text strong>{totalQuantity.toFixed(2)}</Text>
+                  <Text strong>{typeof totalQuantity === 'number' ? totalQuantity.toFixed(2) : '0.00'}</Text>
                 </div>
               </Card>
             </div>

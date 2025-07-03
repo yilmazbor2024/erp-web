@@ -88,6 +88,7 @@ const WarehouseTransferFormPage: React.FC = () => {
             new Date().toISOString().split('T')[0],
           // Sevkiyat yöntemi kodu - API tarafından zorunlu, her zaman "1" değerini gönderiyoruz
           shipmentMethodCode: "1",
+          innerProcessCode: "WT", // Depo transferi için WT (Warehouse Transfer) kodu
           items: formData.items.map((item: any) => {
             console.log('İşlenen ürün satırı:', item);
             
@@ -96,6 +97,9 @@ const WarehouseTransferFormPage: React.FC = () => {
               itemCode: item.itemCode,
               colorCode: item.colorCode || '',
               itemDim1Code: item.itemDim1Code || '',
+              itemDim2Code: item.itemDim2Code || '', // itemDim2Code eklendi
+              itemDim3Code: item.itemDim3Code || '', // itemDim3Code eklendi
+              itemTypeCode: item.itemTypeCode, // itemTypeCode eklendi - backend'den gelen gerçek değer kullanılıyor
               quantity: parseFloat(item.quantity), // Kesinlikle sayı olduğundan emin ol
               unitCode: item.unitCode || 'AD',
               lineDescription: item.lineDescription || '',
