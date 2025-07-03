@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, message, Spin } from 'antd';
-import ProductionOrderForm from '../../components/inventory/ProductionOrderForm'; // Aynı formu kullanıyoruz
+import ProductionOrderForm, { FormType } from '../../components/inventory/ProductionOrderForm'; // Aynı formu kullanıyoruz
 import consumptionOrderApi from '../../services/consumptionOrderApi';
 
 const ConsumptionOrderFormPage: React.FC = () => {
   const navigate = useNavigate();
-  const { orderNumber } = useParams<{ orderNumber: string }>();
+  const { innerNumber } = useParams<{ innerNumber: string }>();
   
   const [loading, setLoading] = useState<boolean>(false);
   const [saveLoading, setSaveLoading] = useState<boolean>(false);
@@ -24,11 +24,11 @@ const ConsumptionOrderFormPage: React.FC = () => {
         
         setWarehouses(warehousesData);
         
-        // Eğer orderNumber varsa, mevcut fiş bilgilerini getir (düzenleme modu)
-        if (orderNumber) {
-          const orderData = await consumptionOrderApi.getConsumptionOrderByNumber(orderNumber);
+        // Eğer innerNumber varsa, mevcut fiş bilgilerini getir (düzenleme modu)
+        if (innerNumber) {
+          const orderData = await consumptionOrderApi.getConsumptionOrderByNumber(innerNumber);
           if (orderData) {
-            const orderItems = await consumptionOrderApi.getConsumptionOrderItems(orderNumber);
+            const orderItems = await consumptionOrderApi.getConsumptionOrderItems(innerNumber);
             
             setInitialValues({
               ...orderData,
@@ -48,7 +48,7 @@ const ConsumptionOrderFormPage: React.FC = () => {
     };
     
     fetchData();
-  }, [orderNumber, navigate]);
+  }, [innerNumber, navigate]);
 
   // Form gönderildiğinde
   const handleSubmit = async (values: any) => {
@@ -67,15 +67,32 @@ const ConsumptionOrderFormPage: React.FC = () => {
           itemDim1Code: item.itemDim1Code,
           itemDim2Code: item.itemDim2Code,
           itemDim3Code: item.itemDim3Code,
-          Quantity: item.quantity,
+          quantity: item.quantity, // Düzeltildi: Quantity -> quantity
           unitCode: item.unitCode,
-          lineDescription: item.lineDescription
+          lineDescription: item.lineDescription,
+          itemTypeCode: item.itemTypeCode || 1, // Varsayılan olarak Ürün
+          currencyCode: item.currencyCode || 'TRY',
+          costPrice: item.costPrice || 0,
+          costAmount: item.costAmount || 0,
+          costPriceWithInflation: item.costPriceWithInflation || 0,
+          costAmountWithInflation: item.costAmountWithInflation || 0
         }))
       });
       
+      // Detaylı log ekleyerek result değişkeninin tipini ve değerini kontrol ediyoruz
+      console.log('Result değeri:', result);
+      console.log('Result tipi:', typeof result);
+      console.log('Result JSON:', JSON.stringify(result));
+      
       if (result) {
+        // result bir nesne olduğu için doğrudan transferNumber alanını kullan
+        const resultOrderNumber = result.transferNumber || result.orderNumber;
+        console.log('ResultOrderNumber değeri:', resultOrderNumber);
+        console.log('ResultOrderNumber tipi:', typeof resultOrderNumber);
+        
         message.success('Sair Sarf Fişi başarıyla oluşturuldu');
-        navigate(`/inventory/consumption-orders/${result}`);
+        message.info(`Fiş Numarası: ${resultOrderNumber}`);
+        navigate(`/inventory/consumption-orders/${resultOrderNumber}`);
       } else {
         message.error('Sair Sarf Fişi oluşturulurken bir hata oluştu');
       }
@@ -94,13 +111,14 @@ const ConsumptionOrderFormPage: React.FC = () => {
 
   return (
     <Spin spinning={loading}>
-      <Card title={orderNumber ? 'Sair Sarf Fişi Düzenle' : 'Yeni Sair Sarf Fişi'} bordered={false}>
+      <Card title={innerNumber ? 'Sair Sarf Fişi Düzenle' : 'Yeni Sair Sarf Fişi'} bordered={false}>
         <ProductionOrderForm
           warehouses={warehouses}
           initialValues={initialValues}
           onSave={handleSubmit}
           onCancel={handleCancel}
           loading={saveLoading}
+          formType={FormType.CONSUMPTION_ORDER} // Sarf fişi tipi
         />
       </Card>
     </Spin>

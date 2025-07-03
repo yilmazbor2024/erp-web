@@ -87,6 +87,9 @@ import WarehouseTransferFormPage from './pages/inventory/WarehouseTransferFormPa
 import ProductionOrderListPage from './pages/inventory/ProductionOrderListPage';
 import ProductionOrderDetailPage from './pages/inventory/ProductionOrderDetailPage';
 import ProductionOrderFormPage from './pages/inventory/ProductionOrderFormPage';
+import ConsumptionOrderListPage from './pages/inventory/ConsumptionOrderListPage';
+import ConsumptionOrderDetailPage from './pages/inventory/ConsumptionOrderDetailPage';
+import ConsumptionOrderFormPage from './pages/inventory/ConsumptionOrderFormPage';
 
 // Exchange Rate pages
 import ExchangeRatesPage from './pages/finance/ExchangeRatesPage';
@@ -246,8 +249,12 @@ function App() {
                   <Route path="warehouse-transfers/:transferNumber" element={<AuthGuard><WarehouseTransferDetailPage /></AuthGuard>} />
                   <Route path="production-orders" element={<AuthGuard><ProductionOrderListPage /></AuthGuard>} />
                   <Route path="production-orders/new" element={<AuthGuard><ProductionOrderFormPage /></AuthGuard>} />
-                  <Route path="production-orders/edit/:orderNumber" element={<AuthGuard><ProductionOrderFormPage /></AuthGuard>} />
-                  <Route path="production-orders/:orderNumber" element={<AuthGuard><ProductionOrderDetailPage /></AuthGuard>} />
+                  <Route path="production-orders/edit/:innerNumber" element={<AuthGuard><ProductionOrderFormPage /></AuthGuard>} />
+                  <Route path="production-orders/:innerNumber" element={<AuthGuard><ProductionOrderDetailPage /></AuthGuard>} />
+                  <Route path="consumption-orders" element={<AuthGuard><ConsumptionOrderListPage /></AuthGuard>} />
+                  <Route path="consumption-orders/new" element={<AuthGuard><ConsumptionOrderFormPage /></AuthGuard>} />
+                  <Route path="consumption-orders/edit/:innerNumber" element={<AuthGuard><ConsumptionOrderFormPage /></AuthGuard>} />
+                  <Route path="consumption-orders/:innerNumber" element={<AuthGuard><ConsumptionOrderDetailPage /></AuthGuard>} />
                 </Route>
                 
                 {/* Finance Routes */}

@@ -31,7 +31,7 @@ import { formatDate, formatDateTime } from '../../utils/dateUtils';
 import { useSnackbar } from 'notistack';
 
 const ConsumptionOrderDetailPage: React.FC = () => {
-  const { orderNumber } = useParams<{ orderNumber: string }>();
+  const { innerNumber } = useParams<{ innerNumber: string }>();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   
@@ -40,7 +40,7 @@ const ConsumptionOrderDetailPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   
   useEffect(() => {
-    if (!orderNumber) {
+    if (!innerNumber) {
       navigate('/inventory/consumption-orders');
       return;
     }
@@ -48,11 +48,11 @@ const ConsumptionOrderDetailPage: React.FC = () => {
     const fetchOrderDetails = async () => {
       setLoading(true);
       try {
-        const orderData = await consumptionOrderApi.getConsumptionOrderByNumber(orderNumber);
+        const orderData = await consumptionOrderApi.getConsumptionOrderByNumber(innerNumber);
         if (orderData) {
           setOrder(orderData);
           
-          const itemsData = await consumptionOrderApi.getConsumptionOrderItems(orderNumber);
+          const itemsData = await consumptionOrderApi.getConsumptionOrderItems(innerNumber);
           setItems(itemsData);
         } else {
           enqueueSnackbar('Sair Sarf Fişi bulunamadı', { variant: 'error' });
@@ -67,14 +67,14 @@ const ConsumptionOrderDetailPage: React.FC = () => {
     };
     
     fetchOrderDetails();
-  }, [orderNumber, navigate, enqueueSnackbar]);
+  }, [innerNumber, navigate, enqueueSnackbar]);
   
   const handleBack = () => {
     navigate('/inventory/consumption-orders');
   };
   
   const handleEdit = () => {
-    navigate(`/inventory/consumption-orders/${orderNumber}/edit`);
+    navigate(`/inventory/consumption-orders/${innerNumber}/edit`);
   };
   
   const handlePrint = () => {
