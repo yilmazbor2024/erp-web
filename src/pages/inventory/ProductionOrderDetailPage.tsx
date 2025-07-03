@@ -35,7 +35,7 @@ import { formatDate, formatDateTime } from '../../utils/dateUtils';
 import { useSnackbar } from 'notistack';
 
 const ProductionOrderDetailPage: React.FC = () => {
-  const { orderNumber } = useParams<{ orderNumber: string }>();
+  const { innerNumber } = useParams<{ innerNumber: string }>();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   
@@ -46,24 +46,26 @@ const ProductionOrderDetailPage: React.FC = () => {
   
   // Sayfa yüklendiğinde veriyi getir
   useEffect(() => {
-    if (orderNumber) {
+    if (innerNumber) {
       fetchOrderData();
     }
-  }, [orderNumber]);
+  }, [innerNumber]);
   
   // İmalat fişi detaylarını getiren fonksiyon
   const fetchOrderData = async () => {
-    if (!orderNumber) return;
+    if (!innerNumber) return;
+    
+    console.log('📟 Üretim siparişi detayları getiriliyor:', { innerNumber });
     
     setLoading(true);
     try {
       // Ana fiş bilgilerini getir
-      const data = await productionOrderApi.getProductionOrderByNumber(orderNumber);
+      const data = await productionOrderApi.getProductionOrderByNumber(innerNumber);
       if (data) {
         setOrder(data);
         
         // Fiş satır detaylarını getir
-        const items = await productionOrderApi.getProductionOrderItems(orderNumber);
+        const items = await productionOrderApi.getProductionOrderItems(innerNumber);
         setOrderItems(items);
       } else {
         enqueueSnackbar('İmalat fişi bulunamadı', { variant: 'error' });
@@ -205,7 +207,7 @@ const ProductionOrderDetailPage: React.FC = () => {
                     Durum
                   </Typography>
                   <Box sx={{ mt: 1 }}>
-                    {order.isApproved ? (
+                    {order.isTransferApproved ? (
                       <Chip 
                         label="Onaylandı" 
                         color="success" 
@@ -230,13 +232,13 @@ const ProductionOrderDetailPage: React.FC = () => {
                   </Box>
                 </Box>
 
-                {order.isApproved && order.approvedDate && (
+                {order.isTransferApproved && order.transferApprovedDate && (
                   <Box sx={{ textAlign: 'center', width: '100%' }}>
                     <Typography variant="subtitle2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
                       Onay Tarihi
                     </Typography>
                     <Typography variant="body2">
-                      {formatDate(order.approvedDate)}
+                      {formatDate(order.transferApprovedDate)}
                     </Typography>
                   </Box>
                 )}
@@ -257,53 +259,163 @@ const ProductionOrderDetailPage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Kalemler Tablosu */}
+        {/* İmalat Kalemleri - Mobil için optimize edilmiş */}
         <Card sx={{ mb: 2 }}>
-          <CardContent sx={{ p: { xs: 1, sm: 2 } }}>
+          <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
             <Typography variant="h6" gutterBottom sx={{ borderBottom: '1px solid #eee', pb: 1, mb: 2 }}>
               İmalat Kalemleri
             </Typography>
-            
-            <TableContainer component={Paper} variant="outlined">
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Sıra</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Stok Kodu</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Stok Adı</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Renk</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Boyut</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Miktar</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Birim</TableCell>
-                    <TableCell sx={{ fontWeight: 'bold' }}>Açıklama</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {order.items && order.items.length > 0 ? (
-                    order.items.map((item, index) => (
-                      <TableRow key={item.innerLineId}>
-                        <TableCell>{item.lineNumber}</TableCell>
-                        <TableCell>{item.itemCode}</TableCell>
-                        <TableCell>{item.itemName}</TableCell>
-                        <TableCell>{item.colorName || '-'}</TableCell>
-                        <TableCell>
-                          {item.itemDim1Name ? item.itemDim1Name : '-'}
-                        </TableCell>
-                        <TableCell align="right">{item.quantity}</TableCell>
-                        <TableCell>{item.unitName}</TableCell>
-                        <TableCell>{item.description || '-'}</TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
+
+            {/* Mobil için optimize edilmiş imalat kalemleri listesi */}
+            {!order.items || order.items.length === 0 ? (
+              <Typography variant="body2" sx={{ fontStyle: 'italic', textAlign: 'center', py: 2 }}>
+                İmalat kalemi bulunamadı
+              </Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {order.items.map((item, index) => (
+                  <Card key={item.innerLineId || index} variant="outlined" sx={{ 
+                    borderRadius: 1,
+                    boxShadow: 'none',
+                    border: '1px solid #eee',
+                    overflow: 'visible'
+                  }}>
+                    {/* Başlık - Ürün Adı ve Sıra */}
+                    <Box sx={{ 
+                      p: 1.5, 
+                      pb: 0.5,
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      borderBottom: '1px solid #f5f5f5'
+                    }}>
+                      <Chip 
+                        label={`#${item.lineNumber || (index + 1)}`} 
+                        size="small" 
+                        color="primary" 
+                        variant="outlined"
+                        sx={{ mr: 1, height: '20px', fontSize: '0.7rem', minWidth: '30px' }} 
+                      />
+                      <Typography variant="subtitle1" sx={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                        {item.itemName}
+                      </Typography>
+                    </Box>
+                    
+                    {/* Ürün Detayları */}
+                    <Box sx={{ 
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: '2fr 1fr' },
+                    }}>
+                      {/* 1. Kolon: Ürün kodu, açıklama, renk, beden */}
+                      <Box sx={{ p: 1.5, pt: 1 }}>
+                        <Box sx={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: '1fr 1fr', 
+                          gap: 1,
+                          fontSize: '0.8rem'
+                        }}>
+                          <Box>
+                            <Typography variant="caption" color="textSecondary" display="block">
+                              Ürün Kodu
+                            </Typography>
+                            <Typography variant="body2">{item.itemCode}</Typography>
+                          </Box>
+                          
+                          {item.colorName && (
+                            <Box>
+                              <Typography variant="caption" color="textSecondary" display="block">
+                                Renk
+                              </Typography>
+                              <Typography variant="body2">{item.colorName}</Typography>
+                            </Box>
+                          )}
+                          
+                          {item.itemDim1Name && (
+                            <Box>
+                              <Typography variant="caption" color="textSecondary" display="block">
+                                Boyut
+                              </Typography>
+                              <Typography variant="body2">{item.itemDim1Name}</Typography>
+                            </Box>
+                          )}
+                          
+                          {item.description && (
+                            <Box sx={{ gridColumn: '1 / -1' }}>
+                              <Typography variant="caption" color="textSecondary" display="block">
+                                Açıklama
+                              </Typography>
+                              <Typography variant="body2">{item.description}</Typography>
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+                      
+                      {/* 2. Kolon: Miktar ve birim */}
+                      <Box sx={{ 
+                        p: 1.5, 
+                        pt: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderLeft: { xs: 'none', sm: '1px solid #f5f5f5' },
+                        borderTop: { xs: '1px solid #f5f5f5', sm: 'none' }
+                      }}>
+                        <Typography variant="caption" color="textSecondary">
+                          Miktar
+                        </Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                          {item.quantity} {item.unitName}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Card>
+                ))}
+              </Box>
+            )}
+
+            {/* Klasik tablo görünümü için alternatif */}
+            <Box sx={{ mt: 2, display: { xs: 'none', md: 'block' } }}>
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
                     <TableRow>
-                      <TableCell colSpan={8} align="center">
-                        Kalem bulunamadı
-                      </TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Sıra</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Stok Kodu</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Stok Adı</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Renk</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Boyut</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Miktar</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Birim</TableCell>
+                      <TableCell sx={{ fontWeight: 'bold' }}>Açıklama</TableCell>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {order.items && order.items.length > 0 ? (
+                      order.items.map((item, index) => (
+                        <TableRow key={item.innerLineId || `row-${index}`}>
+                          <TableCell>{item.lineNumber || (index + 1)}</TableCell>
+                          <TableCell>{item.itemCode}</TableCell>
+                          <TableCell>{item.itemName}</TableCell>
+                          <TableCell>{item.colorName || '-'}</TableCell>
+                          <TableCell>
+                            {item.itemDim1Name || '-'}
+                          </TableCell>
+                          <TableCell align="right">{item.quantity}</TableCell>
+                          <TableCell>{item.unitName}</TableCell>
+                          <TableCell>{item.description || '-'}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={8} align="center">
+                          Kalem bulunamadı
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
           </CardContent>
         </Card>
 
@@ -318,28 +430,24 @@ const ProductionOrderDetailPage: React.FC = () => {
               <Box sx={{ flex: '1 1 300px' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body2" color="textSecondary">Oluşturan:</Typography>
-                  <Typography variant="body2">{order.createdUserName}</Typography>
+                  <Typography variant="body2">{order.createdUserName || 'Bilinmiyor'}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
                   <Typography variant="body2" color="textSecondary">Oluşturma Tarihi:</Typography>
-                  <Typography variant="body2">{formatDateTime(order.createdDate)}</Typography>
+                  <Typography variant="body2">{order.createdDate ? formatDateTime(order.createdDate) : '-'}</Typography>
                 </Box>
               </Box>
               
-              {order.lastUpdatedUserName && (
-                <Box sx={{ flex: '1 1 300px' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <Typography variant="body2" color="textSecondary">Son Güncelleyen:</Typography>
-                    <Typography variant="body2">{order.lastUpdatedUserName}</Typography>
-                  </Box>
-                  {order.lastUpdatedDate && (
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
-                      <Typography variant="body2" color="textSecondary">Son Güncelleme:</Typography>
-                      <Typography variant="body2">{formatDateTime(order.lastUpdatedDate)}</Typography>
-                    </Box>
-                  )}
+              <Box sx={{ flex: '1 1 300px' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant="body2" color="textSecondary">Son Güncelleyen:</Typography>
+                  <Typography variant="body2">{order.lastUpdatedUserName || '-'}</Typography>
                 </Box>
-              )}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+                  <Typography variant="body2" color="textSecondary">Son Güncelleme:</Typography>
+                  <Typography variant="body2">{order.lastUpdatedDate ? formatDateTime(order.lastUpdatedDate) : '-'}</Typography>
+                </Box>
+              </Box>
             </Box>
           </CardContent>
         </Card>

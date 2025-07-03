@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, message, Spin } from 'antd';
-import ProductionOrderForm from '../../components/inventory/ProductionOrderForm';
+import ProductionOrderForm, { FormType } from '../../components/inventory/ProductionOrderForm';
 import productionOrderApi from '../../services/productionOrderApi';
 
 const ProductionOrderFormPage: React.FC = () => {
   const navigate = useNavigate();
-  const { orderNumber } = useParams<{ orderNumber: string }>();
+  const { innerNumber } = useParams<{ innerNumber: string }>();
   
   const [loading, setLoading] = useState<boolean>(false);
   const [saveLoading, setSaveLoading] = useState<boolean>(false);
@@ -24,11 +24,11 @@ const ProductionOrderFormPage: React.FC = () => {
         
         setWarehouses(warehousesData);
         
-        // Eğer orderNumber varsa, mevcut fiş bilgilerini getir (düzenleme modu)
-        if (orderNumber) {
-          const orderData = await productionOrderApi.getProductionOrderByNumber(orderNumber);
+        // Eğer innerNumber varsa, mevcut fiş bilgilerini getir (düzenleme modu)
+        if (innerNumber) {
+          const orderData = await productionOrderApi.getProductionOrderByNumber(innerNumber);
           if (orderData) {
-            const orderItems = await productionOrderApi.getProductionOrderItems(orderNumber);
+            const orderItems = await productionOrderApi.getProductionOrderItems(innerNumber);
             
             setInitialValues({
               ...orderData,
@@ -48,7 +48,7 @@ const ProductionOrderFormPage: React.FC = () => {
     };
     
     fetchData();
-  }, [orderNumber, navigate]);
+  }, [innerNumber, navigate]);
 
   // Form kaydetme işlemi
   const handleSave = async (formData: any) => {
@@ -56,7 +56,7 @@ const ProductionOrderFormPage: React.FC = () => {
     try {
       let result;
       
-      if (orderNumber) {
+      if (innerNumber) {
         message.warning('Güncelleme fonksiyonu henüz eklenmedi');
         result = null;
       } else {
@@ -64,6 +64,7 @@ const ProductionOrderFormPage: React.FC = () => {
         
         // API'nin beklediği veri yapısına uygun olarak düzenle
         const requestData = {
+          // Üretim siparişleri için sadece hedef depo kullanılır
           targetWarehouseCode: formData.targetWarehouseCode,
           description: formData.description || '',
           // Tarih formatını kontrol et (yyyy-MM-dd)
@@ -72,6 +73,9 @@ const ProductionOrderFormPage: React.FC = () => {
               formData.operationDate : 
               formData.operationDate.toISOString().split('T')[0]) : 
             new Date().toISOString().split('T')[0],
+          // Sevkiyat yöntemi kodu - API tarafından zorunlu, her zaman "1" değerini gönderiyoruz
+          shipmentMethodCode: "1",
+          innerProcessCode: "OP", // Üretim siparişi için OP (Operation) kodu
           items: formData.items.map((item: any) => {
             console.log('İşlenen ürün satırı:', item);
             
@@ -80,10 +84,11 @@ const ProductionOrderFormPage: React.FC = () => {
               itemCode: item.itemCode,
               colorCode: item.colorCode || '',
               itemDim1Code: item.itemDim1Code || '',
-              quantity: parseFloat(item.quantity), // Kesinlikle sayı olduğundan emin ol
-              unitCode: item.unitCode || 'AD',
+              Quantity: parseFloat(item.Quantity || item.quantity), // Kesinlikle sayı olduğundan emin ol
+              unitCode: item.unitCode || 'AD', // Birim kodu (varsayılan: AD)
               lineDescription: item.lineDescription || '',
-              barcode: item.barcode || ''
+              // Barkod alanı - API tarafından zorunlu
+              barcode: item.barcode || `${item.itemCode}${item.colorCode || ''}${item.itemDim1Code || ''}`
             };
             
             console.log('İşlenmiş ürün satırı:', processedItem);
@@ -91,15 +96,34 @@ const ProductionOrderFormPage: React.FC = () => {
           })
         };
         
-        console.log('API isteği:', requestData);
-        
-        // Yeni imalat fişi oluştur
+        console.log('API isteği:', JSON.stringify(requestData, null, 2));
+        console.log('API isteği tür kontrolü:', {
+          targetWarehouseCode: typeof requestData.targetWarehouseCode,
+          description: typeof requestData.description,
+          operationDate: typeof requestData.operationDate,
+          items: Array.isArray(requestData.items) ? 'array' : typeof requestData.items,
+          itemCount: requestData.items.length
+        });
+
         result = await productionOrderApi.createProductionOrder(requestData);
       }
       
+      // Detaylı log ekleyerek result değişkeninin tipini ve değerini kontrol ediyoruz
+      console.log('Result değeri:', result);
+      console.log('Result tipi:', typeof result);
+      console.log('Result JSON:', JSON.stringify(result));
+      
       if (result) {
-        message.success('İmalat fişi başarıyla kaydedildi');
-        navigate('/inventory/production-orders');
+        // result bir nesne olduğu için doğrudan transferNumber alanını kullan
+        const resultInnerNumber = result.transferNumber || result.orderNumber;
+        console.log('ResultInnerNumber değeri:', resultInnerNumber);
+        console.log('ResultInnerNumber tipi:', typeof resultInnerNumber);
+        
+        message.success(`İmalat fişi başarıyla ${innerNumber ? 'güncellendi' : 'oluşturuldu'}`);
+        message.info(`Fiş Numarası: ${resultInnerNumber}`);
+        navigate(`/inventory/production-orders/${resultInnerNumber}`);
+      } else {
+        message.error(`İmalat fişi ${innerNumber ? 'güncellenirken' : 'oluşturulurken'} bir hata oluştu`);
       }
     } catch (error) {
       console.error('Error saving production order:', error);
@@ -125,7 +149,7 @@ const ProductionOrderFormPage: React.FC = () => {
   return (
     <div style={{ padding: '20px' }}>
       <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>
-        {orderNumber ? 'İmalat Fişi Düzenle' : 'Yeni İmalat Fişi'}
+        {innerNumber ? 'İmalat Fişi Düzenle' : 'Yeni İmalat Fişi'}
       </h2>
       
       <ProductionOrderForm
@@ -134,6 +158,7 @@ const ProductionOrderFormPage: React.FC = () => {
         onCancel={handleCancel}
         loading={saveLoading}
         initialValues={initialValues}
+        formType={FormType.PRODUCTION_ORDER} // İmalat fişi tipi
       />
     </div>
   );

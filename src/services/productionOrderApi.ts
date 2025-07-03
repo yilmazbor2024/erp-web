@@ -72,9 +72,14 @@ export interface ProductionOrderItemRequest {
   colorCode?: string;
   itemDim1Code?: string;
   Quantity: number;
+  quantity?: number; // Eski formlardan gelen quantity alanı (Quantity ile aynı ama küçük harfle)
   unitCode: string; // Birim kodu (zorunlu)
   lineDescription?: string;
   barcode?: string; // Barkod (API tarafından zorunlu)
+  currencyCode?: string; // Para birimi kodu (varsayılan: TRY)
+  costPrice?: number; // Birim maliyet fiyatı
+  costAmount?: number; // Toplam maliyet tutarı (Quantity x costPrice)
+  itemTypeCode?: number; // Ürün tipi kodu (1: Ürün, 2: Malzeme)
 }
 
 // İmalat fişi filtreleme parametreleri
@@ -141,15 +146,15 @@ const productionOrderApi = {
   },
   
   // İmalat fişi detayını getiren fonksiyon
-  getProductionOrderByNumber: async (orderNumber: string): Promise<ProductionOrderResponse | null> => {
+  getProductionOrderByNumber: async (innerNumber: string): Promise<ProductionOrderResponse | null> => {
     try {
       // Depo transferleri API'sini kullanarak üretim siparişi detayı için endpoint oluşturuyoruz
       // Üretim siparişleri için WarehouseTransfer API'sini kullanıyoruz
       // Üretim siparişleri için işlem kodu ekliyoruz (OP = Operation/Production)
       const queryParams = new URLSearchParams();
       queryParams.append('innerProcessCode', 'OP');
-      const url = `/api/WarehouseTransfer/${orderNumber}?${queryParams.toString()}`;
-      console.log('📟 API: Üretim siparişi detayı getiriliyor', { orderNumber, url });
+      const url = `/api/WarehouseTransfer/${innerNumber}?${queryParams.toString()}`;
+      console.log('📟 API: Üretim siparişi detayı getiriliyor', { innerNumber, url });
       
       const response = await axiosInstance.get<ApiResponse<ProductionOrderResponse>>(url);
       
@@ -162,21 +167,21 @@ const productionOrderApi = {
         return null;
       }
     } catch (error) {
-      console.error(`Üretim siparişi detayı getirilirken hata oluştu ${orderNumber}:`, error);
+      console.error(`Üretim siparişi detayı getirilirken hata oluştu ${innerNumber}:`, error);
       return null;
     }
   },
   
   // İmalat fişi kalemlerini getiren fonksiyon
-  getProductionOrderItems: async (orderNumber: string): Promise<ProductionOrderItemResponse[]> => {
+  getProductionOrderItems: async (innerNumber: string): Promise<ProductionOrderItemResponse[]> => {
     try {
       // Depo transferleri API'sini kullanarak üretim siparişi kalemleri için endpoint oluşturuyoruz
       // Üretim siparişleri için WarehouseTransfer API'sini kullanıyoruz
       // Üretim siparişleri için işlem kodu ekliyoruz (OP = Operation/Production)
       const queryParams = new URLSearchParams();
       queryParams.append('innerProcessCode', 'OP');
-      const url = `/api/WarehouseTransfer/${orderNumber}/items?${queryParams.toString()}`;
-      console.log('📟 API: Üretim siparişi kalemleri getiriliyor', { orderNumber, url });
+      const url = `/api/WarehouseTransfer/${innerNumber}/items?${queryParams.toString()}`;
+      console.log('📟 API: Üretim siparişi kalemleri getiriliyor', { innerNumber, url });
       
       const response = await axiosInstance.get<ApiResponse<ProductionOrderItemResponse[]>>(url);
       
@@ -184,38 +189,55 @@ const productionOrderApi = {
       
       return response.data.data || [];
     } catch (error) {
-      console.error(`Üretim siparişi kalemleri getirilirken hata oluştu ${orderNumber}:`, error);
+      console.error(`Üretim siparişi kalemleri getirilirken hata oluştu ${innerNumber}:`, error);
       return []; // Hata durumunda boş dizi döndür, throw etme
     }
   },
   
   // Yeni imalat fişi oluşturan fonksiyon
-  createProductionOrder: async (request: ProductionOrderRequest): Promise<string | null> => {
+  createProductionOrder: async (request: ProductionOrderRequest): Promise<ProductionOrderResponse> => {
     try {
-      // Üretim siparişleri için işlem kodu ekliyoruz (OP = Operation/Production)
+      // Üretim siparişleri için işlem kodu ve zorunlu alanları ekliyoruz
       const requestWithProcessCode = {
         ...request,
-        innerProcessCode: 'OP'
+        innerProcessCode: 'OP',
+        // Açıklama alanı zorunlu, boş ise varsayılan bir değer atayarak hata almasını önleme
+        description: request.description || 'İmalat Fişi ' + new Date().toLocaleDateString('tr-TR')
       };
       
-      // İstek verilerini detaylı görüntüle
-      console.log('API isteği detayları:', JSON.stringify(requestWithProcessCode, null, 2));
-      
-      // Önemli alanları kontrol et
-      console.log('Hedef depo (WarehouseCode):', requestWithProcessCode.targetWarehouseCode);
-      console.log('İşlem tarihi:', requestWithProcessCode.operationDate);
-      console.log('Ürün sayısı:', requestWithProcessCode.items.length);
-      
-      // Ürün detaylarını kontrol et
-      requestWithProcessCode.items.forEach((item, index) => {
-        console.log(`Ürün ${index + 1}:`, {
-          itemCode: item.itemCode,
-          colorCode: item.colorCode,
-          itemDim1Code: item.itemDim1Code,
-          Quantity: item.Quantity,
-          unitCode: item.unitCode
-        });
+      // Ürün satırlarını düzgün formata getir
+      requestWithProcessCode.items = request.items.map(item => {
+        const { quantity: origQuantity, ...rest } = item;
+        
+        // Miktar değerini float olarak hazırlama
+        let finalQuantity = origQuantity || item.Quantity || 1;
+        
+        // Miktar string ise ("12,45" gibi) float'a çevir
+        if (typeof finalQuantity === 'string') {
+          // Virgüllü sayıyı noktalı sayıya çevir ("12,45" -> "12.45")
+          const strValue = finalQuantity as string;
+          finalQuantity = parseFloat(strValue.replace(',', '.'));
+        }
+        
+        // Sayı değilse veya NaN ise 1 olarak ayarla
+        if (isNaN(finalQuantity) || finalQuantity <= 0) {
+          finalQuantity = 1;
+        }
+        
+        return {
+          ...rest,
+          Quantity: finalQuantity, // Düzeltilmiş miktar formatı
+          currencyCode: item.currencyCode || 'TRY',
+          costPrice: item.costPrice || 0,
+          costAmount: item.costAmount || 0,
+          colorCode: item.colorCode || '0', // ColorCode zorunlu alan
+          itemDim1Code: item.itemDim1Code || '', // ItemDim1Code zorunlu alan
+          itemTypeCode: item.itemTypeCode !== undefined ? item.itemTypeCode : 2 // Ürünün kendi tipini kullan, yoksa varsayılan olarak 2 (Malzeme)
+        };
       });
+      
+      // İstek verilerini detaylı görüntüle (geliştirme aşamasında yardımcı olması için)
+      console.log('İmalat fişi oluşturma isteği:', JSON.stringify(requestWithProcessCode, null, 2));
       
       console.log('📟 API: Üretim siparişi oluşturuluyor');
       // Depo transferleri API'sini kullanarak üretim siparişi oluşturma için endpoint oluşturuyoruz
@@ -230,15 +252,110 @@ const productionOrderApi = {
         }
       );
       
-      if (response.data.success && response.data.data) {
-        console.log('📟 API: Üretim siparişi başarıyla oluşturuldu', { status: response.status, data: response.data });
-        return response.data.data; // Oluşturulan üretim siparişi numarası
-      } else {
-        console.warn('API: Üretim siparişi oluşturma endpoint başarısız veya veri yok', response.data);
-        return null;
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'İmalat fişi oluşturulamadı');
       }
+      
+      // API'den dönen imalat fişi numarasını string olarak kullan
+      const innerNumber = String(response.data.data);
+      console.log('📟 API: İmalat fişi başarıyla oluşturuldu. Fiş No:', innerNumber);
+      
+      // Oluşturulan imalat fişi detaylarını getir
+      let detailResponse;
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      // Yeniden deneme mekanizması
+      while (retryCount < maxRetries) {
+        try {
+          // İmalat fişi detaylarını getirmeyi dene
+          // innerProcessCode parametresini ekle ve orderNumber'ın string olduğundan emin ol
+          const queryParams = new URLSearchParams();
+          queryParams.append('innerProcessCode', 'OP');
+          detailResponse = await axiosInstance.get<ApiResponse<ProductionOrderResponse>>(`/api/WarehouseTransfer/${innerNumber}?${queryParams.toString()}`);
+          
+          // Başarılı yanıt ve veri varsa döngüden çık
+          if (detailResponse.data.success && detailResponse.data.data) {
+            break;
+          }
+          
+          // Yanıt var ama satırlar olmayabilir, satırları ayrıca getirmeyi dene
+          console.log(`Deneme ${retryCount + 1}: Yanıt alındı ama satırlar kontrol ediliyor...`);
+          
+          try {
+            // İmalat fişi satırlarını getirmeyi dene
+            const queryParams = new URLSearchParams();
+            queryParams.append('innerProcessCode', 'OP');
+            const itemsResponse = await axiosInstance.get<ApiResponse<ProductionOrderItemResponse[]>>(
+              `/api/WarehouseTransfer/${innerNumber}/items?${queryParams.toString()}`
+            );
+            
+            // Satırlar başarıyla alındıysa, detay yanıtına ekle
+            if (itemsResponse.data.success && itemsResponse.data.data) {
+              if (!detailResponse.data.data) {
+                detailResponse.data.data = {} as ProductionOrderResponse;
+              }
+              detailResponse.data.data.items = itemsResponse.data.data;
+              break;
+            }
+          } catch (itemsError) {
+            console.warn(`İmalat fişi satırları getirilirken hata oluştu. Fiş No: ${innerNumber}:`, itemsError);
+            // Ana istek için yeniden denemeye devam et
+          }
+        } catch (retryError) {
+          console.warn(`Deneme ${retryCount + 1} başarısız:`, retryError);
+        }
+        
+        // Yeniden denemeden önce bekle
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        retryCount++;
+      }
+      
+      // Tüm denemelerden sonra hala geçerli bir yanıt yoksa
+      if (!detailResponse || !detailResponse.data.success) {
+        console.warn('Birden fazla denemeden sonra imalat fişi detayları getirilemedi');
+        
+        // Sadece fiş numarası ile minimal bir yanıt döndür
+        const minimalResponse: Partial<ProductionOrderResponse> = {
+          transferNumber: innerNumber,
+          operationDate: new Date().toISOString().split('T')[0],
+          operationTime: new Date().toISOString().split('T')[1].substring(0, 8),
+          innerProcessCode: 'OP',
+          innerProcessDescription: 'İmalat Fişi',
+          warehouseCode: requestWithProcessCode.targetWarehouseCode, // Kaynak depo olarak hedef depoyu kullan
+          warehouseDescription: '',
+          targetWarehouseCode: requestWithProcessCode.targetWarehouseCode,
+          targetWarehouseName: '',
+          isCompleted: false,
+          isLocked: false,
+          isTransferApproved: false,
+          totalQty: requestWithProcessCode.items.reduce((sum, item) => sum + (item.Quantity || 0), 0),
+          InnerHeaderID: '',
+          items: []
+        };
+        
+        // Önemli: orderNumber alanını innerNumber ile doldur
+        minimalResponse.orderNumber = innerNumber;
+        
+        return minimalResponse as ProductionOrderResponse;
+      }
+      
+      // API'den gelen yanıtı kullan
+      const productionOrderResponse = detailResponse.data.data;
+      
+      // Önemli: orderNumber alanını innerNumber (transferNumber) ile doldur
+      // Bu, frontend'de navigasyon için kullanılacak
+      productionOrderResponse.orderNumber = productionOrderResponse.transferNumber || innerNumber;
+      
+      console.log('📟 API: Dönüş değeri kontrolü:', {
+        transferNumber: productionOrderResponse.transferNumber,
+        orderNumber: productionOrderResponse.orderNumber,
+        innerNumber: innerNumber
+      });
+      
+      return productionOrderResponse;
     } catch (error: any) {
-      console.error('Üretim siparişi oluşturulurken hata oluştu:', error);
+      console.error('İmalat fişi oluşturulurken hata oluştu:', error);
       
       // Hata detaylarını görüntüle
       if (error.response) {
