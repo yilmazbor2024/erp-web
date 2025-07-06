@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Button,
   Card,
@@ -12,7 +12,8 @@ import {
   message,
   Empty,
   Row,
-  Col
+  Col,
+  Divider
 } from 'antd';
 import {
   SearchOutlined,
@@ -138,7 +139,6 @@ const CashTransactionsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [transactions, setTransactions] = useState<CashTransaction[]>([]);
-  const [displayedTransactions, setDisplayedTransactions] = useState<CashTransaction[]>([]);
   const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([]);
   const [selectedCashAccount, setSelectedCashAccount] = useState<string>('ALL');
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([
@@ -148,34 +148,165 @@ const CashTransactionsPage: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const itemsPerPage = 10;
+  const [selectedVoucherType, setSelectedVoucherType] = useState<string>('ALL');
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const pageSize = 20;
+  
+  // Sonsuz kaydırma için gözlemci referansı
+  const observer = useRef<IntersectionObserver | null>(null);
+  
+  // Daha fazla işlem yükleme fonksiyonu
+  const loadMoreTransactions = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
+    
+    try {
+      setLoadingMore(true);
+      const nextPage = currentPage + 1;
+      
+      // API parametrelerini hazırla
+      const apiParams: any = {
+        startDate: dateRange[0].format('YYYY-MM-DD'),
+        endDate: dateRange[1].format('YYYY-MM-DD'),
+        page: nextPage,
+        pageSize: pageSize,
+        langCode: 'TR'
+      };
+      
+      // Fiş tipi filtresini ekle (ALL değilse)
+      if (selectedVoucherType !== 'ALL') {
+        apiParams.cashTransTypeCode = selectedVoucherType;
+      }
+      
+      // Seçili kasa hesabı filtresini ekle (ALL değilse)
+      if (selectedCashAccount !== 'ALL') {
+        apiParams.cashAccountCode = selectedCashAccount;
+      }
+      
+      // Arama metni filtrelerini ekle
+
+      
+      if (searchText) {
+        apiParams.searchText = searchText;
+      }
+      
+      const response = await cashVoucherApi.getCashBalances(apiParams);
+      
+      if (response.success && response.data) {
+        // Tüm işlemleri birleştir
+        let newTransactions: CashTransaction[] = [];
+        response.data.forEach((account: CashAccount) => {
+          if (account.transactions && account.transactions.length > 0) {
+            // Her işleme kasa hesap kodunu ekle
+            const accountTransactions = account.transactions.map(t => ({
+              ...t,
+              cashAccountCode: account.cashAccountCode
+            }));
+            newTransactions = [...newTransactions, ...accountTransactions];
+          }
+        });
+        
+        // Mevcut işlemlerle yeni işlemleri birleştir
+        setTransactions(prevTransactions => [...prevTransactions, ...newTransactions]);
+        setCurrentPage(nextPage);
+        setHasMore(nextPage < response.totalPages);
+        setTotalCount(response.totalCount);
+        setTotalPages(response.totalPages);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error('Daha fazla işlem yüklenirken hata oluştu:', error);
+      message.error('Daha fazla işlem yüklenirken bir hata oluştu');
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [currentPage, dateRange, selectedVoucherType, selectedCashAccount, searchText, hasMore, loadingMore]);
+  
+  const lastTransactionElementRef = useCallback((node: HTMLDivElement | null) => {
+    if (loading || loadingMore) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadMoreTransactions();
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [loading, loadingMore, hasMore, loadMoreTransactions]);
+
+  // Fiş tipleri - CashTransTypeCode değerlerine göre (1=Tahsilat, 2=Tediye, 3=Virman)
+  const voucherTypes = [
+    { value: 'ALL', label: 'Tüm Fişler' },
+    { value: '1', label: 'Tahsilat Fişleri' },
+    { value: '2', label: 'Tediye Fişleri' },
+    { value: '3', label: 'Virman Fişleri' },
+  ];
 
   // Fetch cash accounts and transactions on component mount
   useEffect(() => {
     fetchCashBalances();
   }, []); // Component mount olduğunda sadece bir kere çağrılıyor
 
-  // Apply search and account filters when transactions or filters change
-  useEffect(() => {
-    applyFilters();
-  }, [transactions, searchText, selectedCashAccount]);
-
   // Fetch cash balances and transactions from API
   const fetchCashBalances = async () => {
     setLoading(true);
+    setTransactions([]);
+    setCurrentPage(1);
+    setHasMore(true);
+    
     try {
-      // Tarih aralığını doğru formatta gönder
-      const startDate = dateRange[0].format('YYYY-MM-DD');
-      const endDate = dateRange[1].format('YYYY-MM-DD');
+      // Tarih aralığını kontrol et ve doğru formatta gönder
+      if (!dateRange || !dateRange[0] || !dateRange[1]) {
+        // Eğer tarih aralığı yoksa, son 30 günü kullan
+        const endDate = dayjs();
+        const startDate = dayjs().subtract(30, 'day');
+        setDateRange([startDate, endDate]);
+        
+        console.log('Varsayılan tarih aralığı kullanılıyor:', { 
+          startDate: startDate.format('YYYY-MM-DD'), 
+          endDate: endDate.format('YYYY-MM-DD') 
+        });
+        
+        var apiStartDate = startDate.format('YYYY-MM-DD');
+        var apiEndDate = endDate.format('YYYY-MM-DD');
+      } else {
+        // Tarih aralığını doğru formatta gönder
+        var apiStartDate = dateRange[0].format('YYYY-MM-DD');
+        var apiEndDate = dateRange[1].format('YYYY-MM-DD');
+        
+        console.log('Seçilen tarih aralığı:', { apiStartDate, apiEndDate });
+      }
       
-      console.log('Tarih aralığı:', { startDate, endDate });
+      // API parametrelerini hazırla
+      const apiParams: any = {
+        startDate: apiStartDate,
+        endDate: apiEndDate,
+        page: 1,
+        pageSize: pageSize,
+        langCode: 'TR'
+      };
+      
+      // Fiş tipi filtresini ekle (ALL değilse)
+      if (selectedVoucherType !== 'ALL') {
+        apiParams.cashTransTypeCode = selectedVoucherType;
+      }
+      
+      // Seçili kasa hesabı filtresini ekle (ALL değilse)
+      if (selectedCashAccount !== 'ALL') {
+        apiParams.cashAccountCode = selectedCashAccount;
+      }
+      
+      // Arama metni filtrelerini ekle
+
+      
+      if (searchText) {
+        apiParams.searchText = searchText;
+      }
+      
+      console.log('API parametreleri:', apiParams);
       
       // Tarih aralığına göre kasa bakiyelerini ve işlemleri getir
-      const response = await cashVoucherApi.getCashBalances({
-        startDate,
-        endDate,
-        langCode: 'TR'
-      });
+      const response = await cashVoucherApi.getCashBalances(apiParams);
       
       // API yanıtını kontrol et
       console.log('API yanıtı:', response);
@@ -198,7 +329,7 @@ const CashTransactionsPage: React.FC = () => {
         accounts.forEach((account: CashAccount) => {
           if (account.transactions && account.transactions.length > 0) {
             // Her işleme kasa hesap kodunu ekle
-            const accountTransactions = account.transactions.map((t: CashTransaction) => ({
+            const accountTransactions = account.transactions.map(t => ({
               ...t,
               cashAccountCode: account.cashAccountCode
             }));
@@ -206,7 +337,25 @@ const CashTransactionsPage: React.FC = () => {
           }
         });
         
-        // Sort transactions by date (most recent first)
+        // Tekrarlanan kayıtları sessizce filtreleme
+        const uniqueTransactions: CashTransaction[] = [];
+        const seenKeys = new Set<string>();
+        
+        allTransactions.forEach(transaction => {
+          // Benzersiz anahtar oluştur (fiş no + tarih + tutar)
+          const uniqueKey = `${transaction.documentNumber || transaction.cashTransNumber || ''}|${transaction.documentDate || ''}|${transaction.loc_Debit || 0}|${transaction.loc_Credit || 0}`;
+          
+          if (!seenKeys.has(uniqueKey)) {
+            seenKeys.add(uniqueKey);
+            uniqueTransactions.push(transaction);
+          }
+          // Tekrarlanan kayıtlar sessizce atlanıyor
+        });
+        
+        // Tekrarsız kayıtları kullan
+        allTransactions = uniqueTransactions;
+        
+        // İşlemleri tarihe göre sırala (en yeni en üstte)
         const sortedTransactions = allTransactions.sort((a, b) => {
           try {
             const dateA = dayjs(a.documentDate);
@@ -226,10 +375,16 @@ const CashTransactionsPage: React.FC = () => {
         
         setTransactions(sortedTransactions);
         setCurrentPage(1);
+        setTotalCount(response.totalCount || sortedTransactions.length);
+        setTotalPages(response.totalPages || Math.ceil(sortedTransactions.length / pageSize));
+        setHasMore((response.totalPages || 1) > 1);
       } else {
         message.error('Kasa işlemleri yüklenemedi');
         setTransactions([]);
         setCashAccounts([]);
+        setTotalCount(0);
+        setTotalPages(0);
+        setHasMore(false);
       }
     } catch (error) {
       message.error('Kasa işlemleri yüklenirken hata oluştu');
@@ -241,37 +396,12 @@ const CashTransactionsPage: React.FC = () => {
     }
   };
 
-  // Apply filters to transactions
-  const applyFilters = () => {
-    let filtered = [...transactions];
-    
-    // Apply cash account filter
-    if (selectedCashAccount !== 'ALL') {
-      filtered = filtered.filter(
-        (t) => t.cashAccountCode === selectedCashAccount
-      );
-    }
-    
-    // Apply search filter
-    if (searchText) {
-      const searchLower = searchText.toLowerCase();
-      filtered = filtered.filter(
-        (t) =>
-          t.description?.toLowerCase().includes(searchLower) ||
-          t.documentNumber?.toLowerCase().includes(searchLower) ||
-          t.currAccDescription?.toLowerCase().includes(searchLower) ||
-          t.cashTransNumber?.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    // Apply pagination
-    const start = 0;
-    const end = currentPage * itemsPerPage;
-    const paginatedTransactions = filtered.slice(start, end);
-    
-    setDisplayedTransactions(paginatedTransactions);
-    setHasMore(end < filtered.length);
+  // Arama filtresini uygulama
+  const handleSearch = () => {
+    fetchCashBalances();
   };
+  
+
 
   // Load more transactions on scroll
   const loadMore = () => {
@@ -282,7 +412,6 @@ const CashTransactionsPage: React.FC = () => {
     
     // Simulate loading delay
     setTimeout(() => {
-      applyFilters();
       setLoadingMore(false);
     }, 500);
   };
@@ -297,15 +426,28 @@ const CashTransactionsPage: React.FC = () => {
 
   // Handle refresh button click
   const handleRefresh = () => {
-    // Filtreleri sıfırla
+    // Tüm filtreleri sıfırla
     setSearchText('');
     setSelectedCashAccount('ALL');
-    // Son 30 günü varsayılan olarak ayarla
-    setDateRange([
-      dayjs().subtract(30, 'day'),
-      dayjs()
-    ]);
+    setSelectedVoucherType('ALL');
+    
+    // Son 30 gün için tarih aralığını ayarla
+    const endDate = dayjs();
+    const startDate = dayjs().subtract(30, 'day');
+    setDateRange([startDate, endDate]);
+    
     // Verileri yenile
+    fetchCashBalances();
+  };
+
+  // Date Range Filter
+  const handleDateRangeChange = (dates: [dayjs.Dayjs, dayjs.Dayjs]) => {
+    if (dates && dates[0] && dates[1]) {
+      // Önce tarih aralığını güncelle
+      setDateRange([dates[0], dates[1]]);
+      // Hemen yeni verileri getir
+      fetchCashBalances();
+    }
     setTimeout(() => fetchCashBalances(), 100);
   };
 
@@ -420,16 +562,24 @@ const CashTransactionsPage: React.FC = () => {
             {transaction.currAccDescription || ''}
           </Text>
           
-          <Text 
-            strong 
-            style={{ 
-              fontSize: 16, 
-              color: isIncoming ? '#52c41a' : '#ff4d4f',
-              fontWeight: 'bold'
-            }}
-          >
-            {isIncoming ? '+' : '-'}{formatCurrency(amount, currencyCode)}
-          </Text>
+          <div style={{ textAlign: 'right' }}>
+            <Text 
+              strong 
+              style={{ 
+                fontSize: 16, 
+                color: isIncoming ? '#52c41a' : '#ff4d4f',
+                fontWeight: 'bold',
+                display: 'block'
+              }}
+            >
+              {isIncoming ? '+' : '-'}{formatCurrency(amount, currencyCode)}
+            </Text>
+            {transaction.applicationDescription && (
+              <Text style={{ fontSize: 10, color: '#888', display: 'block' }}>
+                {transaction.applicationDescription}
+              </Text>
+            )}
+          </div>
         </div>
         
         {/* Açıklama - italik ve %30 daha küçük font */}
@@ -462,23 +612,41 @@ const CashTransactionsPage: React.FC = () => {
             <div className="cash-transactions-filters">
               <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                 <Row gutter={[16, 16]} align="middle">
-                  <Col xs={24} sm={24} md={8} lg={8} xl={6}>
+                  <Col xs={24} sm={12} md={8} lg={6} xl={6}>
+                    <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                      Kasa Hesabı
+                    </Text>
                     <Select
                       style={{ width: '100%' }}
-                      placeholder="Kasa Hesabı Seçin"
-                      onChange={(value) => setSelectedCashAccount(value)}
                       value={selectedCashAccount}
+                      onChange={(value) => setSelectedCashAccount(value)}
                     >
-                      <Option value="ALL">Tüm Kasa Hesapları</Option>
+                      <Option value="ALL">Tüm Hesaplar</Option>
                       {cashAccounts.map((account) => (
                         <Option key={account.cashAccountCode} value={account.cashAccountCode}>
-                          {account.cashAccountName} ({account.cashAccountCode}) - {account.currencyCode}
+                          {account.cashAccountName} ({account.currencyCode})
+                        </Option>
+                      ))}
+                    </Select>
+                  </Col>
+                  
+                  <Col xs={24} sm={12} md={8} lg={6} xl={6}>
+                    <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                      Fiş Tipi
+                    </Text>
+                    <Select
+                      style={{ width: '100%' }}
+                      value={selectedVoucherType}
+                      onChange={(value) => setSelectedVoucherType(value)}
+                    >
+                      {voucherTypes.map((type) => (
+                        <Option key={type.value} value={type.value}>
+                          {type.label}
                         </Option>
                       ))}
                     </Select>
                   </Col>
 
-                  {/* Date Range Filter */}
                   <Col xs={24} sm={24} md={8} lg={8} xl={6}>
                     <Text strong style={{ display: 'block', marginBottom: 8 }}>
                       Tarih Aralığı
@@ -488,22 +656,21 @@ const CashTransactionsPage: React.FC = () => {
                       value={dateRange}
                       onChange={(dates) => {
                         if (dates && dates[0] && dates[1]) {
+                          // Sadece tarih aralığını güncelle, otomatik filtreleme yapma
                           setDateRange([dates[0], dates[1]]);
-                          // Tarih değiştiğinde yeni verileri getir
-                          setTimeout(() => fetchCashBalances(), 100);
                         }
                       }}
                       format="DD.MM.YYYY"
                     />
                   </Col>
 
-                  {/* Search Filter */}
+                  {/* Tek Arama Alanı */}
                   <Col xs={24} sm={24} md={8} lg={8} xl={6}>
                     <Text strong style={{ display: 'block', marginBottom: 8 }}>
                       Arama
                     </Text>
                     <Input
-                      placeholder="Açıklama, fiş numarası veya hesap adında ara..."
+                      placeholder="Açıklama, fiş numarası, cari hesap kodu veya satır açıklamasında ara..."
                       prefix={<SearchOutlined />}
                       value={searchText}
                       onChange={(e) => setSearchText(e.target.value)}
@@ -512,14 +679,23 @@ const CashTransactionsPage: React.FC = () => {
                   </Col>
 
                   <Col xs={24} sm={24} md={8} lg={8} xl={6}>
-                    <Button 
-                      type="primary" 
-                      icon={<ReloadOutlined />} 
-                      onClick={handleRefresh}
-                      loading={loading}
-                    >
-                      Yenile
-                    </Button>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
+                      <Button 
+                        type="primary" 
+                        icon={<SearchOutlined />} 
+                        onClick={() => fetchCashBalances()}
+                        loading={loading}
+                      >
+                        Filtrele
+                      </Button>
+                      
+                      <Button 
+                        icon={<ReloadOutlined />} 
+                        onClick={handleRefresh}
+                      >
+                        Sıfırla
+                      </Button>
+                    </div>
                   </Col>
                 </Row>
               </Space>
@@ -535,18 +711,31 @@ const CashTransactionsPage: React.FC = () => {
           </div>
         )}
 
-        {!loading && displayedTransactions.length === 0 && (
+        {!loading && transactions.length === 0 && (
           <Empty
             description="Seçilen kriterlere uygun işlem bulunamadı"
             style={{ padding: 40 }}
           />
         )}
 
-        {!loading && displayedTransactions.length > 0 && (
+        {!loading && transactions.length > 0 && (
           <>
-            {displayedTransactions.slice(0, currentPage * itemsPerPage).map((transaction, index) =>
-              renderTransactionCard(transaction, index)
-            )}
+            {transactions.map((transaction: CashTransaction, index: number) => {
+              // Son elemana geldiğimizde referans ekle
+              if (index === transactions.length - 1) {
+                return (
+                  <div key={`${transaction.documentNumber}-${index}`} ref={lastTransactionElementRef}>
+                    {renderTransactionCard(transaction, index)}
+                  </div>
+                );
+              } else {
+                return (
+                  <div key={`${transaction.documentNumber}-${index}`}>
+                    {renderTransactionCard(transaction, index)}
+                  </div>
+                );
+              }
+            })}
 
             {/* Load More Indicator */}
             {loadingMore && (
@@ -559,11 +748,18 @@ const CashTransactionsPage: React.FC = () => {
             )}
 
             {/* All Loaded Message */}
-            {!hasMore && !loadingMore && displayedTransactions.length > itemsPerPage && (
+            {!hasMore && !loadingMore && transactions.length > pageSize && (
               <div style={{ textAlign: 'center', padding: 20 }}>
                 <Text type="secondary">Tüm işlemler yüklendi</Text>
               </div>
             )}
+            
+            {/* Toplam kayıt sayısı */}
+            <div style={{ textAlign: 'center', padding: 10, marginTop: 10 }}>
+              <Text type="secondary">
+                Toplam {totalCount} kayıttan {transactions.length} tanesi görüntüleniyor
+              </Text>
+            </div>
           </>
         )}
       </div>
