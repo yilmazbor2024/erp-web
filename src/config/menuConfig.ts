@@ -140,22 +140,34 @@ export const mainMenuItems: MenuItem[] = [
             icon: 'AccountBookOutlined'
           },
           {
-            id: 'cash-receipt',
-            title: 'Kasa Tahsil',
-            path: '/finance/cash/receipt',
+            id: 'cash-receipts',
+            title: 'Kasa Tahsilat Fişleri',
+            path: '/cash/receipts',
             icon: 'ImportOutlined'
           },
           {
-            id: 'cash-payment',
-            title: 'Kasa Tediye',
-            path: '/finance/cash/payment',
+            id: 'cash-payments',
+            title: 'Kasa Tediye Fişleri',
+            path: '/cash/payments',
             icon: 'ExportOutlined'
           },
           {
-            id: 'cash-transfer',
-            title: 'Kasalar Arası Virman',
-            path: '/finance/cash/transfer',
+            id: 'cash-transfers',
+            title: 'Kasalar Arası Virman Fişleri',
+            path: '/cash/transfers',
             icon: 'SwapOutlined'
+          },
+          {
+            id: 'cash-summary',
+            title: 'Kasa Özet',
+            path: '/cash/summary',
+            icon: 'PieChartOutlined'
+          },
+          {
+            id: 'cash-transactions-detail',
+            title: 'Kasa Hareketleri',
+            path: '/cash/transactions',
+            icon: 'UnorderedListOutlined'
           }
         ]
       },
@@ -207,19 +219,19 @@ export const mainMenuItems: MenuItem[] = [
         path: '/inventory/stock'
       },
       {
-        id: 'inventory-count',
-        title: 'Sayımlar',
-        path: '/inventory/count'
-      },
-      {
         id: 'warehouse-transfer',
-        title: 'Depo ve Depolar Arası Transfer',
+        title: 'Ofis Depoları Arası Transfer',
         path: '/inventory/warehouse-transfers'
       },
       {
         id: 'production-order',
-        title: 'İmalat Fişleri',
+        title: 'Sair İmalat Fişi',
         path: '/inventory/production-orders'
+      },
+      {
+        id: 'consumption-order',
+        title: 'Sair Sarf Fişi',
+        path: '/inventory/consumption-orders'
       },
     ]
   },
@@ -228,6 +240,24 @@ export const mainMenuItems: MenuItem[] = [
     title: 'Ayarlar',
     icon: 'CogIcon',
     children: [
+      {
+        id: 'general-settings',
+        title: 'Genel Ayarlar',
+        path: '/settings',
+        icon: 'SettingOutlined'
+      },
+      {
+        id: 'database-management',
+        title: 'Veritabanı Yönetimi',
+        path: '/settings/databases',
+        icon: 'DatabaseOutlined'
+      },
+      {
+        id: 'user-database-management',
+        title: 'Kullanıcı Veritabanı Yetkileri',
+        path: '/settings/user-databases',
+        icon: 'DatabaseOutlined'
+      },
       {
         id: 'users',
         title: 'Kullanıcılar',
@@ -395,20 +425,26 @@ export const mobileCardMenu: MenuItem[] = [
       {
         id: 'inventory-stock',
         title: 'Envanter/Stok',
-        path: '/test',
-        icon: 'ArchiveBoxIcon'
-      },
-      {
-        id: 'inventory-count',
-        title: 'Sayımlar',
-        path: 'inventory/count',
+        path: '/inventory/stock',
         icon: 'ArchiveBoxIcon'
       },
       {
         id: 'warehouse-transfer',
-        title: 'Depo ve Depolar Arası Transfer',
+        title: 'Ofis Depoları Arası Transfer',
         path: '/inventory/warehouse-transfers',
         icon: 'SwapOutlined'
+      },
+      {
+        id: 'production-order',
+        title: 'Sair İmalat Fişi',
+        path: '/inventory/production-orders',
+        icon: 'ToolOutlined'
+      },
+      {
+        id: 'consumption-order',
+        title: 'Sair Sarf Fişi',
+        path: '/inventory/consumption-orders',
+        icon: 'FileOutlined'
       }
     ]
   },
