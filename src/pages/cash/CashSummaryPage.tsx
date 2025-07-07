@@ -2,26 +2,28 @@ import React, { useState, useEffect } from 'react';
 import {
   Button,
   Card,
-  Select,
-  Space,
-  Tag,
   Typography,
   Spin,
   message,
   Empty,
   Row,
   Col,
-  Divider
+  Divider,
+  Badge,
+  Avatar
 } from 'antd';
 import {
-  ReloadOutlined
+  ReloadOutlined,
+  WalletOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
+  SwapOutlined
 } from '@ant-design/icons';
 import cashVoucherApi from '../../services/cashVoucherApi';
 import { formatCurrency } from '../../utils/formatters';
-import './CashTransactionsPage.css'; // Aynı stil dosyasını kullanabiliriz
+import './CashTransactionsPage.css';
 
 const { Text, Title } = Typography;
-const { Option } = Select;
 
 interface CashAccount {
   cashAccountCode: string;
@@ -45,7 +47,6 @@ const CashSummaryPage: React.FC = () => {
   // State management
   const [loading, setLoading] = useState(false);
   const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([]);
-  const [selectedCashAccount, setSelectedCashAccount] = useState<string>('ALL');
 
   // Kasa hesaplarını ve özet bilgileri getir
   const fetchCashSummary = async () => {
@@ -53,234 +54,185 @@ const CashSummaryPage: React.FC = () => {
       setLoading(true);
       
       // API parametrelerini hazırla
-      const apiParams: any = {
-        langCode: 'TR'
-      };
-      
-      // Seçili kasa hesabı filtresini ekle (ALL değilse)
-      if (selectedCashAccount !== 'ALL') {
-        apiParams.cashAccountCode = selectedCashAccount;
-      }
-      
       // Kasa özet bilgilerini getir
-      const response = await cashVoucherApi.getCashSummary(apiParams);
-      
-      if (response.success && response.data) {
+      const response = await cashVoucherApi.getCashSummary();
+
+      if (response.data && response.success) {
         setCashAccounts(response.data);
       } else {
-        message.error('Kasa özet bilgileri alınamadı: ' + (response.message || 'Bilinmeyen hata'));
-        setCashAccounts([]);
+        message.error('Kasa özet bilgileri alınamadı: ' + response.message);
       }
     } catch (error) {
       console.error('Kasa özet bilgileri alınamadı:', error);
       message.error('Kasa özet bilgileri alınamadı');
-      setCashAccounts([]);
     } finally {
       setLoading(false);
     }
   };
-  
-  // Sayfa yüklendiğinde ve filtreler değiştiğinde verileri getir
+
+  // Sayfa yüklendiğinde veri getir
   useEffect(() => {
     fetchCashSummary();
   }, []);
-  
-  // Filtreleri sıfırla
-  const handleRefresh = () => {
-    setSelectedCashAccount('ALL');
-    // Filtreleri sıfırladıktan sonra verileri tekrar getir
-    setTimeout(() => {
-      fetchCashSummary();
-    }, 100);
+
+  // Para birimi için renk belirle
+  const getCurrencyColor = (currencyCode: string) => {
+    switch(currencyCode) {
+      case 'USD': return '#2b908f';
+      case 'EUR': return '#3366cc';
+      case 'TRY': return '#e15f41';
+      default: return '#718093';
+    }
   };
 
   return (
-    <div style={{ padding: '16px', maxWidth: 800, margin: '0 auto' }}>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={3} style={{ marginBottom: 16, textAlign: 'center' }}>
-          Kasa Özeti
-        </Title>
-
-        {/* Filters */}
-        <Card style={{ marginBottom: 16, borderRadius: 8 }}>
-          <Space direction="vertical" style={{ width: '100%' }} size={12}>
-            <div className="cash-transactions-filters">
-              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                <Row gutter={[16, 16]} align="middle">
-                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                    <Text strong style={{ display: 'block', marginBottom: 8 }}>
-                      Kasa Hesabı
-                    </Text>
-                    <Select
-                      style={{ width: '100%' }}
-                      value={selectedCashAccount}
-                      onChange={(value) => setSelectedCashAccount(value)}
-                    >
-                      <Option value="ALL">Tüm Hesaplar</Option>
-                      {cashAccounts.map((account) => (
-                        <Option key={account.cashAccountCode} value={account.cashAccountCode}>
-                          {account.cashAccountDescription} ({account.currencyCode})
-                        </Option>
-                      ))}
-                    </Select>
-                  </Col>
-
-
-
-                  <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
-                      <Button 
-                        type="primary" 
-                        onClick={() => fetchCashSummary()}
-                        loading={loading}
-                      >
-                        Yenile
-                      </Button>
-                      
-                      <Button 
-                        icon={<ReloadOutlined />} 
-                        onClick={handleRefresh}
-                      >
-                        Sıfırla
-                      </Button>
-                    </div>
-                  </Col>
-                </Row>
-              </Space>
-            </div>
-          </Space>
-        </Card>
+    <div className="cash-transactions-container" style={{ background: '#f5f6fa', minHeight: '100vh', padding: '20px' }}>
+      <div className="cash-transactions-content" style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+          <Title level={3} style={{ margin: 0 }}>
+            <WalletOutlined style={{ marginRight: 12 }} /> Kasa Özeti
+          </Title>
+          
+          <Button 
+            type="primary" 
+            icon={<ReloadOutlined />}
+            onClick={fetchCashSummary}
+            loading={loading}
+          >
+            Yenile
+          </Button>
+        </div>
 
         {/* Kasa Özet İçeriği */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40 }}>
+          <div style={{ textAlign: 'center', padding: 40, background: '#fff', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
             <Spin size="large" />
             <div style={{ marginTop: 16 }}>
               <Text>Kasa hesapları yükleniyor...</Text>
             </div>
           </div>
         ) : cashAccounts.length === 0 ? (
-          <Empty description="Kasa hesabı bulunamadı" style={{ padding: 40 }} />
+          <Empty description="Kasa hesabı bulunamadı" style={{ padding: 40, background: '#fff', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} />
         ) : (
-          <div>
+          <Row gutter={[16, 16]}>
             {cashAccounts.map((account) => (
-              <Card 
-                key={account.cashAccountCode} 
-                style={{ marginBottom: 16, borderRadius: 8 }}
-                title={
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>{account.cashAccountDescription}</span>
-                    <Tag color="blue">{account.currencyCode}</Tag>
+              <Col xs={24} sm={24} md={12} lg={8} xl={8} key={account.cashAccountCode}>
+                <Card 
+                  style={{ 
+                    borderRadius: 12, 
+                    overflow: 'hidden',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                    height: '100%'
+                  }}
+                  bodyStyle={{ padding: 0 }}
+                >
+                  <div style={{ 
+                    padding: '16px 24px', 
+                    background: getCurrencyColor(account.currencyCode),
+                    color: '#fff',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 'bold' }}>{account.cashAccountDescription}</div>
+                      <div style={{ opacity: 0.8 }}>{account.cashAccountCode}</div>
+                    </div>
+                    <Avatar 
+                      style={{ 
+                        background: '#fff', 
+                        color: getCurrencyColor(account.currencyCode),
+                        fontWeight: 'bold',
+                        fontSize: 16
+                      }} 
+                      size="large"
+                    >
+                      {account.currencyCode}
+                    </Avatar>
                   </div>
-                }
-              >
-                <Row gutter={[16, 16]}>
-                  <Col span={12}>
-                    <Text strong>Açılış Bakiyesi:</Text>
-                    <div>
-                      {account.currencyCode !== 'TRY' ? (
-                        <>
-                          {formatCurrency(account.documentOpeningBalance, account.currencyCode)}
-                          <span style={{ marginLeft: 5, fontSize: '0.9em', color: '#666' }}>
-                            ({formatCurrency(account.localOpeningBalance, 'TRY')})
-                          </span>
-                        </>
-                      ) : (
-                        formatCurrency(account.localOpeningBalance, account.currencyCode)
-                      )}
+                  
+                  {/* Bakiye */}
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #f0f0f0' }}>
+                    <div style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>Bakiye</div>
+                    <div style={{ 
+                      fontSize: 24, 
+                      fontWeight: 'bold',
+                      color: account.currencyCode !== 'TRY' 
+                        ? (account.documentClosingBalance >= 0 ? 'green' : 'red')
+                        : (account.localClosingBalance >= 0 ? 'green' : 'red')
+                    }}>
+                      {account.currencyCode !== 'TRY' 
+                        ? formatCurrency(account.documentClosingBalance, account.currencyCode)
+                        : formatCurrency(account.localClosingBalance, account.currencyCode)
+                      }
                     </div>
-                  </Col>
-                  <Col span={12}>
-                    <Text strong>Kapanış Bakiyesi:</Text>
-                    <div style={{ fontWeight: 'bold' }}>
-                      {account.currencyCode !== 'TRY' ? (
-                        <>
-                          <span style={{ color: account.documentClosingBalance >= 0 ? 'green' : 'red' }}>
-                            {formatCurrency(account.documentClosingBalance, account.currencyCode)}
-                          </span>
-                          <span style={{ marginLeft: 5, fontSize: '0.9em', color: account.localClosingBalance >= 0 ? '#007700' : '#cc0000' }}>
-                            ({formatCurrency(account.localClosingBalance, 'TRY')})
-                          </span>
-                        </>
-                      ) : (
-                        <span style={{ color: account.localClosingBalance >= 0 ? 'green' : 'red' }}>
-                          {formatCurrency(account.localClosingBalance, account.currencyCode)}
-                        </span>
-                      )}
-                    </div>
-                  </Col>
-                </Row>
-                
-                <Divider style={{ margin: '12px 0' }} />
-                
-                <Row gutter={[16, 16]}>
-                  <Col span={12}>
-                    <Text strong>Toplam Tahsilat:</Text>
-                    <div>
-                      {account.currencyCode !== 'TRY' ? (
-                        <>
-                          <span style={{ color: 'green' }}>{formatCurrency(account.documentTotalDebit, account.currencyCode)}</span>
-                          <span style={{ marginLeft: 5, fontSize: '0.9em', color: '#007700' }}>
-                            ({formatCurrency(account.totalReceipt, 'TRY')})
-                          </span>
-                        </>
-                      ) : (
-                        <span style={{ color: 'green' }}>{formatCurrency(account.totalReceipt, account.currencyCode)}</span>
-                      )}
-                    </div>
-                  </Col>
-                  <Col span={12}>
-                    <Text strong>Toplam Ödeme:</Text>
-                    <div>
-                      {account.currencyCode !== 'TRY' ? (
-                        <>
-                          <span style={{ color: 'red' }}>{formatCurrency(account.documentTotalCredit, account.currencyCode)}</span>
-                          <span style={{ marginLeft: 5, fontSize: '0.9em', color: '#cc0000' }}>
-                            ({formatCurrency(account.totalPayment, 'TRY')})
-                          </span>
-                        </>
-                      ) : (
-                        <span style={{ color: 'red' }}>{formatCurrency(account.totalPayment, account.currencyCode)}</span>
-                      )}
-                    </div>
-                  </Col>
-                </Row>
-                
-                <Row gutter={[16, 16]} style={{ marginTop: 8 }}>
-                  <Col span={12}>
-                    <Text strong>Gelen Transfer:</Text>
-                    <div>
-                      {account.currencyCode !== 'TRY' ? (
-                        <>
-                          <span style={{ color: 'blue' }}>{formatCurrency(account.totalTransferIn, account.currencyCode)}</span>
-                          <span style={{ marginLeft: 5, fontSize: '0.9em', color: '#0055aa' }}>
-                            ({formatCurrency(account.totalTransferIn, 'TRY')})
-                          </span>
-                        </>
-                      ) : (
-                        <span style={{ color: 'blue' }}>{formatCurrency(account.totalTransferIn, account.currencyCode)}</span>
-                      )}
-                    </div>
-                  </Col>
-                  <Col span={12}>
-                    <Text strong>Giden Transfer:</Text>
-                    <div>
-                      {account.currencyCode !== 'TRY' ? (
-                        <>
-                          <span style={{ color: 'orange' }}>{formatCurrency(account.totalTransferOut, account.currencyCode)}</span>
-                          <span style={{ marginLeft: 5, fontSize: '0.9em', color: '#cc7700' }}>
-                            ({formatCurrency(account.totalTransferOut, 'TRY')})
-                          </span>
-                        </>
-                      ) : (
-                        <span style={{ color: 'orange' }}>{formatCurrency(account.totalTransferOut, account.currencyCode)}</span>
-                      )}
-                    </div>
-                  </Col>
-                </Row>
-              </Card>
+                    {account.currencyCode !== 'TRY' && (
+                      <div style={{ fontSize: 14, color: '#666', marginTop: 4 }}>
+                        {formatCurrency(account.localClosingBalance, 'TRY')}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* İşlem Özeti */}
+                  <div style={{ padding: '16px 24px' }}>
+                    <Row gutter={[16, 16]}>
+                      <Col span={12}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Badge color="green" />
+                          <ArrowUpOutlined style={{ color: 'green', marginRight: 8 }} />
+                          <span>Tahsilat</span>
+                        </div>
+                        <div style={{ fontSize: 16, fontWeight: 500, marginTop: 4 }}>
+                          {account.currencyCode !== 'TRY' 
+                            ? formatCurrency(account.documentTotalDebit, account.currencyCode)
+                            : formatCurrency(account.localTotalDebit, account.currencyCode)
+                          }
+                        </div>
+                      </Col>
+                      <Col span={12}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Badge color="red" />
+                          <ArrowDownOutlined style={{ color: 'red', marginRight: 8 }} />
+                          <span>Ödeme</span>
+                        </div>
+                        <div style={{ fontSize: 16, fontWeight: 500, marginTop: 4 }}>
+                          {account.currencyCode !== 'TRY' 
+                            ? formatCurrency(account.documentTotalCredit, account.currencyCode)
+                            : formatCurrency(account.localTotalCredit, account.currencyCode)
+                          }
+                        </div>
+                      </Col>
+                    </Row>
+                    
+                    <Divider style={{ margin: '12px 0' }} />
+                    
+                    <Row gutter={[16, 16]}>
+                      <Col span={12}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Badge color="blue" />
+                          <SwapOutlined style={{ color: 'blue', marginRight: 8 }} />
+                          <span>Virman Giriş</span>
+                        </div>
+                        <div style={{ fontSize: 16, fontWeight: 500, marginTop: 4 }}>
+                          {formatCurrency(account.totalTransferIn, account.currencyCode)}
+                        </div>
+                      </Col>
+                      <Col span={12}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Badge color="orange" />
+                          <SwapOutlined style={{ color: 'orange', marginRight: 8 }} />
+                          <span>Virman Çıkış</span>
+                        </div>
+                        <div style={{ fontSize: 16, fontWeight: 500, marginTop: 4 }}>
+                          {formatCurrency(account.totalTransferOut, account.currencyCode)}
+                        </div>
+                      </Col>
+                    </Row>
+                  </div>
+                </Card>
+              </Col>
             ))}
-          </div>
+          </Row>
         )}
       </div>
     </div>
