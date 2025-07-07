@@ -489,10 +489,10 @@ export const mobileCardMenu: MenuItem[] = [
     color: '#434343',
     children: [
       {
-        id: 'user-management',
-        title: 'Kullanıcı İşlemleri',
-        path: '/settings/users',
-        icon: 'UserOutlined'
+        id: 'general-settings',
+        title: 'Genel Ayarlar',
+        path: '/settings',
+        icon: 'SettingOutlined'
       },
       {
         id: 'database-management',
@@ -507,10 +507,34 @@ export const mobileCardMenu: MenuItem[] = [
         icon: 'DatabaseOutlined'
       },
       {
-        id: 'general-settings',
-        title: 'Genel Ayarlar',
-        path: '/settings',
-        icon: 'SettingOutlined'
+        id: 'users',
+        title: 'Kullanıcılar',
+        path: '/users',
+        icon: 'UserGroupIcon'
+      },
+      {
+        id: 'roles',
+        title: 'Roller',
+        path: '/roles',
+        icon: 'CogIcon'
+      },
+      {
+        id: 'user-groups',
+        title: 'Kullanıcı Grupları',
+        path: '/user-groups',
+        icon: 'TeamOutlined'
+      },
+      {
+        id: 'user-permissions',
+        title: 'Kullanıcı Yetkileri',
+        path: '/settings/permissions',
+        icon: 'LockOutlined'
+      },
+      {
+        id: 'action-logs',
+        title: 'İşlem Logları',
+        path: '/settings/logs',
+        icon: 'FileTextOutlined'
       }
     ]
   }
