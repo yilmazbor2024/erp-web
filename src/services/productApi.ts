@@ -3,14 +3,18 @@ import { ApiResponse } from '../api-helpers';
 
 // Ürün tipi tanımlamaları
 export interface ProductVariant {
+  id: string; // Benzersiz tanımlayıcı (UI için gerekli)
   productCode: string;
   productDescription: string;
   colorCode: string;
   colorDescription: string;
   manufacturerColorCode: string;
   itemDim1Code: string;
+  itemDim1Name?: string; // Beden adı/açıklaması
   itemDim2Code: string;
+  itemDim2Name?: string; // İkinci boyut adı/açıklaması
   itemDim3Code: string;
+  itemDim3Name?: string; // Üçüncü boyut adı/açıklaması
   barcodeTypeCode: string;
   barcode: string;
   notHaveBarcodes: boolean;
@@ -26,6 +30,7 @@ export interface ProductVariant {
   // Eski kodla uyumluluk için eklenen alanlar
   color?: string; // colorDescription ile aynı değere sahip olacak
   size?: string; // itemDim1Code ile aynı değere sahip olacak
+  itemTypeCode?: number; // Ürün tipi kodu (1: Ürün, 2: Malzeme)
 }
 
 export interface InventoryStock {
@@ -194,27 +199,50 @@ const productApi = {
         // console.log('Ürün kodu/açıklaması ile bulunan varyantlar:', responseData.length, 'adet');
         
         // API'den gelen verileri ProductVariant formatına dönüştür
-        const variants: ProductVariant[] = responseData.map((item: any) => ({
-          productCode: item.productCode || item.itemCode || '',
-          productDescription: item.productDescription || item.itemDescription || '',
-          colorCode: item.colorCode || '',
-          colorDescription: item.colorDescription || '',
-          manufacturerColorCode: item.manufacturerColorCode || '',
-          itemDim1Code: item.itemDim1Code || '',
-          itemDim2Code: item.itemDim2Code || '',
-          itemDim3Code: item.itemDim3Code || '',
-          barcodeTypeCode: item.barcodeTypeCode || '',
-          barcode: item.barcode || item.usedBarcode || '',
-          notHaveBarcodes: Boolean(item.notHaveBarcodes),
-          qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
-          productTypeCode: item.productTypeCode || item.itemTypeCode || '',
-          productTypeDescription: item.productTypeDescription || '',
-          unitOfMeasureCode1: item.unitOfMeasureCode1 || item.unitOfMeasureCode || '',
-          unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
-          salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
-          vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
-          isBlocked: Boolean(item.isBlocked || item.variantIsBlocked)
-        }));
+        const variants: ProductVariant[] = responseData.map((item: any) => {
+          // itemTypeCode değerini doğru şekilde ayarla
+          let typeCode: number | undefined;
+          
+          if (item.itemTypeCode) {
+            // Eğer doğrudan itemTypeCode varsa, onu kullan
+            typeCode = parseInt(String(item.itemTypeCode));
+          } else if (item.productTypeCode) {
+            // productTypeCode varsa, ona göre belirle
+            // productTypeCode = 0 -> ItemTypeCode = 2 (MALZEME)
+            // productTypeCode = 1 -> ItemTypeCode = 1 (ÜRÜN)
+            typeCode = item.productTypeCode === '0' ? 2 : 1;
+          } else {
+            // Varsayılan olarak ürün (1) kullan
+            typeCode = 1;
+          }
+          
+          return {
+            productCode: item.productCode || item.itemCode || '',
+            productDescription: item.productDescription || item.itemDescription || '',
+            colorCode: item.colorCode || '',
+            colorDescription: item.colorDescription || '',
+            manufacturerColorCode: item.manufacturerColorCode || '',
+            itemDim1Code: item.itemDim1Code || item.size || '',
+            itemDim1Name: item.itemDim1Name || item.itemDim1Description || item.itemDim1Code || '',
+            itemDim2Code: item.itemDim2Code || '',
+            itemDim2Name: item.itemDim2Name || item.itemDim2Description || item.itemDim2Code || '',
+            itemDim3Code: item.itemDim3Code || '',
+            itemDim3Name: item.itemDim3Name || item.itemDim3Description || item.itemDim3Code || '',
+            barcodeTypeCode: item.barcodeTypeCode || '',
+            barcode: item.barcode || item.usedBarcode || '',
+            notHaveBarcodes: Boolean(item.notHaveBarcodes),
+            qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
+            productTypeCode: item.productTypeCode || item.itemTypeCode || '',
+            productTypeDescription: item.productTypeDescription || '',
+            unitOfMeasureCode1: item.unitOfMeasureCode1 || item.unitOfMeasureCode || '',
+            unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
+            salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
+            vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
+            isBlocked: Boolean(item.isBlocked || item.variantIsBlocked),
+            // itemTypeCode alanını ekle
+            itemTypeCode: typeCode
+          };
+        });
         
         return variants;
       }
@@ -662,14 +690,18 @@ const productApi = {
           
           // Item API'den gelen veriyi ProductVariant formatına dönüştür
           const variant: ProductVariant = {
+            id: item.itemCode || '', // id alanı için itemCode kullan
             productCode: item.itemCode || '',
             productDescription: item.itemDescription || '',
             colorCode: item.colorCode || '',
             colorDescription: item.colorDescription || '',
             manufacturerColorCode: item.manufacturerColorCode || '',
-            itemDim1Code: item.itemDim1Code || '',
+            itemDim1Code: item.itemDim1Code || item.size || '',
+            itemDim1Name: item.itemDim1Name || item.itemDim1Description || item.itemDim1Code || '',
             itemDim2Code: item.itemDim2Code || '',
+            itemDim2Name: item.itemDim2Name || item.itemDim2Description || item.itemDim2Code || '',
             itemDim3Code: item.itemDim3Code || '',
+            itemDim3Name: item.itemDim3Name || item.itemDim3Description || item.itemDim3Code || '',
             barcodeTypeCode: item.barcodeTypeCode || '',
             barcode: item.barcode || item.usedBarcode || cleanBarcode,
             notHaveBarcodes: Boolean(item.notHaveBarcodes),
@@ -679,8 +711,10 @@ const productApi = {
             unitOfMeasureCode1: item.unitOfMeasureCode || '',
             unitOfMeasureCode2: '',
             salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
-            vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
-            isBlocked: Boolean(item.isBlocked)
+            vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 10,
+            isBlocked: Boolean(item.isBlocked),
+            // itemTypeCode alanını doğru şekilde ayarla (1: Ürün, 2: Malzeme)
+            itemTypeCode: item.itemTypeCode 
           };
           
           return [variant];
@@ -701,27 +735,50 @@ const productApi = {
         // console.log('Barkod ile ürün varyantları bulundu:', responseData);
         
         // API'den gelen verileri ProductVariant formatına dönüştür
-        const variants: ProductVariant[] = responseData.map((item: any) => ({
-          productCode: item.productCode || item.itemCode || '',
-          productDescription: item.productDescription || item.itemDescription || '',
-          colorCode: item.colorCode || '',
-          colorDescription: item.colorDescription || '',
-          manufacturerColorCode: item.manufacturerColorCode || '',
-          itemDim1Code: item.itemDim1Code || '',
-          itemDim2Code: item.itemDim2Code || '',
-          itemDim3Code: item.itemDim3Code || '',
-          barcodeTypeCode: item.barcodeTypeCode || '',
-          barcode: item.barcode || item.usedBarcode || cleanBarcode,
-          notHaveBarcodes: Boolean(item.notHaveBarcodes),
-          qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
-          productTypeCode: item.productTypeCode || item.itemTypeCode || '',
-          productTypeDescription: item.productTypeDescription || '',
-          unitOfMeasureCode1: item.unitOfMeasureCode1 || item.unitOfMeasureCode || '',
-          unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
-          salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
-          vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
-          isBlocked: Boolean(item.isBlocked || item.variantIsBlocked)
-        }));
+        const variants: ProductVariant[] = responseData.map((item: any) => {
+          // itemTypeCode değerini doğru şekilde ayarla
+          let typeCode: number | undefined;
+          
+          if (item.itemTypeCode) {
+            // Eğer doğrudan itemTypeCode varsa, onu kullan
+            typeCode = parseInt(String(item.itemTypeCode));
+          } else if (item.productTypeCode) {
+            // productTypeCode varsa, ona göre belirle
+            // productTypeCode = 0 -> ItemTypeCode = 2 (MALZEME)
+            // productTypeCode = 1 -> ItemTypeCode = 1 (ÜRÜN)
+            typeCode = item.productTypeCode === '0' ? 2 : 1;
+          } else {
+            // Varsayılan olarak ürün (1) kullan
+            typeCode = 1;
+          }
+          
+          return {
+            productCode: item.productCode || item.itemCode || '',
+            productDescription: item.productDescription || item.itemDescription || '',
+            colorCode: item.colorCode || '',
+            colorDescription: item.colorDescription || '',
+            manufacturerColorCode: item.manufacturerColorCode || '',
+            itemDim1Code: item.itemDim1Code || item.size || '',
+            itemDim1Name: item.itemDim1Name || item.itemDim1Description || item.itemDim1Code || '',
+            itemDim2Code: item.itemDim2Code || '',
+            itemDim2Name: item.itemDim2Name || item.itemDim2Description || item.itemDim2Code || '',
+            itemDim3Code: item.itemDim3Code || '',
+            itemDim3Name: item.itemDim3Name || item.itemDim3Description || item.itemDim3Code || '',
+            barcodeTypeCode: item.barcodeTypeCode || '',
+            barcode: item.barcode || item.usedBarcode || cleanBarcode,
+            notHaveBarcodes: Boolean(item.notHaveBarcodes),
+            qty: item.qty !== null && item.qty !== undefined ? Number(item.qty) : null,
+            productTypeCode: item.productTypeCode || item.itemTypeCode || '',
+            productTypeDescription: item.productTypeDescription || '',
+            unitOfMeasureCode1: item.unitOfMeasureCode1 || item.unitOfMeasureCode || '',
+            unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
+            salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
+            vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
+            isBlocked: Boolean(item.isBlocked || item.variantIsBlocked),
+            // itemTypeCode alanını ekle
+            itemTypeCode: typeCode
+          };
+        });
         
         return variants;
       }
@@ -768,9 +825,12 @@ const productApi = {
             colorCode: item.colorCode || '',
             colorDescription: item.colorDescription || '',
             manufacturerColorCode: item.manufacturerColorCode || '',
-            itemDim1Code: item.itemDim1Code || '',
+            itemDim1Code: item.itemDim1Code || item.size || '',
+            itemDim1Name: item.itemDim1Name || item.itemDim1Description || item.itemDim1Code || '',
             itemDim2Code: item.itemDim2Code || '',
+            itemDim2Name: item.itemDim2Name || item.itemDim2Description || item.itemDim2Code || '',
             itemDim3Code: item.itemDim3Code || '',
+            itemDim3Name: item.itemDim3Name || item.itemDim3Description || item.itemDim3Code || '',
             barcodeTypeCode: item.barcodeTypeCode || '',
             barcode: item.barcode || '',
             notHaveBarcodes: Boolean(item.notHaveBarcodes),
@@ -781,7 +841,9 @@ const productApi = {
             unitOfMeasureCode2: item.unitOfMeasureCode2 || '',
             salesPrice1: typeof item.salesPrice1 === 'number' ? item.salesPrice1 : 0,
             vatRate: item.vatRate !== null && item.vatRate !== undefined ? Number(item.vatRate) : 18,
-            isBlocked: Boolean(item.isBlocked)
+            isBlocked: Boolean(item.isBlocked),
+            // itemTypeCode alanını doğru şekilde ayarla (1: Ürün, 2: Malzeme)
+            itemTypeCode: item.itemTypeCode ? parseInt(item.itemTypeCode) : (item.productTypeCode === '2' ? 2 : 1) // productTypeCode'a göre ayarla
           }));
           
           return variants;
@@ -812,6 +874,7 @@ const productApi = {
           
           // Ürün detayını ProductVariant formatına dönüştür
           const variant: ProductVariant = {
+            id: item.itemCode || item.productCode || '', // id alanı için itemCode kullan
             productCode: item.itemCode || item.productCode || '',
             productDescription: item.itemDescription || item.productDescription || '',
             colorCode: item.colorCode || '',

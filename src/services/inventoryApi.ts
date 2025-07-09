@@ -19,6 +19,8 @@ export interface InventoryStock {
   variantIsBlocked: boolean;
   isNotExist: boolean;
   itemCode: string;
+  productCode: string;
+  quantity: number;
   warehouseCode?: string;
   warehouseName?: string;
 }
@@ -81,26 +83,32 @@ const inventoryApi = {
         console.log('Envanter stok bilgisi bulundu, veri dönüştürülüyor:', inventoryData);
         
         // API'den gelen verileri InventoryStock formatına dönüştür
-        const inventoryStocks: InventoryStock[] = inventoryData.map((item: any) => ({
-          itemTypeCode: item.itemTypeCode || '',
-          itemCode: item.itemCode || item.productCode || '',
-          usedBarcode: item.usedBarcode || item.barcode || '',
-          itemDescription: item.itemDescription || item.productDescription || '',
-          colorDescription: item.colorDescription || '',
-          binCode: item.binCode || '',
-          unitOfMeasureCode: item.unitOfMeasureCode || '',
-          barcodeTypeCode: item.barcodeTypeCode || '',
-          colorCode: item.colorCode || '',
-          itemDim1Code: item.itemDim1Code || '',
-          itemDim2TypeCode: item.itemDim2TypeCode || '',
-          itemDim2Code: item.itemDim2Code || '',
-          itemDim3Code: item.itemDim3Code || '',
-          qty: typeof item.qty === 'number' ? item.qty : 0,
-          variantIsBlocked: Boolean(item.variantIsBlocked),
-          isNotExist: Boolean(item.isNotExist),
-          warehouseCode: item.warehouseCode || '',
-          warehouseName: item.warehouseName || ''
-        }));
+        const inventoryStocks: InventoryStock[] = inventoryData.map((item: any) => {
+          const qty = typeof item.qty === 'number' ? item.qty : 0;
+          return {
+            itemTypeCode: item.itemTypeCode || '',
+            itemCode: item.itemCode || item.productCode || '',
+            usedBarcode: item.usedBarcode || item.barcode || '',
+            itemDescription: item.itemDescription || item.productDescription || '',
+            colorDescription: item.colorDescription || '',
+            binCode: item.binCode || '',
+            unitOfMeasureCode: item.unitOfMeasureCode || '',
+            barcodeTypeCode: item.barcodeTypeCode || '',
+            colorCode: item.colorCode || '',
+            itemDim1Code: item.itemDim1Code || '',
+            itemDim2TypeCode: item.itemDim2TypeCode || '',
+            itemDim2Code: item.itemDim2Code || '',
+            itemDim3Code: item.itemDim3Code || '',
+            qty: qty,
+            // Tip uyumluluğu için gerekli alanlar
+            productCode: item.itemCode || item.productCode || '',
+            quantity: qty,
+            variantIsBlocked: Boolean(item.variantIsBlocked),
+            isNotExist: Boolean(item.isNotExist),
+            warehouseCode: item.warehouseCode || '',
+            warehouseName: item.warehouseName || ''
+          };
+        });
         
         return inventoryStocks;
       }
@@ -153,26 +161,34 @@ const inventoryApi = {
   mapResponseToInventoryStock(data: any[]): InventoryStock[] {
     if (!Array.isArray(data)) return [];
     
-    return data.map((item: any) => ({
-      itemTypeCode: item.itemTypeCode || '',
-      itemCode: item.itemCode || item.productCode || '',
-      usedBarcode: item.usedBarcode || item.barcode || '',
-      itemDescription: item.itemDescription || item.productDescription || '',
-      colorDescription: item.colorDescription || '',
-      binCode: item.binCode || '',
-      unitOfMeasureCode: item.unitOfMeasureCode || item.unitOfMeasureCode1 || '',
-      barcodeTypeCode: item.barcodeTypeCode || '',
-      colorCode: item.colorCode || '',
-      itemDim1Code: item.itemDim1Code || '',
-      itemDim2TypeCode: item.itemDim2TypeCode || '',
-      itemDim2Code: item.itemDim2Code || '',
-      itemDim3Code: item.itemDim3Code || '',
-      qty: typeof item.qty === 'number' ? item.qty : 0,
-      variantIsBlocked: Boolean(item.variantIsBlocked || item.isBlocked),
-      isNotExist: Boolean(item.isNotExist),
-      warehouseCode: item.warehouseCode || '',
-      warehouseName: item.warehouseName || ''
-    }));
+    return data.map((item: any) => {
+      const qty = typeof item.qty === 'number' ? item.qty : 0;
+      const productCode = item.itemCode || item.productCode || '';
+      
+      return {
+        itemTypeCode: item.itemTypeCode || '',
+        itemCode: productCode,
+        usedBarcode: item.usedBarcode || item.barcode || '',
+        itemDescription: item.itemDescription || item.productDescription || '',
+        colorDescription: item.colorDescription || '',
+        binCode: item.binCode || '',
+        unitOfMeasureCode: item.unitOfMeasureCode || item.unitOfMeasureCode1 || '',
+        barcodeTypeCode: item.barcodeTypeCode || '',
+        colorCode: item.colorCode || '',
+        itemDim1Code: item.itemDim1Code || '',
+        itemDim2TypeCode: item.itemDim2TypeCode || '',
+        itemDim2Code: item.itemDim2Code || '',
+        itemDim3Code: item.itemDim3Code || '',
+        qty: qty,
+        // Tip uyumluluğu için gerekli alanlar
+        productCode: productCode,
+        quantity: qty,
+        variantIsBlocked: Boolean(item.variantIsBlocked || item.isBlocked),
+        isNotExist: Boolean(item.isNotExist),
+        warehouseCode: item.warehouseCode || '',
+        warehouseName: item.warehouseName || ''
+      };
+    });
   },
   
   // Ürün koduna göre stok bilgisini getir
