@@ -37,6 +37,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { API_BASE_URL } from '../../config/constants';
 import { customerService } from '../../services/customerService';
 import axios from 'axios';
+import { validateTCNumber, validateTaxNumber } from '../../utils/validationUtils';
 import { useTaxOffices } from '../../hooks/useTaxOffices';
 import { useCurrencies } from '../../hooks/useCurrencies';
 import { useCountriesWithToken, useStatesWithToken, useHierarchyWithToken } from '../../hooks/useLocation';
@@ -567,6 +568,31 @@ const CustomerRegistration = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
+    // TC Kimlik ve vergi numarası doğrulaması
+    if (name === 'taxNumber' && value.length > 0) {
+      // Sadece rakam girişine izin ver
+      if (!/^\d*$/.test(value)) {
+        return; // Rakam değilse işlemi durdur
+      }
+      
+      // Maksimum 10 karakter sınırlaması
+      if (value.length > 10) {
+        return; // 10 karakterden fazla ise işlemi durdur
+      }
+    }
+    
+    if (name === 'identityNumber' && value.length > 0) {
+      // Sadece rakam girişine izin ver
+      if (!/^\d*$/.test(value)) {
+        return; // Rakam değilse işlemi durdur
+      }
+      
+      // Maksimum 11 karakter sınırlaması
+      if (value.length > 11) {
+        return; // 11 karakterden fazla ise işlemi durdur
+      }
+    }
+    
     setFormData(prev => {
       // Eğer müşteri adı değişiyorsa ve gerçek kişi ise, firstName alanını da güncelle
       if (name === 'customerName' && prev.isIndividual) {
@@ -678,8 +704,24 @@ const CustomerRegistration = () => {
     try {
       // Temel doğrulama
       if (!formData.customerName || formData.customerName.trim() === '') {
-        errorMessage = 'Müşteri adı alanı zorunludur';
-        error = new Error(errorMessage);
+        errorMessage = 'Müşteri adı zorunludur';
+        throw new Error(errorMessage);
+      }
+      
+      // TC Kimlik numarası doğrulaması
+      if (formData.country === 'TR' && formData.isIndividual && formData.identityNumber) {
+        if (!validateTCNumber(formData.identityNumber)) {
+          errorMessage = 'Geçersiz TC Kimlik numarası. TC Kimlik numarası 11 haneli olmalı, ilk hanesi 0 olmamalı ve algoritma kontrolünden geçmelidir.';
+          throw new Error(errorMessage);
+        }
+      }
+      
+      // Vergi numarası doğrulaması
+      if (formData.country === 'TR' && !formData.isIndividual && formData.taxNumber) {
+        if (!validateTaxNumber(formData.taxNumber)) {
+          errorMessage = 'Geçersiz vergi numarası. Vergi numarası 10 haneli olmalı ve tüm karakterler rakam olmalıdır.';
+          throw new Error(errorMessage);
+        }
       }
 
       // Form tipine göre doğrulama
@@ -689,36 +731,27 @@ const CustomerRegistration = () => {
           // Bireysel müşteri için doğrulamalar
           if (!formData.identityNumber || formData.identityNumber.trim() === '') {
             errorMessage = 'TC Kimlik Numarası zorunludur';
-            error = new Error(errorMessage);
+            throw new Error(errorMessage);
           }
         } else {
           // Kurumsal müşteri için doğrulamalar
           if (!formData.taxNumber || formData.taxNumber.trim() === '') {
             errorMessage = 'Vergi Numarası zorunludur';
-            error = new Error(errorMessage);
+            throw new Error(errorMessage);
           }
           if (!formData.taxOffice || formData.taxOffice.trim() === '') {
             errorMessage = 'Vergi Dairesi zorunludur';
-            error = new Error(errorMessage);
+            throw new Error(errorMessage);
           }
         }
       } else {
         // Hızlı form için doğrulamalar
         if (!formData.phone && !formData.email) {
           errorMessage = 'Telefon veya E-posta alanlarından en az biri zorunludur';
-          error = new Error(errorMessage);
+          throw new Error(errorMessage);
         }
       }
-
-      if (error) {
-        setSnackbar({
-          open: true,
-          message: `Müşteri oluşturulurken hata oluştu: ${errorMessage}`,
-          severity: 'error'
-        });
-        return;
-      }
-
+      
       // CustomerCreate.tsx ile aynı formatta veri hazırla
       const customerData: any = {
         customerCode: "", // Boş gönder, backend otomatik oluşturacak
@@ -923,19 +956,19 @@ const CustomerRegistration = () => {
       } else {
         // Hata durumu
         console.error('Müşteri oluşturma hatası:', customerResponse);
+        // Hata durumunda ses efekti çal
+        playErrorSound();
         setSnackbar({
           open: true,
           message: `Müşteri oluşturulurken hata oluştu: ${customerResponse.message || 'Bilinmeyen hata'}`,
           severity: 'error'
         });
-        
-        // Hata durumunda ses efekti
-        playErrorSound();
-        
         setIsLoading(false);
       }
     } catch (error: any) {
       console.error('Müşteri kayıt hatası:', error);
+      // Hata durumunda ses efekti çal
+      playErrorSound();
       setSnackbar({
         open: true,
         message: `Müşteri oluşturulurken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
@@ -944,8 +977,6 @@ const CustomerRegistration = () => {
       setIsLoading(false);
     }
   };
-
-  // Form alanlarını temizle
   const resetForm = () => {
     setFormData({
       customerType: 'individual',
