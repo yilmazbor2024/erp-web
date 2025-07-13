@@ -79,6 +79,7 @@
     ]
   },
   "devDependencies": {
+    "@types/lodash": "^4.17.20",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.21",
     "cross-env": "^7.0.3",
