@@ -124,7 +124,7 @@ const CashSummaryPage: React.FC = () => {
                     boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
                     height: '100%'
                   }}
-                  bodyStyle={{ padding: 0 }}
+                  styles={{ body: { padding: 0 } }}
                 >
                   <div style={{ 
                     padding: '16px 24px', 

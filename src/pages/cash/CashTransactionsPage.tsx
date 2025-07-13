@@ -148,7 +148,7 @@ const CashTransactionsPage: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [selectedVoucherType, setSelectedVoucherType] = useState<string>('ALL');
+  const [selectedVoucherType, setSelectedVoucherType] = useState<number>(0); // 0 = Tüm Fişler
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const pageSize = 20;
@@ -173,8 +173,8 @@ const CashTransactionsPage: React.FC = () => {
         langCode: 'TR'
       };
       
-      // Fiş tipi filtresini ekle (ALL değilse)
-      if (selectedVoucherType !== 'ALL') {
+      // Fiş tipi filtresini ekle (0 değilse - 0 = Tüm Fişler)
+      if (selectedVoucherType !== 0) {
         apiParams.cashTransTypeCode = selectedVoucherType;
       }
       
@@ -236,10 +236,10 @@ const CashTransactionsPage: React.FC = () => {
 
   // Fiş tipleri - CashTransTypeCode değerlerine göre (1=Tahsilat, 2=Tediye, 3=Virman)
   const voucherTypes = [
-    { value: 'ALL', label: 'Tüm Fişler' },
-    { value: '1', label: 'Tahsilat Fişleri' },
-    { value: '2', label: 'Tediye Fişleri' },
-    { value: '3', label: 'Virman Fişleri' },
+    { value: 0, label: 'Tüm Fişler' },
+    { value: 1, label: 'Tahsilat Fişleri' },
+    { value: 2, label: 'Tediye Fişleri' },
+    { value: 3, label: 'Virman Fişleri' },
   ];
 
   // Fetch cash accounts and transactions on component mount
@@ -286,8 +286,8 @@ const CashTransactionsPage: React.FC = () => {
         langCode: 'TR'
       };
       
-      // Fiş tipi filtresini ekle (ALL değilse)
-      if (selectedVoucherType !== 'ALL') {
+      // Fiş tipi filtresini ekle (0 değilse - 0 = Tüm Fişler)
+      if (selectedVoucherType !== 0) {
         apiParams.cashTransTypeCode = selectedVoucherType;
       }
       
@@ -429,7 +429,7 @@ const CashTransactionsPage: React.FC = () => {
     // Tüm filtreleri sıfırla
     setSearchText('');
     setSelectedCashAccount('ALL');
-    setSelectedVoucherType('ALL');
+    setSelectedVoucherType(0); // 0 = Tüm Fişler
     
     // Son 30 gün için tarih aralığını ayarla
     const endDate = dayjs();
@@ -509,19 +509,19 @@ const CashTransactionsPage: React.FC = () => {
     }
     
     // Debug - tutar hesaplamasını konsola yazdır
-    if (amount === 0 && (transaction.documentNumber || transaction.cashTransNumber)) {
-      console.log('Sıfır tutarlı işlem:', {
-        fiş: transaction.documentNumber || transaction.cashTransNumber,
-        tip: isIncoming ? 'Tahsilat' : 'Tediye',
-        doc_Debit: transaction.doc_Debit,
-        doc_Credit: transaction.doc_Credit,
-        loc_Debit: transaction.loc_Debit,
-        loc_Credit: transaction.loc_Credit,
-        doc_Balance: transaction.doc_Balance,
-        loc_Balance: transaction.loc_Balance,
-        currencyCode: transaction.doc_CurrencyCode
-      });
-    }
+    // if (amount === 0 && (transaction.documentNumber || transaction.cashTransNumber)) {
+    //   console.log('Sıfır tutarlı işlem:', {
+    //     fiş: transaction.documentNumber || transaction.cashTransNumber,
+    //     tip: isIncoming ? 'Tahsilat' : 'Tediye',
+    //     doc_Debit: transaction.doc_Debit,
+    //     doc_Credit: transaction.doc_Credit,
+    //     loc_Debit: transaction.loc_Debit,
+    //     loc_Credit: transaction.loc_Credit,
+    //     doc_Balance: transaction.doc_Balance,
+    //     loc_Balance: transaction.loc_Balance,
+    //     currencyCode: transaction.doc_CurrencyCode
+    //   });
+    // }
     
     // TRY yerine TL kullan
     const currencyCode = transaction.doc_CurrencyCode === 'TRY' ? 'TL' : transaction.doc_CurrencyCode || 'TL';
@@ -539,7 +539,7 @@ const CashTransactionsPage: React.FC = () => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
           animationDelay: `${index * 0.1}s`
         }}
-        bodyStyle={{ padding: 12 }}
+        styles={{ body: { padding: 12 } }}
       >
         {/* Üst satır: Fiş tipi (sol), Fiş no (orta), Tarih (sağ) */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
