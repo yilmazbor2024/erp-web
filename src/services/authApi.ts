@@ -16,25 +16,22 @@ apiClient.interceptors.request.use(
   (config) => {
     // Login isteği için token eklemeye gerek yok
     if (config.url === API_ENDPOINTS.AUTH.LOGIN) {
-      console.log('Login request - skipping token');
       return config;
     }
     
     const token = getAuthToken();
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
-    } else {
-      console.log('No token available for request');
     }
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
+    console.error('Request interceptor error:', error.message || 'Bilinmeyen hata');
     return Promise.reject(error);
   }
 );
 
-console.log('Auth API base URL:', API_BASE_URL);
+// console.log('Auth API base URL:', API_BASE_URL);
 
 // Login request interface
 interface LoginRequest {

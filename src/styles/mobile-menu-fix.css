@@ -1,0 +1,36 @@
+/* Mobil menü düzeltmeleri */
+.mobile-menu-container {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 9999 !important;
+  width: 100% !important;
+  background-color: white !important;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1) !important;
+  display: flex !important;
+}
+
+/* Dashboard için alt boşluk */
+.dashboard-container {
+  padding-bottom: 80px !important;
+  margin-bottom: 80px !important;
+}
+
+/* Mobil görünümde içerik alanı düzeltmeleri */
+@media (max-width: 768px) {
+  .ant-layout-content {
+    margin-bottom: 80px !important;
+    padding-bottom: 80px !important;
+  }
+  
+  .dashboard-container {
+    padding-bottom: 100px !important;
+    margin-bottom: 100px !important;
+  }
+  
+  /* Sayfanın alt kısmında boşluk bırak */
+  body {
+    padding-bottom: 80px !important;
+  }
+}

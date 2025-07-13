@@ -116,6 +116,25 @@ export const mainMenuItems: MenuItem[] = [
         ]
       },
       {
+        id: 'exchange-rates',
+        title: 'Döviz Kurları',
+        icon: 'DollarOutlined',
+        children: [
+          {
+            id: 'exchange-rates-view',
+            title: 'Döviz Kurlarını Görüntüle',
+            path: '/finance/exchange-rates',
+            icon: 'LineChartOutlined'
+          },
+          {
+            id: 'exchange-rates-settings',
+            title: 'Döviz Kuru Ayarları',
+            path: '/settings',
+            icon: 'SettingOutlined'
+          }
+        ]
+      },
+      {
         id: 'payables',
         title: 'Borç Hesapları',
         icon: 'FallOutlined',
@@ -172,7 +191,7 @@ export const mainMenuItems: MenuItem[] = [
         ]
       },
       {
-        id: 'exchange-rates',
+        id: 'finance-exchange-rates-main',
         title: 'Döviz Kurları',
         path: '/finance/exchange-rates',
         icon: 'DollarOutlined'
@@ -285,7 +304,7 @@ export const mainMenuItems: MenuItem[] = [
       {
         id: 'action-logs',
         title: 'İşlem Logları',
-        path: '/settings/logs',
+        path: '/settings/audit-logs',
         icon: 'FileTextOutlined'
       }
     ]
@@ -533,8 +552,20 @@ export const mobileCardMenu: MenuItem[] = [
       {
         id: 'action-logs',
         title: 'İşlem Logları',
-        path: '/settings/logs',
+        path: '/settings/audit-logs',
         icon: 'FileTextOutlined'
+      },
+      {
+        id: 'barcode-settings',
+        title: 'Barkod Ayarları',
+        path: '/settings/barcode-settings',
+        icon: 'QrcodeOutlined'
+      },
+      {
+        id: 'customer-tokens',
+        title: 'Müşteri QR Kod İzleme',
+        path: '/customer-tokens',
+        icon: 'QrcodeOutlined'
       }
     ]
   }

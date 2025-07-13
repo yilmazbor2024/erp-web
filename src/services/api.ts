@@ -1060,28 +1060,50 @@ export const invoiceApi = {
 
 export const cashApi = {
   getAllCashTransactions: async (langCode: string = 'TR') => {
-    const response = await axiosInstance.get('/api/v1/Cash/transactions', { params: { langCode } });
+    const response = await axiosInstance.get('/api/v1/payment/cash-transactions', { params: { langCode } });
     return response.data.data; 
   },
   getCashTransactionsByCurrency: async (currencyCode: string, langCode: string = 'TR') => {
-    const response = await axiosInstance.get(`/api/v1/Cash/transactions/currency/${currencyCode}`, { params: { langCode } });
+    const response = await axiosInstance.get('/api/v1/payment/cash-transactions', { 
+      params: { 
+        currencyCode,
+        langCode 
+      }
+    });
     return response.data.data;
   },
   getCashTransactionsByType: async (cashTransTypeCode: number, langCode: string = 'TR') => {
-    const response = await axiosInstance.get(`/api/v1/Cash/transactions/type/${cashTransTypeCode}`, { params: { langCode } });
+    const response = await axiosInstance.get('/api/v1/payment/cash-transactions', { 
+      params: { 
+        transactionType: cashTransTypeCode,
+        langCode 
+      }
+    });
     return response.data.data;
   },
   getCashTransactionsByCurrencyAndType: async (currencyCode: string, cashTransTypeCode: number, langCode: string = 'TR') => {
-    const response = await axiosInstance.get(`/api/v1/Cash/transactions/currency/${currencyCode}/type/${cashTransTypeCode}`, { params: { langCode } });
+    const response = await axiosInstance.get('/api/v1/payment/cash-transactions', { 
+      params: { 
+        currencyCode,
+        transactionType: cashTransTypeCode,
+        langCode 
+      }
+    });
     return response.data.data;
   },
   getCashTransactionsByDateRange: async (startDate: Date, endDate: Date, langCode: string = 'TR') => {
-    const response = await axiosInstance.get('/api/v1/Cash/transactions/date-range', { 
+    const response = await axiosInstance.get('/api/v1/payment/cash-transactions', { 
       params: { 
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],
         langCode 
       }
+    });
+    return response.data.data;
+  },
+  getCashTransactionDetail: async (transactionNumber: string, langCode: string = 'TR') => {
+    const response = await axiosInstance.get(`/api/v1/payment/cash-transaction/${transactionNumber}`, { 
+      params: { langCode }
     });
     return response.data.data;
   }

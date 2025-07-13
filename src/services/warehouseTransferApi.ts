@@ -40,6 +40,7 @@ export interface WarehouseTransferRequest {
   description?: string;
   operationDate?: string; // İşlem tarihi
   shipmentMethodCode: string; // Sevkiyat yöntemi kodu (zorunlu)
+  innerProcessCode: string; // İşlem kodu: WT (depo transferi) veya OP (üretim siparişi)
   items: WarehouseTransferItemRequest[];
 }
 
@@ -48,10 +49,15 @@ export interface WarehouseTransferItemRequest {
   itemCode: string;
   colorCode?: string;
   itemDim1Code?: string;
-  quantity: number;
+  Quantity: number; // Backend ile uyumlu olması için quantity yerine Quantity kullanıyoruz (ondalıklı değerleri destekler)
+  quantity?: number; // Eski formlardan gelen quantity alanı (Quantity ile aynı ama küçük harfle)
   unitCode: string;
   lineDescription?: string;
   barcode?: string; // Barkod (API tarafından zorunlu)
+  currencyCode?: string; // Para birimi kodu (varsayılan: TRY)
+  costPrice?: number; // Birim maliyet fiyatı
+  costAmount?: number; // Toplam maliyet tutarı (Quantity x costPrice)
+  itemTypeCode?: number; // Ürün tipi kodu (1: Ürün, 2: Malzeme)
 }
 
 // Depolar arası sevk filtreleme parametreleri
@@ -153,38 +159,137 @@ const warehouseTransferApi = {
   },
   
   // Yeni bir depolar arası sevk kaydı oluşturan fonksiyon
-  createWarehouseTransfer: async (request: WarehouseTransferRequest): Promise<string | null> => {
+  createWarehouseTransfer: async (request: WarehouseTransferRequest): Promise<WarehouseTransferResponse> => {
     try {
-      // İstek verilerini detaylı görüntüle
-      console.log('API isteği detayları:', JSON.stringify(request, null, 2));
-      
-      // Önemli alanları kontrol et
-      console.log('Kaynak depo:', request.sourceWarehouseCode);
-      console.log('Hedef depo:', request.targetWarehouseCode);
-      console.log('İşlem tarihi:', request.operationDate);
-      console.log('Ürün sayısı:', request.items.length);
-      
-      // Ürün detaylarını kontrol et
-      request.items.forEach((item, index) => {
-        console.log(`Ürün ${index + 1}:`, {
-          itemCode: item.itemCode,
-          colorCode: item.colorCode,
-          itemDim1Code: item.itemDim1Code,
-          quantity: item.quantity,
-          unitCode: item.unitCode
-        });
+      // Açıklama alanı zorunlu, boş ise varsayılan bir değer atayarak hata almasını önleme
+      const requestWithDescription = {
+        ...request,
+        description: request.description || 'Depolar Arası Transfer ' + new Date().toLocaleDateString('tr-TR')
+      };
+
+      // Ürün satırlarını düzgün formata getir
+      requestWithDescription.items = request.items.map(item => {
+        const { quantity: origQuantity, ...rest } = item;
+        
+        // Miktar değerini float olarak hazırlama
+        let finalQuantity = origQuantity || item.Quantity || 1;
+        
+        // Miktar string ise ("12,45" gibi) float'a çevir
+        if (typeof finalQuantity === 'string') {
+          // Virgüllü sayıyı noktalı sayıya çevir ("12,45" -> "12.45")
+          const strValue = finalQuantity as string;
+          finalQuantity = parseFloat(strValue.replace(',', '.'));
+        }
+        
+        // Sayı değilse veya NaN ise 1 olarak ayarla
+        if (isNaN(finalQuantity) || finalQuantity <= 0) {
+          finalQuantity = 1;
+        }
+        
+        return {
+          ...rest,
+          barcode: item.barcode || item.itemCode,
+          Quantity: finalQuantity, // Düzeltilmiş miktar formatı
+          currencyCode: item.currencyCode || 'TRY',
+          costPrice: item.costPrice || 0,
+          costAmount: item.costAmount || 0,
+          colorCode: item.colorCode || '0', // ColorCode zorunlu alan
+          itemDim1Code: item.itemDim1Code || '', // ItemDim1Code zorunlu alan
+          itemTypeCode: item.itemTypeCode !== undefined ? item.itemTypeCode : 2 // Ürünün kendi tipini kullan, yoksa varsayılan olarak 2 (Malzeme)
+        };
       });
-      
-      const response = await axiosInstance.post<ApiResponse<string>>('/api/WarehouseTransfer', request);
-      
-      if (response.data.success && response.data.data) {
-        return response.data.data; // Oluşturulan sevk numarası
-      } else {
-        console.warn('API: WarehouseTransfer create endpoint returned success=false or no data', response.data);
-        return null;
+
+      console.log('Depolar arası transfer oluşturma isteği:', requestWithDescription);
+
+      // Depolar arası transfer oluştur
+      const response = await axiosInstance.post<ApiResponse<string>>('/api/WarehouseTransfer', requestWithDescription);
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Depolar arası transfer oluşturulamadı');
       }
+
+      const transferNumber = response.data.data;
+      console.log('Depolar arası transfer başarıyla oluşturuldu. Transfer No:', transferNumber);
+
+      // Oluşturulan transfer detaylarını getir
+      let detailResponse;
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      // Yeniden deneme mekanizması
+      while (retryCount < maxRetries) {
+        try {
+          detailResponse = await axiosInstance.get<ApiResponse<WarehouseTransferResponse>>(`/api/WarehouseTransfer/${transferNumber}`);
+          
+          // Başarılı yanıt ve veri varsa döngüden çık
+          if (detailResponse.data.success && detailResponse.data.data) {
+            break;
+          }
+          
+          // Yanıt var ama satırlar olmayabilir, satırları ayrıca getirmeyi dene
+          console.log(`Deneme ${retryCount + 1}: Yanıt alındı ama satırlar kontrol ediliyor...`);
+          
+          try {
+            const itemsResponse = await axiosInstance.get<ApiResponse<WarehouseTransferItemResponse[]>>(
+              `/api/WarehouseTransfer/${transferNumber}/items`
+            );
+            
+            // Satırlar başarıyla alındıysa, detay yanıtına ekle
+            if (itemsResponse.data.success && itemsResponse.data.data) {
+              if (!detailResponse.data.data) {
+                detailResponse.data.data = {} as WarehouseTransferResponse;
+              }
+              detailResponse.data.data.items = itemsResponse.data.data;
+              break;
+            }
+          } catch (itemsError) {
+            console.warn(`Transfer satırları getirilirken hata oluştu. Transfer No: ${transferNumber}:`, itemsError);
+            // Ana istek için yeniden denemeye devam et
+          }
+        } catch (retryError) {
+          console.warn(`Deneme ${retryCount + 1} başarısız:`, retryError);
+        }
+        
+        // Yeniden denemeden önce bekle
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        retryCount++;
+      }
+
+      // Tüm denemelerden sonra hala geçerli bir yanıt yoksa
+      if (!detailResponse || !detailResponse.data.success) {
+        console.warn('Birden fazla denemeden sonra transfer detayları getirilemedi');
+        
+        // Sadece transfer numarası ile minimal bir yanıt döndür
+        return {
+          transferNumber: transferNumber,
+          description: requestWithDescription.description,
+          sourceWarehouseCode: requestWithDescription.sourceWarehouseCode,
+          sourceWarehouseName: '',
+          targetWarehouseCode: requestWithDescription.targetWarehouseCode,
+          targetWarehouseName: '',
+          operationDate: new Date().toISOString().split('T')[0],
+          operationTime: new Date().toISOString().split('T')[1].split('.')[0],
+          isCompleted: false,
+          isLocked: false,
+          totalQty: requestWithDescription.items.reduce((sum, item) => sum + (item.Quantity || 0), 0),
+          items: requestWithDescription.items.map(item => ({
+            itemCode: item.itemCode,
+            itemName: '',
+            colorCode: item.colorCode || '',
+            colorName: '',
+            itemDim1Code: item.itemDim1Code || '',
+            itemDim1Name: '',
+            quantity: item.Quantity,
+            unitCode: item.unitCode || '',
+            barcode: item.barcode || '',
+            lineDescription: item.lineDescription || ''
+          }))
+        } as WarehouseTransferResponse;
+      }
+
+      return detailResponse.data.data;
     } catch (error: any) {
-      console.error('API: Error creating warehouse transfer', error);
+      console.error('Depolar arası transfer oluşturulurken hata oluştu:', error);
       
       // Hata detaylarını görüntüle
       if (error.response) {
@@ -194,13 +299,13 @@ const warehouseTransferApi = {
           data: error.response.data
         });
         
-        // Validasyon hatalarını görüntüle
-        if (error.response.data.validationErrors) {
-          console.log('Validasyon hataları:', error.response.data.validationErrors);
+        // Validasyon hatalarını detaylı göster
+        if (error.response.data && error.response.data.validationErrors) {
+          console.error('Validasyon hataları:', error.response.data.validationErrors);
           
           // Her bir validasyon hatasını detaylı göster
           error.response.data.validationErrors.forEach((validationError: any, index: number) => {
-            console.log(`Validasyon hatası ${index + 1}:`, {
+            console.error(`Validasyon hatası ${index + 1}:`, {
               property: validationError.property,
               message: validationError.message,
               value: validationError.value
@@ -209,15 +314,12 @@ const warehouseTransferApi = {
         }
         
         // API mesajını görüntüle
-        if (error.response.data.message) {
-          console.log('API mesajı:', error.response.data.message);
+        if (error.response.data && error.response.data.message) {
+          console.error('API mesajı:', error.response.data.message);
         }
-        
-        // Tüm yanıtı görüntüle
-        console.log('API yanıtı (tüm):', error.response.data);
       }
       
-      return null;
+      throw error;
     }
   },
   

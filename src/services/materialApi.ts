@@ -77,6 +77,16 @@ export interface UpdateMaterialRequest {
   isBlocked?: boolean;
 }
 
+// Malzeme varyantı tipi
+export interface MaterialVariant {
+  itemCode: string;
+  colorCode: string;
+  colorDescription: string;
+  itemDim1Code: string;
+  itemDim1Description: string;
+  barcode: string;
+}
+
 // API fonksiyonları
 const materialApi = {
   // Malzeme listesini getir
@@ -335,15 +345,10 @@ const materialApi = {
       throw error;
     }
   },
-  
   // Malzeme tiplerini getir
   async getMaterialTypes(): Promise<{ code: string; description: string }[]> {
     try {
-      // Malzeme tiplerini getirmek için itemTypeCode=2 parametresi ekliyoruz
-      const queryParams = new URLSearchParams();
-      queryParams.append('itemTypeCode', '2');
-      
-      const response = await axiosInstance.get(`/api/Item/product-types?${queryParams.toString()}`);
+      const response = await axiosInstance.get<ApiResponse<{ code: string; description: string }[]>>('/api/Item/product-types');
       
       if (response.data && response.data.success) {
         return response.data.data.map((type: any) => ({
@@ -362,19 +367,60 @@ const materialApi = {
   // Ölçü birimlerini getir
   async getUnitOfMeasures(): Promise<{ code: string; description: string }[]> {
     try {
-      const response = await axiosInstance.get('/api/Item/unit-of-measures');
+      const response = await axiosInstance.get<ApiResponse<{ code: string; description: string }[]>>('/api/UnitOfMeasure');
       
       if (response.data && response.data.success) {
-        return response.data.data.map((unit: any) => ({
-          code: unit.unitOfMeasureCode,
-          description: unit.unitOfMeasureDescription
+        return response.data.data;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error fetching unit of measures:', error);
+      return [];
+    }
+  },
+  
+  // Malzeme varyantlarını getir
+  async getMaterialVariants(materialCode: string): Promise<MaterialVariant[]> {
+    try {
+      console.log(`Malzeme varyantları getiriliyor: ${materialCode}`);
+      
+      // Malzeme varyantları için API endpoint'i
+      const response = await axiosInstance.get<ApiResponse<any>>(`/api/Item/${materialCode}/variants`);
+      
+      if (response.data && response.data.success && response.data.data) {
+        console.log('Malzeme varyantları:', response.data.data);
+        return response.data.data.map((variant: any) => ({
+          itemCode: variant.itemCode || materialCode,
+          colorCode: variant.colorCode || '',
+          colorDescription: variant.colorDescription || '',
+          itemDim1Code: variant.itemDim1Code || '',
+          itemDim1Description: variant.itemDim1Description || '',
+          barcode: variant.barcode || ''
         }));
       }
       
-      throw new Error('Failed to fetch unit of measures');
+      console.log('Malzeme varyantları bulunamadı');
+      // Varyant bulunamadıysa, varsayılan bir varyant döndür
+      return [{
+        itemCode: materialCode,
+        colorCode: '',
+        colorDescription: '',
+        itemDim1Code: '',
+        itemDim1Description: '',
+        barcode: ''
+      }];
     } catch (error) {
-      console.error('Error fetching unit of measures:', error);
-      throw error;
+      console.error(`Malzeme varyantları getirilirken hata oluştu (${materialCode}):`, error);
+      // Hata durumunda boş varyant döndür
+      return [{
+        itemCode: materialCode,
+        colorCode: '',
+        colorDescription: '',
+        itemDim1Code: '',
+        itemDim1Description: '',
+        barcode: ''
+      }];
     }
   }
 };

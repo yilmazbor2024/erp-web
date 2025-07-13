@@ -1,4 +1,5 @@
 // JWT token işlemleri için yardımcı fonksiyonlar
+import { User } from '../types/auth';
 
 /**
  * Local storage'dan JWT token'ı alır
@@ -42,5 +43,28 @@ export const isTokenValid = (): boolean => {
   } catch (error) {
     console.error('Token doğrulanamadı:', error);
     return false;
+  }
+};
+
+/**
+ * JWT token'dan kullanıcı bilgilerini alır
+ * @returns {User|null} Kullanıcı bilgileri veya null
+ */
+export const getUser = (): User | null => {
+  const token = getAuthToken();
+  if (!token) return null;
+  
+  try {
+    // Token'dan kullanıcı bilgilerini çıkar
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return {
+      id: payload.nameid || payload.sub,
+      userName: payload.unique_name || payload.name,
+      email: payload.email,
+      roles: payload.role || []
+    };
+  } catch (error) {
+    console.error('Kullanıcı bilgileri alınamadı:', error);
+    return null;
   }
 };

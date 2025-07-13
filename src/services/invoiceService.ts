@@ -46,8 +46,7 @@ const apiClient = axios.create({
 
 // Add request interceptor for authentication
 apiClient.interceptors.request.use((config) => {
-  console.log(`Invoice service request to: ${config.baseURL}${config.url}`);
-  const token = localStorage.getItem('accessToken');
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
@@ -57,12 +56,9 @@ apiClient.interceptors.request.use((config) => {
 export const invoiceService = {
   getInvoices: async (params: InvoiceListParams = {}) => {
     try {
-      console.log('Fetching invoices with params:', params);
       const response = await apiClient.get('/api/v1/SalesInvoice', { params });
-      console.log('Invoice response:', response.data);
       
       if (!response.data) {
-        console.warn('No data returned from invoice API');
         return { 
           success: true,
           data: {

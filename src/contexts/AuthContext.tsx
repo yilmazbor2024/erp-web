@@ -24,6 +24,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refreshSession: () => Promise<void>;
+  apiUrl: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -47,6 +48,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [sessionExpiry, setSessionExpiry] = useState<Date | null>(null);
   const [remainingSessionTime, setRemainingSessionTime] = useState<number | null>(null);
   const [sessionCheckInterval, setSessionCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  
+  // API URL'i process.env'den al veya varsayılan değeri kullan
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   // Oturum süresini güncelleme fonksiyonu
   const setSessionTimeoutMinutes = useCallback((minutes: number) => {
@@ -88,6 +92,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Sayfa yüklendiğinde oturum kontrolü
   useEffect(() => {
+    // Login sayfasında değilsek token kontrolü yap
+    const isLoginPage = window.location.pathname === '/login';
+    
+    if (isLoginPage) {
+      // Login sayfasındaysak token kontrolü yapma, sadece loading durumunu kapat
+      setIsLoading(false);
+      return;
+    }
+    
+    // Login sayfasında değilsek token kontrolü yap
     const token = localStorage.getItem('accessToken');
     if (token) {
       fetchUserData();
@@ -139,31 +153,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchUserData = async () => {
     try {
       setIsLoading(true);
-      console.log('🔐 AuthContext: Kullanıcı verisi alınıyor...');
+      // console.log('🔐 AuthContext: Kullanıcı verisi alınıyor...');
     
-    // Token kontrolü
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      console.warn('⚠️ AuthContext: Token bulunamadı, kullanıcı verisi alınmıyor');
-      setIsAuthenticated(false);
-      setUser(null);
-      setError('Oturum açmanız gerekiyor');
-      return;
-    }
-    
-    // API'den kullanıcı bilgilerini al
-    console.log('🔑 AuthContext: Token bulundu, kullanıcı verisi alınıyor');
-    const userData = await authApi.getCurrentUser();
-    
-    if (!userData || !userData.id) {
-      console.error('❌ AuthContext: Kullanıcı verisi alınamadı: Geçersiz veya boş veri');
-      setError('Kullanıcı bilgileri alınamadı');
-      setUser(null);
-      setIsAuthenticated(false);
-      return;
-    }
-    
-    console.log('👍 AuthContext: Kullanıcı verisi başarıyla alındı');
+      // Token kontrolü
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        // console.warn('⚠️ AuthContext: Token bulunamadı, kullanıcı verisi alınmıyor');
+        setIsAuthenticated(false);
+        setUser(null);
+        setError('Oturum açmanız gerekiyor');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Token'in geçerliliğini kontrol et (basit bir kontrol)
+      try {
+        // JWT formatını kontrol et (header.payload.signature)
+        const tokenParts = token.split('.');
+        if (tokenParts.length !== 3) {
+          // console.warn('⚠️ AuthContext: Geçersiz token formatı, kullanıcı verisi alınmıyor');
+          localStorage.removeItem('accessToken'); // Geçersiz token'i sil
+          setIsAuthenticated(false);
+          setUser(null);
+          setError('Geçersiz oturum bilgisi');
+          setIsLoading(false);
+          return;
+        }
+      } catch (tokenError) {
+        // console.error('❌ AuthContext: Token kontrolü sırasında hata:', tokenError);
+        localStorage.removeItem('accessToken'); // Hatalı token'i sil
+        setIsAuthenticated(false);
+        setUser(null);
+        setError('Oturum bilgisi kontrolü sırasında hata oluştu');
+        setIsLoading(false);
+        return;
+      }
+      
+      // API'den kullanıcı bilgilerini al
+      // console.log('🔑 AuthContext: Token bulundu, kullanıcı verisi alınıyor');
+      const userData = await authApi.getCurrentUser();
+      
+      if (!userData || !userData.id) {
+        // console.error('❌ AuthContext: Kullanıcı verisi alınamadı: Geçersiz veya boş veri');
+        setError('Kullanıcı bilgileri alınamadı');
+        setUser(null);
+        setIsAuthenticated(false);
+        setIsLoading(false);
+        return;
+      }
+      
+      // console.log('👍 AuthContext: Kullanıcı verisi başarıyla alındı');
       setUser(userData);
       setIsAuthenticated(true);
       setError(null);
@@ -274,36 +313,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      console.log('AuthContext: Logging out user');
+      // console.log('AuthContext: Logging out user');
       
       // API çağrısını dene, hata olsa bile devam et
       try {
         await authApi.logout();
-        console.log('AuthContext: Logout API call successful');
+        // console.log('AuthContext: Logout API call successful');
       } catch (error) {
-        console.warn('AuthContext: Logout API call failed, proceeding with local logout');
+        // console.warn('AuthContext: Logout API call failed, proceeding with local logout');
       }
       
       // Her durumda local storage ve state'i temizle
-      console.log('AuthContext: Clearing tokens and user data');
+      // console.log('AuthContext: Clearing tokens and user data');
+      
+      // Tüm token'ları temizle
       localStorage.removeItem('accessToken');
       localStorage.removeItem('token');
+      localStorage.removeItem('customerToken');
       sessionStorage.removeItem('token');
+      
+      // Kullanıcı veritabanı seçimini temizle
+      localStorage.removeItem('selectedDatabaseId');
+      
+      // Diğer oturum bilgilerini temizle
+      localStorage.removeItem('lastActivity');
+      
+      // State'i sıfırla
       setUser(null);
       setIsAuthenticated(false);
       setError(null);
       setSessionExpiry(null);
       setRemainingSessionTime(null);
       
-      console.log('AuthContext: Logout completed successfully');
+      // console.log('AuthContext: Logout completed successfully');
     } catch (error) {
-      console.error('AuthContext: Error during logout:', error);
+      // console.error('AuthContext: Error during logout:', error);
       // Hata olsa bile storage ve state'i temizlemeyi dene
       localStorage.removeItem('accessToken');
       localStorage.removeItem('token');
+      localStorage.removeItem('customerToken');
       sessionStorage.removeItem('token');
+      localStorage.removeItem('selectedDatabaseId');
+      localStorage.removeItem('lastActivity');
+      
       setUser(null);
       setIsAuthenticated(false);
+      setError(null);
       setSessionExpiry(null);
       setRemainingSessionTime(null);
     }
@@ -319,7 +374,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     remainingSessionTime,
     login,
     logout,
-    refreshSession
+    refreshSession,
+    apiUrl
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

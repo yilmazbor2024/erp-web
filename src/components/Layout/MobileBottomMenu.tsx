@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { mobileBottomMenu } from '../../config/menuConfig';
 import {
@@ -11,6 +11,22 @@ import {
 const MobileBottomMenu: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isDesktop, setIsDesktop] = useState<boolean>(window.innerWidth >= 768);
+  
+  useEffect(() => {
+    // Pencere boyutu değiştiğinde kontrol et
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    
+    // Event listener ekle
+    window.addEventListener('resize', handleResize);
+    
+    // Component unmount olduğunda event listener'ı kaldır
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   const getIcon = (iconName: string | undefined): React.ReactNode => {
     switch (iconName) {
@@ -33,8 +49,13 @@ const MobileBottomMenu: React.FC = () => {
     }
   };
 
+  // Masaüstü görünümünde menüyü tamamen gizle
+  if (isDesktop) {
+    return null;
+  }
+  
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[9999] mobile-menu-container" style={{ position: 'fixed', bottom: 0, width: '100%', height: '64px' }}>
       <div className="grid grid-cols-4 h-16">
         {mobileBottomMenu.map((item) => {
           const isActive = location.pathname === item.path;

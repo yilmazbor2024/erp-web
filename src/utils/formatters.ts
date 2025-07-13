@@ -47,3 +47,26 @@ export const formatDateTime = (date: Date | string): string => {
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleString('tr-TR');
 };
+
+/**
+ * Para birimi formatlamak için yardımcı fonksiyon
+ * @param amount Formatlanacak tutar
+ * @param currencyCode Para birimi kodu (TRY, USD, EUR vb.)
+ * @returns Formatlanmış para birimi string'i
+ */
+export const formatCurrency = (amount: number, currencyCode: string = 'TRY'): string => {
+  const currencySymbols: Record<string, string> = {
+    TRY: '₺',
+    USD: '$',
+    EUR: '€',
+    GBP: '£'
+  };
+
+  const symbol = currencySymbols[currencyCode] || currencyCode;
+  
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'decimal',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount) + ' ' + symbol;
+};

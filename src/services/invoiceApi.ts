@@ -363,7 +363,7 @@ const invoiceApi = {
   // Toptan Satış Faturası oluştur
   createWholesaleInvoice: async (invoice: CreateInvoiceRequest): Promise<any> => {
     try {
-      console.log('Creating wholesale invoice:', invoice);
+      // console.log('Creating wholesale invoice:', invoice);
       
       // Zorunlu alanları kontrol et ve varsayılan değerleri ata
       const invoiceData = {
@@ -390,11 +390,11 @@ const invoiceApi = {
         }))
       };
       
-      console.log('Sending invoice data:', invoiceData);
+      // console.log('Sending invoice data:', invoiceData);
       
       // Doğru endpoint'i kullan
       const response = await api.post('/api/v1/Invoice', invoiceData);
-      console.log('API response:', response.data);
+      // console.log('API response:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('Error in createWholesaleInvoice:', error);
@@ -409,7 +409,7 @@ const invoiceApi = {
   // Toptan Alış Faturası oluştur
   createWholesalePurchaseInvoice: async (invoice: CreateInvoiceRequest): Promise<any> => {
     try {
-      console.log('Creating wholesale purchase invoice:', invoice);
+      // console.log('Creating wholesale purchase invoice:', invoice);
       
       // Zorunlu alanları kontrol et ve varsayılan değerleri ata
       const invoiceData = {
@@ -432,11 +432,11 @@ const invoiceApi = {
         }))
       };
       
-      console.log('Sending invoice data:', invoiceData);
+      // console.log('Sending invoice data:', invoiceData);
       
       // Doğru endpoint'i kullan
       const response = await api.post('/api/v1/Invoice/wholesale-purchase', invoiceData);
-      console.log('API response:', response.data);
+      // console.log('API response:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('Error in createWholesalePurchaseInvoice:', error);
@@ -451,7 +451,7 @@ const invoiceApi = {
   // Masraf Faturası oluştur
   createExpenseInvoice: async (invoice: CreateInvoiceRequest): Promise<any> => {
     try {
-      console.log('Creating expense invoice:', invoice);
+      // console.log('Creating expense invoice:', invoice);
       
       // İşlem kodu kontrolü
       if (!invoice.processCode) {
@@ -479,11 +479,11 @@ const invoiceApi = {
         }))
       };
       
-      console.log('Sending invoice data:', invoiceData);
+      // console.log('Sending invoice data:', invoiceData);
       
       // Doğru endpoint'i kullan
       const response = await api.post('/api/v1/Invoice/expense', invoiceData);
-      console.log('API response:', response.data);
+      // console.log('API response:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('Error in createExpenseInvoice:', error);
@@ -635,12 +635,12 @@ const invoiceApi = {
         (apiParams as any).processCodeList = processCodeListStr;
       }
       
-      console.log('API params sent to backend:', apiParams);
+      // console.log('API params sent to backend:', apiParams);
       
       const response = await api.get('/api/v1/Invoice/all', { params: apiParams });
       return response.data;
     } catch (error: any) {
-      console.error('Error in getAllInvoices:', error);
+      console.error('Error in getAllInvoices:', error.message || 'Bilinmeyen hata');
       return {
         success: false,
         message: `Fatura listesi alınırken hata oluştu: ${error.message || 'Bilinmeyen hata'}`,
@@ -700,7 +700,7 @@ const invoiceApi = {
   // Toptan Satış Faturası güncelle
   updateWholesaleInvoice: async (invoice: CreateInvoiceRequest): Promise<any> => {
     try {
-      console.log('Updating wholesale invoice:', invoice);
+      // console.log('Updating wholesale invoice:', invoice);
       
       // Zorunlu alanları kontrol et ve varsayılan değerleri ata
       const invoiceData = {
@@ -722,10 +722,10 @@ const invoiceApi = {
         }))
       };
       
-      console.log('Sending invoice data:', invoiceData);
+      // console.log('Sending invoice data:', invoiceData);
       
       const response = await api.put(`/api/v1/Invoice/wholesale/${invoice.invoiceHeaderID}`, invoiceData);
-      console.log('API response:', response.data);
+      // console.log('API response:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('Error in updateWholesaleInvoice:', error);
@@ -740,7 +740,7 @@ const invoiceApi = {
   // Toptan Alış Faturası güncelle
   updateWholesalePurchaseInvoice: async (invoice: CreateInvoiceRequest): Promise<any> => {
     try {
-      console.log('Updating wholesale purchase invoice:', invoice);
+      // console.log('Updating wholesale purchase invoice:', invoice);
       
       // Zorunlu alanları kontrol et ve varsayılan değerleri ata
       const invoiceData = {
@@ -760,10 +760,10 @@ const invoiceApi = {
         }))
       };
       
-      console.log('Sending invoice data:', invoiceData);
+      // console.log('Sending invoice data:', invoiceData);
       
       const response = await api.put(`/api/v1/Invoice/wholesale-purchase/${invoice.invoiceHeaderID}`, invoiceData);
-      console.log('API response:', response.data);
+      // console.log('API response:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('Error in updateWholesalePurchaseInvoice:', error);
@@ -778,7 +778,7 @@ const invoiceApi = {
   // Masraf Faturası güncelle
   updateExpenseInvoice: async (invoice: CreateInvoiceRequest): Promise<any> => {
     try {
-      console.log('Updating expense invoice:', invoice);
+      // console.log('Updating expense invoice:', invoice);
       
       // Zorunlu alanları kontrol et ve varsayılan değerleri ata
       const invoiceData = {
@@ -798,10 +798,10 @@ const invoiceApi = {
         }))
       };
       
-      console.log('Sending invoice data:', invoiceData);
+      // console.log('Sending invoice data:', invoiceData);
       
       const response = await api.put(`/api/v1/Invoice/expense/${invoice.invoiceHeaderID}`, invoiceData);
-      console.log('API response:', response.data);
+      // console.log('API response:', response.data);
       return response.data;
     } catch (error: any) {
       console.error('Error in updateExpenseInvoice:', error);

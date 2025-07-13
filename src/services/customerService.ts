@@ -31,14 +31,11 @@ const apiClient = axios.create({
 
 // Add request interceptor for authentication
 apiClient.interceptors.request.use((config) => {
-  // localStorage yerine sessionStorage'dan token almayı deneyelim
+  // localStorage ve sessionStorage'dan token al
   const token = localStorage.getItem('accessToken') || sessionStorage.getItem('token') || localStorage.getItem('token');
-  console.log('Using auth token:', token ? 'Token exists' : 'No token found');
   
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
-  } else {
-    console.warn('No authentication token found. API request might fail.');
   }
   return config;
 });

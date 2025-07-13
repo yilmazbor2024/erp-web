@@ -28,7 +28,7 @@ if (process.env.REACT_APP_API_URL && process.env.REACT_APP_API_URL.trim() !== ''
 
 export const API_BASE_URL = resolvedApiBaseUrl;
 export const API_URL = API_BASE_URL; // ProductPriceListApi için eklendi
-console.log(`API_BASE_URL set to: ${API_BASE_URL} (NODE_ENV: ${process.env.NODE_ENV})`);
+// console.log(`API_BASE_URL set to: ${API_BASE_URL} (NODE_ENV: ${process.env.NODE_ENV})`);
 
 // Frontend URL'si (barkod oluşturma vb. için)
 let frontendBaseUrl: string;
@@ -39,21 +39,21 @@ if (process.env.REACT_APP_FRONTEND_URL && process.env.REACT_APP_FRONTEND_URL.tri
 } else {
   // REACT_APP_FRONTEND_URL tanımlı değilse veya boşsa
   if (process.env.NODE_ENV === 'production' || process.env.REACT_APP_NODE_ENV === 'production') {
-    console.warn(
-      'PRODUCTION WARNING: REACT_APP_FRONTEND_URL ortam değişkeni tanımsız. ' +
-      'Varsayılan olarak "http://edikravat.tr" kullanılıyor.'
-    );
+    // console.warn(
+    //   'PRODUCTION WARNING: REACT_APP_FRONTEND_URL ortam değişkeni tanımsız. ' +
+    //   'Varsayılan olarak "http://edikravat.tr" kullanılıyor.'
+    // );
     frontendBaseUrl = 'http://edikravat.tr';
   } else {
     // Geliştirme ortamında bile edikravat.tr kullanıyoruz
-    console.log('DEVELOPMENT: REACT_APP_FRONTEND_URL ortam değişkeni tanımsız. edikravat.tr kullanılıyor.');
+    // console.log('DEVELOPMENT: REACT_APP_FRONTEND_URL ortam değişkeni tanımsız. edikravat.tr kullanılıyor.');
     frontendBaseUrl = 'http://edikravat.tr';
-    console.log('Geliştirme ortamında QR kodları için edikravat.tr kullanılıyor:', frontendBaseUrl);
+    // console.log('Geliştirme ortamında QR kodları için edikravat.tr kullanılıyor:', frontendBaseUrl);
   }
 }
 
 export const FRONTEND_URL = frontendBaseUrl;
-console.log(`FRONTEND_URL set to: ${FRONTEND_URL} (NODE_ENV: ${process.env.NODE_ENV})`);
+// console.log(`FRONTEND_URL set to: ${FRONTEND_URL} (NODE_ENV: ${process.env.NODE_ENV})`);
 
 
 // API Endpoints

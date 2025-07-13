@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Card, Row, Col, Statistic, Table, Spin, Empty, Typography, Tabs, DatePicker, Select, Space, Tag, Button, Avatar, Badge, List } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { Card, Row, Col, Statistic, Spin, Empty, Avatar, Badge, List, Table, Tag } from 'antd';
 import dayjs from 'dayjs';
 import { 
   BankOutlined,
@@ -15,11 +15,18 @@ import {
   ArrowDownOutlined,
   FileOutlined,
   ShoppingCartOutlined,
-  DollarOutlined
+  DollarOutlined,
+  UserOutlined, 
+  ShopOutlined,
+  BarChartOutlined,
+  LineChartOutlined,
+  PieChartOutlined,
+  EyeOutlined
 } from '@ant-design/icons';
 import ExchangeRatesCard from '../../components/ExchangeRatesCard';
 import cashVoucherApi from '../../services/cashVoucherApi';
 import invoiceApi from '../../services/invoiceApi';
+import invoiceSummaryApi from '../../services/invoiceSummaryApi';
 import { formatCurrency } from '../../utils/formatters';
 import tcmbExchangeRateApi from '../../services/tcmbExchangeRateApi';
 
@@ -105,6 +112,8 @@ const Dashboard: React.FC = () => {
   const [cashTransactions, setCashTransactions] = useState<CashTransaction[]>([]);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [todayCashTransactions, setTodayCashTransactions] = useState<any[]>([]);
+  const [todayCashTransactionsLoading, setTodayCashTransactionsLoading] = useState(true);
 
   // TCMB'den bugünkü kurları al
   useEffect(() => {
@@ -114,19 +123,13 @@ const Dashboard: React.FC = () => {
         const rates = await tcmbExchangeRateApi.getAllExchangeRates();
         
         setExchangeRates(rates);
-        console.log('TCMB güncel kurlar alındı:', rates);
+        // console.log('TCMB güncel kurlar alındı:', rates);
       } catch (error) {
         console.error('TCMB kur bilgileri alınamadı:', error);
         
-        // Hata durumunda varsayılan kurları kullan
-        const defaultRates: Record<string, number> = {
-          'TRY': 1,
-          'USD': 32.5,
-          'EUR': 35.2,
-          'GBP': 41.8
-        };
+       
         
-        setExchangeRates(defaultRates);
+       
       }
     };
     
@@ -147,7 +150,7 @@ const Dashboard: React.FC = () => {
           background: 'white',
           height: '100%'
         }}
-        bodyStyle={{ padding: 0 }}
+        styles={{ body: { padding: 0 } }}
       >
         {/* Kart başlığı */}
         <div style={{ 
@@ -229,10 +232,50 @@ const Dashboard: React.FC = () => {
                   justifyContent: 'flex-end'
                 }}>
                   {formatCurrency(dailyData?.total || 0)}
-     
                 </div>
               </div>
             </div>
+            
+            {/* Günlük para birimi detayları */}
+            {dailyData?.byCurrency && Object.keys(dailyData?.byCurrency).length > 0 && (
+              <div style={{ 
+                padding: '8px 16px', 
+                background: 'white',
+                borderBottom: '1px solid #f0f0f0',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                {Object.entries(dailyData?.byCurrency).map(([currency, amount]) => (
+                  <div 
+                    key={`daily-${currency}`}
+                    style={{ 
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '2px 8px',
+                      width: '45%',
+                      marginBottom: '2px'
+                    }}
+                  >
+                    <div style={{ 
+                      fontSize: 10, 
+                      color: '#666',
+                      fontWeight: 500 
+                    }}>
+                      {currency}
+                    </div>
+                    <div style={{ 
+                      fontSize: 10, 
+                      color: '#666',
+                      fontWeight: 500
+                    }}>
+                      {Number(amount).toLocaleString('tr-TR')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             
             {/* Haftalık satır */}
             <div style={{ 
@@ -280,10 +323,50 @@ const Dashboard: React.FC = () => {
                   justifyContent: 'flex-end'
                 }}>
                   {formatCurrency(weeklyData?.total || 0)}
-                
                 </div>
               </div>
             </div>
+            
+            {/* Haftalık para birimi detayları */}
+            {weeklyData?.byCurrency && Object.keys(weeklyData?.byCurrency).length > 0 && (
+              <div style={{ 
+                padding: '8px 16px', 
+                background: '#f9f9f9',
+                borderBottom: '1px solid #f0f0f0',
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px'
+              }}>
+                {Object.entries(weeklyData?.byCurrency).map(([currency, amount]) => (
+                  <div 
+                    key={`weekly-${currency}`}
+                    style={{ 
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '2px 8px',
+                      width: '45%',
+                      marginBottom: '2px'
+                    }}
+                  >
+                    <div style={{ 
+                      fontSize: 10, 
+                      color: '#666',
+                      fontWeight: 500 
+                    }}>
+                      {currency}
+                    </div>
+                    <div style={{ 
+                      fontSize: 10, 
+                      color: '#666',
+                      fontWeight: 500
+                    }}>
+                      {Number(amount).toLocaleString('tr-TR')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             
             {/* Aylık satır */}
             <div style={{ 
@@ -360,17 +443,16 @@ const Dashboard: React.FC = () => {
                     <div style={{ 
                       fontSize: 11, 
                       color: '#666',
-                      fontWeight: 500
+                      fontWeight: 500 
                     }}>
-                      {formatCurrency(Number(amount))}
-                      <span style={{ marginLeft: '2px' }}>₺</span>
+                      {currency}
                     </div>
                     <div style={{ 
                       fontSize: 11, 
                       color: '#666',
-                      fontWeight: 500 
+                      fontWeight: 500
                     }}>
-                      {currency}
+                      {Number(amount).toLocaleString('tr-TR')}
                     </div>
                   </div>
                 ))}
@@ -423,10 +505,10 @@ const Dashboard: React.FC = () => {
         langCode: 'TR'
       };
       
-      console.log('Günlük kasa hareketleri için parametreler:', apiParams);
+      // console.log('Günlük kasa hareketleri için parametreler:', apiParams);
       
       const response = await cashVoucherApi.getCashBalances(apiParams);
-      console.log('Günlük kasa hareketleri yanıtı:', response);
+      // console.log('Günlük kasa hareketleri yanıtı:', response);
       
       if (response.success && response.data) {
         // Tüm işlemleri birleştir
@@ -455,142 +537,188 @@ const Dashboard: React.FC = () => {
   const fetchInvoiceSummary = async () => {
     setInvoiceSummaryLoading(true);
     try {
+      // Token kontrolü yap
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+      if (!token) {
+        // Token yoksa boş veri göster
+        setInvoiceSummary(getDefaultInvoiceSummary());
+        setInvoiceSummaryLoading(false);
+        return;
+      }
+
+      // Önce invoiceSummaryApi'yi deneyelim (daha optimize)
+      try {
+        const response = await invoiceSummaryApi.getInvoiceSummary({});
+        if (response?.success && response?.data) {
+          setInvoiceSummary(response.data);
+          setInvoiceSummaryLoading(false);
+          return;
+        }
+      } catch (summaryError) {
+        // API hatası durumunda alternatif yönteme geç (sessizce)
+      }
+      
+      // API çalışmıyorsa manuel hesaplama yapalım
       const today = dayjs();
       const startOfWeek = today.startOf('week');
       const startOfMonth = today.startOf('month');
       
-      // Günlük, haftalık ve aylık veriler için API çağrıları
-      const [dailySales, dailyPurchase, dailyExpense, weeklySales, weeklyPurchase, weeklyExpense, monthlySales, monthlyPurchase, monthlyExpense] = await Promise.all([
-        // Günlük faturalar
-        invoiceApi.getAllInvoices({
-          startDate: today.format('YYYY-MM-DD'),
-          endDate: today.format('YYYY-MM-DD'),
-          processCode: 'WS',
-          pageSize: 1000
-        }),
-        invoiceApi.getAllInvoices({
-          startDate: today.format('YYYY-MM-DD'),
-          endDate: today.format('YYYY-MM-DD'),
-          processCode: 'BP',
-          pageSize: 1000
-        }),
-        invoiceApi.getAllInvoices({
-          startDate: today.format('YYYY-MM-DD'),
-          endDate: today.format('YYYY-MM-DD'),
-          processCode: 'EP',
-          pageSize: 1000
-        }),
-        
-        // Haftalık faturalar
-        invoiceApi.getAllInvoices({
-          startDate: startOfWeek.format('YYYY-MM-DD'),
-          endDate: today.format('YYYY-MM-DD'),
-          processCode: 'WS',
-          pageSize: 1000
-        }),
-        invoiceApi.getAllInvoices({
-          startDate: startOfWeek.format('YYYY-MM-DD'),
-          endDate: today.format('YYYY-MM-DD'),
-          processCode: 'BP',
-          pageSize: 1000
-        }),
-        invoiceApi.getAllInvoices({
-          startDate: startOfWeek.format('YYYY-MM-DD'),
-          endDate: today.format('YYYY-MM-DD'),
-          processCode: 'EP',
-          pageSize: 1000
-        }),
-        
-        // Aylık faturalar
-        invoiceApi.getAllInvoices({
-          startDate: startOfMonth.format('YYYY-MM-DD'),
-          endDate: today.format('YYYY-MM-DD'),
-          processCode: 'WS',
-          pageSize: 1000
-        }),
-        invoiceApi.getAllInvoices({
-          startDate: startOfMonth.format('YYYY-MM-DD'),
-          endDate: today.format('YYYY-MM-DD'),
-          processCode: 'BP',
-          pageSize: 1000
-        }),
-        invoiceApi.getAllInvoices({
-          startDate: startOfMonth.format('YYYY-MM-DD'),
-          endDate: today.format('YYYY-MM-DD'),
-          processCode: 'EP',
-          pageSize: 1000
-        })
-      ]);
-      
-      // Toplamları hesapla
-      const calculateTotal = (data: any) => {
-        if (!data || !data.success || !data.data || !data.data.items) {
-          return { count: 0, total: 0, byCurrency: {} };
-        }
-        
-        const items = data.data.items;
-        const count = items.length;
-        
-        // Para birimine göre gruplandırma - orijinal para birimlerinde
-        const byCurrency: Record<string, number> = {};
-        let totalInTRY = 0;
-        
-        items.forEach((item: any) => {
-          const currency = item.docCurrencyCode || 'TRY';
-          const amount = item.netAmount || 0;
+      try {
+        // Günlük, haftalık ve aylık veriler için API çağrıları
+        const [dailySales, dailyPurchase, dailyExpense, weeklySales, weeklyPurchase, weeklyExpense, monthlySales, monthlyPurchase, monthlyExpense] = await Promise.all([
+          // Günlük faturalar
+          invoiceApi.getAllInvoices({
+            startDate: today.format('YYYY-MM-DD'),
+            endDate: today.format('YYYY-MM-DD'),
+            processCode: 'WS',
+            pageSize: 500 // Daha az veri getir (performans için)
+          }),
+          invoiceApi.getAllInvoices({
+            startDate: today.format('YYYY-MM-DD'),
+            endDate: today.format('YYYY-MM-DD'),
+            processCode: 'BP',
+            pageSize: 500
+          }),
+          invoiceApi.getAllInvoices({
+            startDate: today.format('YYYY-MM-DD'),
+            endDate: today.format('YYYY-MM-DD'),
+            processCode: 'EP',
+            pageSize: 500
+          }),
           
-          // Orijinal para biriminde toplam
-          if (!byCurrency[currency]) {
-            byCurrency[currency] = 0;
+          // Haftalık faturalar
+          invoiceApi.getAllInvoices({
+            startDate: startOfWeek.format('YYYY-MM-DD'),
+            endDate: today.format('YYYY-MM-DD'),
+            processCode: 'WS',
+            pageSize: 500
+          }),
+          invoiceApi.getAllInvoices({
+            startDate: startOfWeek.format('YYYY-MM-DD'),
+            endDate: today.format('YYYY-MM-DD'),
+            processCode: 'BP',
+            pageSize: 500
+          }),
+          invoiceApi.getAllInvoices({
+            startDate: startOfWeek.format('YYYY-MM-DD'),
+            endDate: today.format('YYYY-MM-DD'),
+            processCode: 'EP',
+            pageSize: 500
+          }),
+          
+          // Aylık faturalar
+          invoiceApi.getAllInvoices({
+            startDate: startOfMonth.format('YYYY-MM-DD'),
+            endDate: today.format('YYYY-MM-DD'),
+            processCode: 'WS',
+            pageSize: 500
+          }),
+          invoiceApi.getAllInvoices({
+            startDate: startOfMonth.format('YYYY-MM-DD'),
+            endDate: today.format('YYYY-MM-DD'),
+            processCode: 'BP',
+            pageSize: 500
+          }),
+          invoiceApi.getAllInvoices({
+            startDate: startOfMonth.format('YYYY-MM-DD'),
+            endDate: today.format('YYYY-MM-DD'),
+            processCode: 'EP',
+            pageSize: 500
+          })
+        ]);
+        
+        // Toplamları hesapla
+        const calculateTotal = (data: any) => {
+          if (!data || !data.success || !data.data || !data.data.items) {
+            return { count: 0, total: 0, byCurrency: {} };
           }
-          byCurrency[currency] += amount;
           
-          // TL karşılığını hesapla
-          let amountInTRY = amount;
-          if (currency !== 'TRY') {
-            // Önce faturadaki kuru dene, yoksa bugünkü kuru kullan, o da yoksa 1 kullan
-            // Not: API'den gelen kurlar 10000'e bölünmüş durumda, faturadaki kurlar ise ham halde
-            const exchangeRate = item.exchangeRate || exchangeRates[currency] || 1;
-            amountInTRY = amount * exchangeRate;
+          const items = data.data.items;
+          const count = items.length;
+          
+          // Para birimine göre gruplandırma - orijinal para birimlerinde
+          const byCurrency: Record<string, number> = {};
+          let totalInTRY = 0;
+          
+          items.forEach((item: any) => {
+            const currency = item.docCurrencyCode || 'TRY';
+            const amount = item.netAmount || 0;
             
-            // Debug için log
-            console.log(`Döviz çevirme: ${amount} ${currency} = ${amountInTRY} TRY (kur: ${exchangeRate})`);
-          }
+            // Orijinal para biriminde toplam
+            if (!byCurrency[currency]) {
+              byCurrency[currency] = 0;
+            }
+            byCurrency[currency] += amount;
+            
+            // TL karşılığını hesapla
+            let amountInTRY = amount;
+            if (currency !== 'TRY') {
+              // Önce faturadaki kuru dene, yoksa bugünkü kuru kullan, o da yoksa 1 kullan
+              const exchangeRate = item.exchangeRate || exchangeRates[currency] || 1;
+              amountInTRY = amount * exchangeRate;
+            }
+            
+            totalInTRY += amountInTRY;
+          });
           
-          totalInTRY += amountInTRY;
-        });
+          return { count, total: totalInTRY, byCurrency };
+        };
         
-        // Debug için log
-        console.log('Hesaplanan toplam:', { count, totalInTRY, byCurrency });
+        // Sonuçları birleştir
+        const summaryData = {
+          daily: {
+            WS: calculateTotal(dailySales),
+            BP: calculateTotal(dailyPurchase),
+            EP: calculateTotal(dailyExpense)
+          },
+          weekly: {
+            WS: calculateTotal(weeklySales),
+            BP: calculateTotal(weeklyPurchase),
+            EP: calculateTotal(weeklyExpense)
+          },
+          monthly: {
+            WS: calculateTotal(monthlySales),
+            BP: calculateTotal(monthlyPurchase),
+            EP: calculateTotal(monthlyExpense)
+          }
+        };
         
-        return { count, total: totalInTRY, byCurrency };
-      };
-      
-      // Sonuçları birleştir
-      const summaryData = {
-        daily: {
-          WS: calculateTotal(dailySales),
-          BP: calculateTotal(dailyPurchase),
-          EP: calculateTotal(dailyExpense)
-        },
-        weekly: {
-          WS: calculateTotal(weeklySales),
-          BP: calculateTotal(weeklyPurchase),
-          EP: calculateTotal(weeklyExpense)
-        },
-        monthly: {
-          WS: calculateTotal(monthlySales),
-          BP: calculateTotal(monthlyPurchase),
-          EP: calculateTotal(monthlyExpense)
-        }
-      };
-      
-      setInvoiceSummary(summaryData);
-    } catch (error) {
-      console.error('Fatura özetleri alınamadı:', error);
+        setInvoiceSummary(summaryData);
+      } catch (apiError: any) {
+        // API hatası durumunda varsayılan değerleri göster
+        setInvoiceSummary(getDefaultInvoiceSummary());
+      }
+    } catch (error: any) {
+      // Sadece beklenmeyen hatalar için log göster
+      if (error?.response?.status !== 400 && error?.response?.status !== 401 && error?.response?.status !== 404) {
+        console.error('Fatura özetleri alınırken beklenmeyen hata:', error?.message || 'Bilinmeyen hata');
+      }
+      // Hata durumunda varsayılan değerleri göster
+      setInvoiceSummary(getDefaultInvoiceSummary());
     } finally {
       setInvoiceSummaryLoading(false);
     }
+  };
+  
+  // Varsayılan fatura özeti için yardımcı fonksiyon
+  const getDefaultInvoiceSummary = () => {
+    return {
+      daily: {
+        WS: { count: 0, total: 0, byCurrency: {} },
+        BP: { count: 0, total: 0, byCurrency: {} },
+        EP: { count: 0, total: 0, byCurrency: {} }
+      },
+      weekly: {
+        WS: { count: 0, total: 0, byCurrency: {} },
+        BP: { count: 0, total: 0, byCurrency: {} },
+        EP: { count: 0, total: 0, byCurrency: {} }
+      },
+      monthly: {
+        WS: { count: 0, total: 0, byCurrency: {} },
+        BP: { count: 0, total: 0, byCurrency: {} },
+        EP: { count: 0, total: 0, byCurrency: {} }
+      }
+    };
   };
   
   // Bugün kesilen faturaları getir
@@ -622,7 +750,28 @@ const Dashboard: React.FC = () => {
                dayjs(a.invoiceDate + ' ' + (a.invoiceTime || '00:00')).valueOf();
       });
       
-      setTodayInvoices(allInvoices);
+      // Debug: API'den gelen fatura verilerini konsola yazdır
+      // console.log('API den gelen fatura verileri:', allInvoices);
+      
+      // Fatura verilerini düzenleme
+      const processedInvoices = allInvoices.map(invoice => {
+        // Cari hesap adı için tüm olası alanları kontrol et
+        const currAccName = invoice.currAccDescription || invoice.currAccName || 
+                           invoice.customerDescription || invoice.vendorDescription || 
+                           invoice.customerName || invoice.vendorName || '-';
+        
+        // Para birimi için tüm olası alanları kontrol et
+        const currencyCode = invoice.docCurrencyCode || invoice.DocCurrencyCode || 
+                            invoice.currencyCode || invoice.CurrencyCode || 'TRY';
+        
+        return {
+          ...invoice,
+          currAccName: currAccName,
+          currencyCode: currencyCode
+        };
+      });
+      
+      setTodayInvoices(processedInvoices);
     } catch (error) {
       console.error('Bugünkü faturalar alınamadı:', error);
       // Hata durumunda boş dizi göster
@@ -632,12 +781,71 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Bugün yapılan kasa hareketlerini getir (Tahsilat, Tediye, Virman)
+  const fetchTodayCashTransactions = async () => {
+    setTodayCashTransactionsLoading(true);
+    try {
+      // Token kontrolü yap
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+      if (!token) {
+        setTodayCashTransactions([]);
+        setTodayCashTransactionsLoading(false);
+        return;
+      }
+      
+      // Tarih formatını backend'in beklediği şekilde ayarla
+      const today = dayjs().format('YYYY-MM-DD');
+      
+      // API çağrısı için parametreler
+      const params = {
+        startDate: today,
+        endDate: today,
+        pageSize: 5, // Daha az veri getir (performans için)
+        pageNumber: 1
+      };
+      
+      try {
+        // Kasa hareketleri raporunu getir
+        const response = await cashVoucherApi.getCashTransactionReport(params);
+        
+        if (response?.success && response?.data?.items && Array.isArray(response.data.items)) {
+          // Kasa hareketlerini işle ve state'e kaydet
+          const processedTransactions = response.data.items.map((item: any) => {
+            return {
+              ...item,
+              // createDate alanını createdDate olarak aktar
+              createdDate: item.createDate || item.documentDate
+            };
+          });
+          
+          setTodayCashTransactions(processedTransactions);
+        } else {
+          // Veri yoksa veya beklenen formatta değilse boş dizi göster
+          setTodayCashTransactions([]);
+        }
+      } catch (innerError: any) {
+        // Backend API hatası (400, 404 gibi) - sessizce boş dizi göster
+        setTodayCashTransactions([]);
+      }
+    } catch (error: any) {
+      // Sadece beklenmeyen hatalar için log göster
+      if (error?.response?.status !== 400 && error?.response?.status !== 401 && error?.response?.status !== 404) {
+        console.error('Bugünkü kasa hareketleri alınamadı:', error?.message || 'Bilinmeyen hata');
+      }
+      // Hata durumunda boş dizi göster
+      setTodayCashTransactions([]);
+    } finally {
+      setTodayCashTransactionsLoading(false);
+    }
+  };
+
   // Sayfa yüklendiğinde verileri getir
   useEffect(() => {
     fetchCashSummary();
     fetchCashTransactions();
     fetchInvoiceSummary();
     fetchTodayInvoices();
+    fetchTodayCashTransactions();
   }, []);
   
   // Fatura tipi için etiket rengi ve metni
@@ -675,16 +883,20 @@ const Dashboard: React.FC = () => {
     },
     {
       title: 'Cari Hesap',
-      dataIndex: 'currAccName',
-      key: 'currAccName',
+      dataIndex: 'currAccDescription',
+      key: 'currAccDescription',
       ellipsis: true,
+      render: (text: string, record: any) => {
+        // Cari hesap adı için öncelikle currAccDescription, yoksa currAccName, ikisi de yoksa boş string göster
+        return text || record.currAccName || '-';
+      }
     },
     {
       title: 'Tutar',
       dataIndex: 'netAmount',
       key: 'netAmount',
       align: 'right' as 'right',
-      render: (amount: number) => formatCurrency(amount || 0, 'TRY')
+      render: (amount: number, record: any) => formatCurrency(record.grossAmount || record.netAmount || 0, record.currencyCode || 'TRY')
     }
   ];
 
@@ -836,15 +1048,58 @@ const Dashboard: React.FC = () => {
           </h3>
           
           <div style={{ background: '#fff', padding: 16, borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-            <Table 
-              dataSource={todayInvoices}
-              columns={invoiceColumns}
-              rowKey="invoiceHeaderID"
-              pagination={{ pageSize: 10, hideOnSinglePage: true }}
-              size="small"
-              scroll={{ x: 'max-content' }}
-              style={{ marginBottom: 16 }}
-            />
+            {isMobile ? (
+              <div style={{ padding: '0px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                <div style={{ backgroundColor: '#1890ff', color: 'white', padding: '8px', fontSize: '1em', fontWeight: 'bold', textAlign: 'center', marginBottom: '8px', borderRadius: '4px 4px 0 0' }}>
+                  Bugün Kesilen Faturalar
+                </div>
+                {todayInvoices.map((invoice: any) => (
+                  <div 
+                    key={invoice.invoiceHeaderID || invoice.invoiceHeaderId} 
+                    style={{ 
+                      padding: '8px 12px', 
+                      marginBottom: '8px', 
+                      backgroundColor: 'white', 
+                      borderRadius: '4px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => navigate(`/invoice/${invoice.invoiceHeaderID || invoice.invoiceHeaderId}`)}
+                  >
+                    {/* Üst satır: Fatura Tipi, Fatura No ve Saat */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <Tag color={invoice.type === 'WS' ? '#52c41a' : invoice.type === 'BP' ? '#faad14' : '#f5222d'} style={{ marginRight: '8px' }}>
+                          {invoice.type === 'WS' ? 'Satış' : invoice.type === 'BP' ? 'Alış' : 'Masraf'}
+                        </Tag>
+                        <span style={{ fontWeight: 'bold', color: '#1890ff' }}>{invoice.invoiceNumber}</span>
+                      </div>
+                      <span style={{ fontWeight: 'bold', color: '#52c41a' }}>{invoice.invoiceTime || '-'}</span>
+                    </div>
+                    
+                    {/* Alt satır: Cari hesap adı ve toplam tutar */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: '500', flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {invoice.currAccDescription || invoice.currAccName || '-'}
+                      </span>
+                      <span style={{ fontWeight: 'bold', color: '#1890ff', flex: 1, textAlign: 'right' }}>
+                        {formatCurrency(invoice.grossAmount || invoice.netAmount || 0, invoice.currencyCode || 'TRY')}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Table 
+                dataSource={todayInvoices}
+                columns={invoiceColumns}
+                rowKey="invoiceHeaderID"
+                pagination={{ pageSize: 10, hideOnSinglePage: true }}
+                size="small"
+                scroll={{ x: 'max-content' }}
+                style={{ marginBottom: 16 }}
+              />
+            )}
           </div>
         </div>
       )}
@@ -854,6 +1109,135 @@ const Dashboard: React.FC = () => {
         <div style={{ marginBottom: 24 }}>
           <h3 style={{ display: 'flex', alignItems: 'center', marginBottom: 16, fontSize: 18 }}>
             <FileOutlined style={{ marginRight: 8 }} /> Bugün Kesilen Faturalar
+          </h3>
+          <div style={{ textAlign: 'center', padding: 24, background: '#fff', borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            <Spin size="default" />
+          </div>
+        </div>
+      )}
+      
+      {/* Bugün Yapılan Kasa Hareketleri Bölümü */}
+      {!todayCashTransactionsLoading && todayCashTransactions && todayCashTransactions.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', marginBottom: 16, fontSize: 18 }}>
+            <WalletOutlined style={{ marginRight: 8 }} /> Bugün Yapılan Kasa Hareketleri
+          </h3>
+          
+          <div style={{ background: '#fff', padding: 16, borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+            {isMobile ? (
+              <div style={{ padding: '0px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
+                <div style={{ backgroundColor: '#1890ff', color: 'white', padding: '8px', fontSize: '1em', fontWeight: 'bold', textAlign: 'center', marginBottom: '8px', borderRadius: '4px 4px 0 0' }}>
+                  Bugün Yapılan Kasa Hareketleri
+                </div>
+                {todayCashTransactions.map((transaction: any) => (
+                  <div 
+                    key={transaction.transactionNumber} 
+                    style={{ 
+                      padding: '8px 12px', 
+                      marginBottom: '8px', 
+                      backgroundColor: 'white', 
+                      borderRadius: '4px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {/* Üst satır: İşlem Tipi, İşlem No ve Saat */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <Tag color={transaction.transactionType === 'Tahsilat' ? '#52c41a' : transaction.transactionType === 'Tediye' ? '#f5222d' : '#faad14'} style={{ marginRight: '8px' }}>
+                          {transaction.transactionType}
+                        </Tag>
+                        <span style={{ fontWeight: 'bold', color: '#1890ff' }}>{transaction.transactionNumber}</span>
+                      </div>
+                      <span style={{ fontWeight: 'bold', color: '#52c41a' }}>
+                        {dayjs(transaction.createDate || transaction.documentDate).format('HH:mm')}
+                      </span>
+                    </div>
+                    
+                    {/* Alt satır: Cari hesap adı ve tutar */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: '500', flex: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {transaction.currAccDesc || transaction.cashAccountName || '-'}
+                      </span>
+                      <span style={{ fontWeight: 'bold', color: transaction.transactionType === 'Tahsilat' ? '#52c41a' : '#f5222d', flex: 1, textAlign: 'right' }}>
+                        {transaction.amount?.toLocaleString('tr-TR') || '0'} {transaction.currencyCode}
+                        {transaction.currencyCode !== 'TRY' && (
+                          <div style={{ fontSize: '11px', color: '#888', fontWeight: 'normal' }}>
+                            {(transaction.amount * (transaction.exchangeRate || 1))?.toLocaleString('tr-TR')} TRY
+                          </div>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <Table 
+                dataSource={todayCashTransactions}
+                columns={[
+                  {
+                    title: 'İşlem Tipi',
+                    dataIndex: 'transactionType',
+                    key: 'transactionType',
+                    render: (text: string) => (
+                      <Tag color={text === 'Tahsilat' ? '#52c41a' : text === 'Tediye' ? '#f5222d' : '#faad14'}>
+                        {text}
+                      </Tag>
+                    )
+                  },
+                  {
+                    title: 'İşlem No',
+                    dataIndex: 'transactionNumber',
+                    key: 'transactionNumber'
+                  },
+                  {
+                    title: 'Saat',
+                    dataIndex: 'createDate',
+                    key: 'createDate',
+                    render: (text: string, record: any) => {
+                      // console.log('Saat için kullanılan değer:', text, typeof text);
+                      return dayjs(text || record.documentDate).format('HH:mm');
+                    }
+                  },
+                  {
+                    title: 'Cari Hesap',
+                    dataIndex: 'currAccDesc',
+                    key: 'currAccDesc',
+                    render: (text: string, record: any) => text || record.cashAccountName || '-'
+                  },
+                  {
+                    title: 'Tutar',
+                    dataIndex: 'amount',
+                    key: 'amount',
+                    align: 'right' as 'right',
+                    render: (text: number, record: any) => (
+                      <div>
+                        <div>{(text || 0).toLocaleString('tr-TR')} {record.currencyCode}</div>
+                        {record.currencyCode !== 'TRY' && (
+                          <div style={{ fontSize: '11px', color: '#888' }}>
+                            {(text * (record.exchangeRate || 1))?.toLocaleString('tr-TR')} TRY
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+                ]}
+                rowKey="transactionNumber"
+                pagination={{ pageSize: 10, hideOnSinglePage: true }}
+                size="small"
+                scroll={{ x: 'max-content' }}
+                style={{ marginBottom: 16 }}
+              />
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Bugünkü Kasa Hareketleri Yüklenirken */}
+      {todayCashTransactionsLoading && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', marginBottom: 16, fontSize: 18 }}>
+            <WalletOutlined style={{ marginRight: 8 }} /> Bugün Yapılan Kasa Hareketleri
           </h3>
           <div style={{ textAlign: 'center', padding: 24, background: '#fff', borderRadius: 4, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <Spin size="default" />
@@ -884,7 +1268,7 @@ const Dashboard: React.FC = () => {
                     height: '100%',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
                   }}
-                  bodyStyle={{ padding: 0 }}
+                  styles={{ body: { padding: 0 } }}
                   hoverable
                   onClick={() => navigate('/cash/summary')}
                 >
