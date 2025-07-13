@@ -903,11 +903,7 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
         right: 0,
         bottom: 0
       }}
-      bodyStyle={{
-        padding: '0px',
-        height: 'calc(100vh - 55px)',
-        overflow: 'auto'
-      }}
+      // Combined styles for body
       modalRender={(node) => (
         <div style={{
           width: '100vw',
@@ -928,7 +924,9 @@ const BarcodeModal: React.FC<BarcodeModalProps> = ({
       styles={{
         body: { 
           padding: '0 8px 8px',
+          height: 'calc(100vh - 55px)',
           maxHeight: 'calc(100vh - 120px)',
+          overflow: 'auto',
           overflowY: 'auto',
           background: '#fff'
         },

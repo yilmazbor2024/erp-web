@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Modal, Input, Button, Table, InputNumber, Row, Col, Space, Typography, Spin, Empty, message, Tag, Switch, Tooltip, Tabs } from 'antd';
-import { ScanOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, EditOutlined, CameraOutlined, CloseOutlined, SettingOutlined } from '@ant-design/icons';
+import { Modal, Input, Button, Table, InputNumber, Row, Col, Space, Typography, Spin, Empty, message, Tag, Switch, Tooltip, Tabs, Form, Popconfirm, Divider, Alert } from 'antd';
+import { ScanOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, EditOutlined, CameraOutlined, CloseOutlined, SettingOutlined, PercentageOutlined } from '@ant-design/icons';
 
 // declarations.d.ts dosyasında tanımladığımız için doğrudan import edebiliriz
 import { debounce } from 'lodash';
@@ -23,6 +23,7 @@ const { TabPane } = Tabs;
 interface ScannedItem {
   variant: ProductVariant;
   quantity: number;
+  discountRate?: number;
 }
 
 interface EnhancedBarcodeModalProps {
@@ -47,6 +48,7 @@ interface EnhancedBarcodeModalProps {
   removeAllScannedItems: () => void;
   updateScannedItemQuantity: (index: number, quantity: number) => void;
   updateScannedItemPrice: (index: number, price: number) => void;
+  updateScannedItemDiscount?: (index: number, discountRate: number) => void;
   currencyCode?: string;
   taxTypeMode?: string;
 }
@@ -73,6 +75,7 @@ const EnhancedBarcodeModal: React.FC<EnhancedBarcodeModalProps> = ({
   removeAllScannedItems,
   updateScannedItemQuantity,
   updateScannedItemPrice,
+  updateScannedItemDiscount,
   currencyCode = 'TRY',
   taxTypeMode
 }) => {
@@ -246,6 +249,17 @@ const EnhancedBarcodeModal: React.FC<EnhancedBarcodeModalProps> = ({
     }
   }, [barcodeQueue, isProcessing, processBarcode]);
   
+  // Seçili satırlar için state
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  
+  // Tablo satır seçimi konfigürasyonu
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (selectedKeys: React.Key[]) => {
+      setSelectedRowKeys(selectedKeys);
+    }
+  };
+  
   // Tablo sütunları
   const columns: ColumnsType<ScannedItem> = [
     {
@@ -290,6 +304,25 @@ const EnhancedBarcodeModal: React.FC<EnhancedBarcodeModalProps> = ({
       )
     },
     {
+      title: 'İskonto (%)',
+      dataIndex: 'discountRate',
+      key: 'discountRate',
+      width: 120,
+      render: (discountRate: number, record: ScannedItem, index: number) => (
+        <InputNumber
+          min={0}
+          max={100}
+          step={0.1}
+          precision={2}
+          style={{ width: '100%' }}
+          value={discountRate || 0}
+          onChange={(value) => updateScannedItemDiscount && updateScannedItemDiscount(index, value || 0)}
+          addonAfter="%"
+          disabled={!updateScannedItemDiscount}
+        />
+      )
+    },
+    {
       title: 'Stok',
       key: 'stock',
       width: 80,
@@ -314,6 +347,58 @@ const EnhancedBarcodeModal: React.FC<EnhancedBarcodeModalProps> = ({
       )
     }
   ];
+  
+  // Toplu güncelleme işlevi
+  const [bulkUpdateModalVisible, setBulkUpdateModalVisible] = useState(false);
+  const [bulkPriceValue, setBulkPriceValue] = useState<number | null>(null);
+  const [bulkDiscountValue, setBulkDiscountValue] = useState<number | null>(null);
+  
+  // Tüm seçili ürünlerin fiyat ve iskonto bilgilerini güncelle
+  const updateAllSelected = () => {
+    const updatedItems = [...scannedItems];
+    let priceUpdated = false;
+    let discountUpdated = false;
+    
+    // Fiyat güncellemesi
+    if (bulkPriceValue !== null && bulkPriceValue >= 0) {
+      selectedRowKeys.forEach((key) => {
+        const keyStr = String(key);
+        const index = updatedItems.findIndex(item => item.variant.productCode === keyStr);
+        if (index !== -1) {
+          updateScannedItemPrice(index, bulkPriceValue);
+        }
+      });
+      priceUpdated = true;
+    }
+    
+    // İskonto güncellemesi
+    if (bulkDiscountValue !== null && bulkDiscountValue >= 0 && bulkDiscountValue <= 100 && updateScannedItemDiscount) {
+      selectedRowKeys.forEach((key) => {
+        const keyStr = String(key);
+        const index = updatedItems.findIndex(item => item.variant.productCode === keyStr);
+        if (index !== -1) {
+          updateScannedItemDiscount(index, bulkDiscountValue);
+        }
+      });
+      discountUpdated = true;
+    }
+    
+    // Modalı kapat ve değerleri sıfırla
+    setBulkUpdateModalVisible(false);
+    setBulkPriceValue(null);
+    setBulkDiscountValue(null);
+    
+    // Başarı mesajı
+    if (priceUpdated && discountUpdated) {
+      message.success(`${selectedRowKeys.length} ürünün fiyatı ve iskonto oranı güncellendi`);
+    } else if (priceUpdated) {
+      message.success(`${selectedRowKeys.length} ürünün fiyatı güncellendi`);
+    } else if (discountUpdated) {
+      message.success(`${selectedRowKeys.length} ürünün iskonto oranı güncellendi`);
+    } else {
+      message.error('Lütfen geçerli bir fiyat veya %0-100 arasında geçerli bir iskonto oranı giriniz');
+    }
+  };
   
   return (
     <Modal
@@ -468,6 +553,14 @@ const EnhancedBarcodeModal: React.FC<EnhancedBarcodeModalProps> = ({
                   >
                     Tümünü Temizle
                   </Button>
+                  
+                  <Button
+                    icon={<EditOutlined />}
+                    onClick={() => setBulkUpdateModalVisible(true)}
+                    disabled={selectedRowKeys.length === 0}
+                  >
+                    Toplu Güncelleme
+                  </Button>
                   <Button 
                     type="primary" 
                     icon={<PlusOutlined />} 
@@ -478,15 +571,16 @@ const EnhancedBarcodeModal: React.FC<EnhancedBarcodeModalProps> = ({
                   </Button>
                 </Space>
               </div>
-              
               <Table
                 dataSource={scannedItems}
                 columns={columns}
                 rowKey={(record) => record.variant.productCode}
+                rowSelection={rowSelection}
                 pagination={false}
                 size="small"
-                locale={{ emptyText: 'Henüz ürün taranmadı' }}
+                scroll={{ y: 300 }}
                 loading={loadingInventory}
+                locale={{ emptyText: 'Henüz ürün taranmadı' }}
               />
             </Col>
           </Row>
@@ -496,6 +590,61 @@ const EnhancedBarcodeModal: React.FC<EnhancedBarcodeModalProps> = ({
           <BarcodeSettingsForm />
         </TabPane>
       </Tabs>
+      
+      {/* Toplu güncelleme modal */}
+      <Modal
+        title="Toplu Ürün Güncelleme"
+        open={bulkUpdateModalVisible}
+        onCancel={() => setBulkUpdateModalVisible(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setBulkUpdateModalVisible(false)}>
+            İptal
+          </Button>,
+          <Button key="submit" type="primary" onClick={updateAllSelected}>
+            Güncelle
+          </Button>,
+        ]}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Text>Seçili {selectedRowKeys.length} ürün için güncelleme:</Text>
+          
+          <Divider orientation="left">Fiyat Güncelleme</Divider>
+          <InputNumber
+            style={{ width: '100%' }}
+            min={0}
+            step={0.01}
+            precision={2}
+            value={bulkPriceValue}
+            onChange={(value) => setBulkPriceValue(value)}
+            addonAfter={currencyCode}
+            placeholder="Yeni fiyat"
+          />
+          
+          {updateScannedItemDiscount && (
+            <>
+              <Divider orientation="left">İskonto Güncelleme</Divider>
+              <InputNumber
+                style={{ width: '100%' }}
+                min={0}
+                max={100}
+                step={0.1}
+                precision={2}
+                value={bulkDiscountValue}
+                onChange={(value) => setBulkDiscountValue(value)}
+                addonAfter="%"
+                placeholder="Yeni iskonto oranı"
+              />
+            </>
+          )}
+          
+          <Alert 
+            style={{ marginTop: 16 }}
+            message="Not: Boş bırakılan alanlar güncellenmeyecektir."
+            type="info"
+            showIcon
+          />
+        </Space>
+      </Modal>
     </Modal>
   );
 };
