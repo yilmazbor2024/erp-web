@@ -150,8 +150,8 @@ const ProductionOrderListPage: React.FC = () => {
                 // Basit arama - tüm fişleri filtrele
                 if (searchText) {
                   const filtered = orders.filter(o => 
-                    o.orderNumber.toLowerCase().includes(searchText.toLowerCase()) ||
-                    o.targetWarehouseName.toLowerCase().includes(searchText.toLowerCase())
+                    (o.orderNumber && o.orderNumber.toLowerCase().includes(searchText.toLowerCase())) ||
+                    (o.targetWarehouseName && o.targetWarehouseName.toLowerCase().includes(searchText.toLowerCase()))
                   );
                   setOrders(filtered);
                 } else {
@@ -219,20 +219,20 @@ const ProductionOrderListPage: React.FC = () => {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  orders.map((order) => (
-                    <TableRow key={order.orderNumber} 
+                  orders.map((order, index) => (
+                    <TableRow key={order.orderNumber || order.transferNumber || `order-${index}`} 
                       sx={{
                         '&:hover': {
                           backgroundColor: 'rgba(0, 0, 0, 0.04)',
                         },
                       }}
-                      onClick={() => handleViewDetails(order.orderNumber)}
+                      onClick={() => order.orderNumber && handleViewDetails(order.orderNumber)}
                     >
                       {/* 1. Kolon: Fiş No, Tarih, Hedef Depo */}
                       <TableCell>
                         <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                           <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                            {order.orderNumber} - {formatDate(order.operationDate)}
+                            {order.orderNumber || '???'} - {formatDate(order.operationDate)}
                           </Typography>
                           <Typography variant="body2" sx={{ mt: 0.5 }}>
                             {order.targetWarehouseCode}
@@ -240,6 +240,13 @@ const ProductionOrderListPage: React.FC = () => {
                           <Typography variant="caption" color="text.secondary">
                             {order.targetWarehouseName.substring(0, 30)}{order.targetWarehouseName.length > 30 ? '...' : ''}
                           </Typography>
+                          
+                          {/* Açıklama alanı */}
+                          {order.description && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontStyle: 'italic' }}>
+                              <span style={{ fontWeight: 'bold' }}>Not:</span> {order.description.substring(0, 50)}{order.description.length > 50 ? '...' : ''}
+                            </Typography>
+                          )}
                         </Box>
                       </TableCell>
                       
@@ -247,12 +254,12 @@ const ProductionOrderListPage: React.FC = () => {
                       <TableCell>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                           {/* Miktar */}
-                          <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                            {order.totalQuantity} AD
+                          <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '1rem' }}>
+                            {order.totalQuantity || order.totalQty || 0} AD
                           </Typography>
                           
                           {/* Durum */}
-                          {order.isApproved ? (
+                          {order.isTransferApproved ? (
                             <Chip label="Onaylandı" color="success" size="small" sx={{ maxWidth: '100%' }} />
                           ) : order.isLocked ? (
                             <Chip 
@@ -272,7 +279,9 @@ const ProductionOrderListPage: React.FC = () => {
                               color="primary"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleViewDetails(order.orderNumber);
+                                if (order.orderNumber) {
+                                  handleViewDetails(order.orderNumber);
+                                }
                               }}
                             >
                               <VisibilityIcon fontSize="small" />

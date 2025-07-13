@@ -308,6 +308,13 @@ const WarehouseTransferListPage: React.FC = () => {
                           <Typography variant="caption" color="text.secondary">
                             {transfer.sourceWarehouseName.substring(0, 15)}{transfer.sourceWarehouseName.length > 15 ? '...' : ''} → {transfer.targetWarehouseName.substring(0, 15)}{transfer.targetWarehouseName.length > 15 ? '...' : ''}
                           </Typography>
+                          
+                          {/* Not alanı */}
+                          {transfer.description && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontStyle: 'italic' }}>
+                              <span style={{ fontWeight: 'bold' }}>Not:</span> {transfer.description.substring(0, 50)}{transfer.description.length > 50 ? '...' : ''}
+                            </Typography>
+                          )}
                         </Box>
                       </TableCell>
                       
